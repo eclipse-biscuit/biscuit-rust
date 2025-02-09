@@ -27,7 +27,6 @@ pem = ["ed25519-dalek/pem", "ed25519-dalek/pkcs8"]
 
 [dependencies]
 rand_core = "^0.6"
-sha2 = "^0.9"
 prost = "0.10"
 prost-types = "0.10"
 regex = { version = "1.5", default-features = false, features = ["std"] }
@@ -38,7 +37,7 @@ thiserror = "1"
 rand = { version = "0.8" }
 wasm-bindgen = { version = "0.2", optional = true }
 base64 = "0.13.0"
-ed25519-dalek = { version = "2.0.0", features = ["rand_core", "zeroize"] }
+ed25519-dalek = { version = "2.0.0", features = ["rand_core", "zeroize", "digest"] }
 serde = { version = "1.0.132", optional = true, features = ["derive"] }
 getrandom = { version = "0.2.15" }
 time = { version = "0.3.7", features = ["formatting", "parsing"] }

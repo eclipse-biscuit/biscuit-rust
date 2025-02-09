@@ -986,4 +986,38 @@ mod tests {
         let deser_pub = PublicKey::from_pem(&pem_pub).unwrap();
         assert_eq!(p256_pub, deser_pub);
     }
+
+    #[test]
+    fn prehashed_signature() {
+        use ::p256::NistP256;
+        use ecdsa::hazmat::DigestPrimitive;
+        use ed25519_dalek::DigestSigner;
+
+        fn generate_authority_block_signature_payload_v1_prehashed<
+            H: ecdsa::signature::digest::Update,
+        >(
+            payload: &[u8],
+            version: u32,
+            hasher: &mut H,
+        ) {
+            hasher.update(b"\0BLOCK\0\0VERSION\0");
+            hasher.update(&version.to_le_bytes());
+
+            hasher.update(&b"\0PAYLOAD\0"[..]);
+            hasher.update(payload);
+        }
+
+        let mut prehashed: ed25519_dalek::Sha512 = ed25519_dalek::Sha512::default();
+        generate_authority_block_signature_payload_v1_prehashed(b"payload", 1, &mut prehashed);
+        let kp = ed25519::KeyPair::new();
+        //let hash = ed25519_dalek::Digest::finalize(prehashed);
+        let sig = kp.kp.try_sign_digest(prehashed).unwrap();
+        println!("{:?}", sig);
+
+        let mut prehashed2 = <NistP256 as DigestPrimitive>::Digest::default();
+        generate_authority_block_signature_payload_v1_prehashed(b"payload", 1, &mut prehashed2);
+        let kp = p256::KeyPair::new();
+        let sig: ecdsa::Signature<NistP256> = kp.kp.try_sign_digest(prehashed2).unwrap();
+        println!("{:?}", sig);
+    }
 }
