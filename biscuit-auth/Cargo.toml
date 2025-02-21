@@ -13,7 +13,7 @@ repository = "https://github.com/biscuit-auth/biscuit-rust"
 [features]
 default = ["regex-full", "datalog-macro", "pem"]
 regex-full = ["regex/perf", "regex/unicode"]
-wasm = ["wasm-bindgen", "getrandom/wasm-bindgen"]
+wasm = ["wasm-bindgen"]
 # used by biscuit-wasm to serialize errors to JSON
 serde-error = ["serde", "biscuit-parser/serde-error"]
 # used by biscuit-quote to parse datalog at compile-time
@@ -40,7 +40,7 @@ wasm-bindgen = { version = "0.2", optional = true }
 base64 = "0.13.0"
 ed25519-dalek = { version = "2.0.0", features = ["rand_core", "zeroize"] }
 serde = { version = "1.0.132", optional = true, features = ["derive"] }
-getrandom = { version = "0.1.16" }
+getrandom = { version = "0.2.15" }
 time = { version = "0.3.7", features = ["formatting", "parsing"] }
 uuid = { version = "1", optional = true }
 biscuit-parser = { version = "0.2.0-alpha.1", path = "../biscuit-parser" }
