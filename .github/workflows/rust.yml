@@ -28,7 +28,7 @@ jobs:
       - name: Build
         run: cargo build --verbose
       - name: Run tests
-        run: cargo test --features="serde-error,bwk" --verbose -p biscuit-auth -p biscuit-quote -p biscuit-parser
+        run: cargo test --features="serde-error,bwk" --verbose
       - name: Check samples
         run: |
           cd biscuit-auth
@@ -50,7 +50,7 @@ jobs:
         run: |
           curl -L $LINK/$CARGO_C_VERSION/$CARGO_C_FILE | tar xz -C ~/.cargo/bin
       - name: Run cargo-c tests
-        run: cargo ctest --release -p biscuit-capi
+        run: cargo ctest --release
 
   coverage:
     name: Coverage

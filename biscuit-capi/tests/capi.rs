@@ -1,4 +1,3 @@
-
 use inline_c::assert_c;
 
 #[test]
