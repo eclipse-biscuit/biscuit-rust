@@ -1,11 +1,9 @@
-//#[cfg(test)]
-#[cfg(feature = "capi")]
-mod capi {
-    use inline_c::assert_c;
 
-    #[test]
-    fn build() {
-        (assert_c! {
+use inline_c::assert_c;
+
+#[test]
+fn build() {
+    (assert_c! {
             #include <stdio.h>
             #include <string.h>
             #include <inttypes.h>
@@ -147,33 +145,32 @@ biscuit block count: 2
 biscuit block 0 context: (null)
 "#,
         );
-    }
+}
 
-    #[test]
-    fn serialize_keys() {
-        (assert_c! {
-            #include <stdio.h>
-            #include <string.h>
-            #include "biscuit_auth.h"
+#[test]
+fn serialize_keys() {
+    (assert_c! {
+        #include <stdio.h>
+        #include <string.h>
+        #include "biscuit_auth.h"
 
-            int main() {
-                char *seed = "abcdefghabcdefghabcdefghabcdefgh";
-                uint8_t * priv_buf = malloc(32);
-                uint8_t * pub_buf = malloc(32);
+        int main() {
+            char *seed = "abcdefghabcdefghabcdefghabcdefgh";
+            uint8_t * priv_buf = malloc(32);
+            uint8_t * pub_buf = malloc(32);
 
 
-                KeyPair * kp = key_pair_new((const uint8_t *) seed, strlen(seed), 0);
-                printf("key_pair creation error? %s\n", error_message());
-                PublicKey* pubkey = key_pair_public(kp);
+            KeyPair * kp = key_pair_new((const uint8_t *) seed, strlen(seed), 0);
+            printf("key_pair creation error? %s\n", error_message());
+            PublicKey* pubkey = key_pair_public(kp);
 
-                key_pair_serialize(kp, priv_buf);
-                public_key_serialize(pubkey, pub_buf);
+            key_pair_serialize(kp, priv_buf);
+            public_key_serialize(pubkey, pub_buf);
 
-                public_key_free(pubkey);
-                key_pair_free(kp);
-            }
-        })
-        .success()
-        .stdout("key_pair creation error? (null)\n");
-    }
+            public_key_free(pubkey);
+            key_pair_free(kp);
+        }
+    })
+    .success()
+    .stdout("key_pair creation error? (null)\n");
 }

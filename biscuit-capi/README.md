@@ -7,7 +7,7 @@ This crate provides a C API for the Biscuit token library. It is a wrapper aroun
 To build the C API, you need to have the Rust toolchain installed. You can then build the C API by running:
 
 ```sh
-cargo cinstall --release --features="capi" --prefix=/path/to/install --destdir=/path/to/destdir
+cargo cinstall --release --prefix=/path/to/install --destdir=/path/to/destdir
 ```
 It will produce a shared library in the `--destdir` directory and also the C headers.
 You can then link against the generated library in your C code.
@@ -21,7 +21,7 @@ Currently, only Linux x86_64 and MacOS (arm) are provided.
 ### Running the tests
 
 ```sh
-cargo ctest --features="capi"
+cargo ctest
 ```
 
 ## License

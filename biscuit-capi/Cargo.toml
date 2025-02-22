@@ -15,11 +15,8 @@ biscuit-auth = { version = "6.0.0-beta.2", path = "../biscuit-auth", features = 
     "serde-error",
     "pem",
 ] }
-libc = { version = "0.2", optional = true }
+libc = "0.2"
 rand = "0.8"
-
-[features]
-capi = ["libc"]
 
 [dev-dependencies]
 inline-c = "0.1"
