@@ -107,11 +107,11 @@ fn main() -> Result<(), error::Token> {
   "#);
 
   // the token restricts to read operations:
-  assert!(biscuit.authorize(&v1).is_ok());
+  assert!(biscuit2.authorize(&v1).is_ok());
   // the second verifier requested a read operation
-  assert!(biscuit.authorize(&v2).is_err());
+  assert!(biscuit2.authorize(&v2).is_err());
   // the third verifier requests /a/file2.txt
-  assert!(biscuit.authorize(&v3).is_err());
+  assert!(biscuit2.authorize(&v3).is_err());
 
   Ok(())
 }
