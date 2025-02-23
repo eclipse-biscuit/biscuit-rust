@@ -323,6 +323,7 @@ pub enum Binary {
     Any,
     Get,
     Ffi(String),
+    Try,
 }
 
 #[cfg(feature = "datalog-macro")]
@@ -392,6 +393,7 @@ impl ToTokens for Binary {
             Binary::Any => quote! { ::biscuit_auth::builder::Binary::Any },
             Binary::Get => quote! { ::biscuit_auth::builder::Binary::Get },
             Binary::Ffi(name) => quote! {::biscuit_auth::builder::Binary::Ffi(#name.to_string()) },
+            Binary::Try => quote! { ::biscuit_auth::builder::Binary::Try },
         });
     }
 }

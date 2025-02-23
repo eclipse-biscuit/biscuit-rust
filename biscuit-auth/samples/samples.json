@@ -3178,6 +3178,81 @@
           ]
         }
       }
+    },
+    {
+      "title": "test try operation",
+      "filename": "test035_try_op.bc",
+      "token": [
+        {
+          "symbols": [],
+          "public_keys": [],
+          "external_key": null,
+          "code": "check if (true === 12).try(true);\ncheck if ((true === 12).try(true === 12)).try(true);\nreject if (true == 12).try(true);\n",
+          "version": 6
+        }
+      ],
+      "validations": {
+        "": {
+          "world": {
+            "facts": [],
+            "rules": [],
+            "checks": [
+              {
+                "origin": 0,
+                "checks": [
+                  "check if ((true === 12).try(true === 12)).try(true)",
+                  "check if (true === 12).try(true)",
+                  "reject if (true == 12).try(true)"
+                ]
+              }
+            ],
+            "policies": [
+              "allow if true"
+            ]
+          },
+          "result": {
+            "Ok": 0
+          },
+          "authorizer_code": "allow if true;\n",
+          "revocation_ids": [
+            "79674155cd5349604e89b00792aeaebfa0a512bd45edc289305ebec107f627d3d8c09847646a0d06c2390a4354771b2ebdc2cc66971f2d74ef744e4e81197600"
+          ]
+        },
+        "right-hand side does not catch errors": {
+          "world": {
+            "facts": [],
+            "rules": [],
+            "checks": [
+              {
+                "origin": 0,
+                "checks": [
+                  "check if ((true === 12).try(true === 12)).try(true)",
+                  "check if (true === 12).try(true)",
+                  "reject if (true == 12).try(true)"
+                ]
+              },
+              {
+                "origin": 18446744073709551615,
+                "checks": [
+                  "check if true.try(true === 12)"
+                ]
+              }
+            ],
+            "policies": [
+              "allow if true"
+            ]
+          },
+          "result": {
+            "Err": {
+              "Execution": "InvalidType"
+            }
+          },
+          "authorizer_code": "check if true.try(true === 12);\n\nallow if true;\n",
+          "revocation_ids": [
+            "79674155cd5349604e89b00792aeaebfa0a512bd45edc289305ebec107f627d3d8c09847646a0d06c2390a4354771b2ebdc2cc66971f2d74ef744e4e81197600"
+          ]
+        }
+      }
     }
   ]
 }

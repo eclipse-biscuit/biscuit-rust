@@ -3509,3 +3509,101 @@ World {
 
 result: `Ok(0)`
 
+
+------------------------------
+
+## test try operation: test035_try_op.bc
+### token
+
+authority:
+symbols: []
+
+public keys: []
+
+block version: 6
+
+```
+check if (true === 12).try(true);
+check if ((true === 12).try(true === 12)).try(true);
+reject if (true == 12).try(true);
+```
+
+### validation
+
+authorizer code:
+```
+allow if true;
+```
+
+revocation ids:
+- `79674155cd5349604e89b00792aeaebfa0a512bd45edc289305ebec107f627d3d8c09847646a0d06c2390a4354771b2ebdc2cc66971f2d74ef744e4e81197600`
+
+authorizer world:
+```
+World {
+  facts: []
+  rules: []
+  checks: [
+    Checks {
+        origin: Some(
+            0,
+        ),
+        checks: [
+            "check if ((true === 12).try(true === 12)).try(true)",
+            "check if (true === 12).try(true)",
+            "reject if (true == 12).try(true)",
+        ],
+    },
+]
+  policies: [
+    "allow if true",
+]
+}
+```
+
+result: `Ok(0)`
+### validation for "right-hand side does not catch errors"
+
+authorizer code:
+```
+check if true.try(true === 12);
+
+allow if true;
+```
+
+revocation ids:
+- `79674155cd5349604e89b00792aeaebfa0a512bd45edc289305ebec107f627d3d8c09847646a0d06c2390a4354771b2ebdc2cc66971f2d74ef744e4e81197600`
+
+authorizer world:
+```
+World {
+  facts: []
+  rules: []
+  checks: [
+    Checks {
+        origin: Some(
+            0,
+        ),
+        checks: [
+            "check if ((true === 12).try(true === 12)).try(true)",
+            "check if (true === 12).try(true)",
+            "reject if (true == 12).try(true)",
+        ],
+    },
+    Checks {
+        origin: Some(
+            18446744073709551615,
+        ),
+        checks: [
+            "check if true.try(true === 12)",
+        ],
+    },
+]
+  policies: [
+    "allow if true",
+]
+}
+```
+
+result: `Err(Execution(InvalidType))`
+
