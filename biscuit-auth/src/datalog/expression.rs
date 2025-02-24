@@ -170,6 +170,7 @@ pub enum Binary {
     Any,
     Get,
     Ffi(SymbolIndex),
+    Try,
 }
 
 impl Binary {
@@ -183,6 +184,14 @@ impl Binary {
         extern_func: &HashMap<String, ExternFunc>,
     ) -> Result<Term, error::Expression> {
         match (self, left, params) {
+            // try
+            (Binary::Try, fallback, []) => {
+                let e = Expression { ops: right.clone() };
+                match e.evaluate(values, symbols, extern_func) {
+                    Ok(v) => Ok(v),
+                    Err(_) => Ok(fallback),
+                }
+            }
             // boolean
             (Binary::LazyOr, Term::Bool(true), []) => Ok(Term::Bool(true)),
             (Binary::LazyOr, Term::Bool(false), []) => {
@@ -558,6 +567,7 @@ impl Binary {
                 "{left}.extern::{}({right})",
                 symbols.print_symbol_default(*name)
             ),
+            Binary::Try => format!("{left}.try({right})"),
         }
     }
 }
@@ -624,6 +634,29 @@ impl Expression {
                         stack.push(StackElem::Term(binary.evaluate_with_closure(
                             left_term,
                             right_ops,
+                            &params,
+                            &mut values,
+                            symbols,
+                            extern_funcs,
+                        )?))
+                    }
+                    (
+                        Some(StackElem::Term(right_term)),
+                        Some(StackElem::Closure(params, left_ops)),
+                    ) => {
+                        if values
+                            .keys()
+                            .collect::<HashSet<_>>()
+                            .intersection(&params.iter().collect())
+                            .next()
+                            .is_some()
+                        {
+                            return Err(error::Expression::ShadowedVariable);
+                        }
+                        let mut values = values.clone();
+                        stack.push(StackElem::Term(binary.evaluate_with_closure(
+                            right_term,
+                            left_ops,
                             &params,
                             &mut values,
                             symbols,
@@ -1828,5 +1861,53 @@ mod tests {
 
     fn toto(_left: builder::Term, _right: Option<builder::Term>) -> Result<builder::Term, String> {
         Ok(builder::Term::Bool(true))
+    }
+
+    #[test]
+    fn try_op() {
+        let symbols = SymbolTable::new();
+        let mut tmp_symbols = TemporarySymbolTable::new(&symbols);
+
+        let ops1 = vec![
+            Op::Closure(
+                vec![],
+                vec![
+                    Op::Value(Term::Bool(true)),
+                    Op::Value(Term::Integer(0)),
+                    Op::Binary(Binary::GreaterThan),
+                    Op::Unary(Unary::Parens),
+                ],
+            ),
+            Op::Value(Term::Bool(false)),
+            Op::Binary(Binary::Try),
+        ];
+        let e1 = Expression { ops: ops1 };
+        println!("{:?}", e1.print(&symbols));
+
+        let res1 = e1
+            .evaluate(&HashMap::new(), &mut tmp_symbols, &Default::default())
+            .unwrap();
+        assert_eq!(res1, Term::Bool(false));
+
+        let ops2 = vec![
+            Op::Closure(
+                vec![],
+                vec![
+                    Op::Value(Term::Integer(0)),
+                    Op::Value(Term::Integer(0)),
+                    Op::Binary(Binary::Equal),
+                    Op::Unary(Unary::Parens),
+                ],
+            ),
+            Op::Value(Term::Bool(false)),
+            Op::Binary(Binary::Try),
+        ];
+        let e2 = Expression { ops: ops2 };
+        println!("{:?}", e2.print(&symbols));
+
+        let res2 = e2
+            .evaluate(&HashMap::new(), &mut tmp_symbols, &Default::default())
+            .unwrap();
+        assert_eq!(res2, Term::Bool(true));
     }
 }

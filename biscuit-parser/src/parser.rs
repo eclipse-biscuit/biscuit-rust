@@ -457,6 +457,7 @@ fn binary_op_8(i: &str) -> IResult<&str, builder::Binary, Error> {
         value(Binary::All, tag("all")),
         value(Binary::Any, tag("any")),
         value(Binary::Get, tag("get")),
+        value(Binary::Try, tag("try")),
         extern_bin,
     ))(i)
 }
@@ -606,15 +607,22 @@ fn expr9(i: &str) -> IResult<&str, Expr, Error> {
             match (bin_result, un_result) {
                 (Ok((i, (op, params, arg))), _) => {
                     input = i;
-                    match params {
-                        Some(params) => {
+                    match (params, &op) {
+                        (_, builder::Binary::Try) => {
+                            initial = Expr::Binary(
+                                builder::Op::Binary(op),
+                                Box::new(Expr::Closure(vec![], Box::new(initial))),
+                                Box::new(arg),
+                            );
+                        }
+                        (Some(params), _) => {
                             initial = Expr::Binary(
                                 builder::Op::Binary(op),
                                 Box::new(initial),
                                 Box::new(Expr::Closure(params, Box::new(arg))),
                             );
                         }
-                        None => {
+                        (None, _) => {
                             initial = Expr::Binary(
                                 builder::Op::Binary(op),
                                 Box::new(initial),
@@ -2581,6 +2589,25 @@ mod tests {
         assert_eq!(
             super::expr("{}").map(|(i, o)| (i, o.opcodes())),
             Ok(("", vec![Op::Value(map(Default::default()))],))
+        );
+    }
+
+    #[test]
+    fn try_expr() {
+        use builder::{boolean, Binary, Op, Unary};
+        assert_eq!(
+            super::expr("true.length().try(false)").map(|(i, o)| (i, o.opcodes())),
+            Ok((
+                "",
+                vec![
+                    Op::Closure(
+                        vec![],
+                        vec![Op::Value(boolean(true)), Op::Unary(Unary::Length)]
+                    ),
+                    Op::Value(boolean(false)),
+                    Op::Binary(Binary::Try)
+                ],
+            ))
         );
     }
 }

@@ -292,6 +292,7 @@ pub mod op_binary {
         Any = 26,
         Get = 27,
         Ffi = 28,
+        Try = 29,
     }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]

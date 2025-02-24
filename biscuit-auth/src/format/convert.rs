@@ -710,6 +710,7 @@ pub mod v2 {
                         Binary::Any => Kind::Any,
                         Binary::Get => Kind::Get,
                         Binary::Ffi(_) => Kind::Ffi,
+                        Binary::Try => Kind::Try,
                     } as i32,
                     ffi_name: match b {
                         Binary::Ffi(name) => Some(name.to_owned()),
@@ -811,6 +812,7 @@ pub mod v2 {
                                 .to_string(),
                         ))
                     }
+                    (Some(op_binary::Kind::Try), None) => Op::Binary(Binary::Try),
                     (None, _) => {
                         return Err(error::Format::DeserializationError(
                             "deserialization error: binary operation is empty".to_string(),

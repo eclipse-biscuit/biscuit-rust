@@ -50,6 +50,7 @@ pub enum Binary {
     Any,
     Get,
     Ffi(String),
+    Try,
 }
 
 /// Builder for a Datalog expression
@@ -255,6 +256,7 @@ impl Convert<datalog::Binary> for Binary {
             Binary::Any => datalog::Binary::Any,
             Binary::Get => datalog::Binary::Get,
             Binary::Ffi(n) => datalog::Binary::Ffi(symbols.insert(n)),
+            Binary::Try => datalog::Binary::Try,
         }
     }
 
@@ -289,6 +291,7 @@ impl Convert<datalog::Binary> for Binary {
             datalog::Binary::Any => Ok(Binary::Any),
             datalog::Binary::Get => Ok(Binary::Get),
             datalog::Binary::Ffi(i) => Ok(Binary::Ffi(symbols.print_symbol(*i)?)),
+            datalog::Binary::Try => Ok(Binary::Try),
         }
     }
 }
@@ -325,6 +328,7 @@ impl From<biscuit_parser::builder::Binary> for Binary {
             biscuit_parser::builder::Binary::Any => Binary::Any,
             biscuit_parser::builder::Binary::Get => Binary::Get,
             biscuit_parser::builder::Binary::Ffi(name) => Binary::Ffi(name),
+            biscuit_parser::builder::Binary::Try => Binary::Try,
         }
     }
 }
