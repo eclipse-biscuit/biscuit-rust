@@ -325,7 +325,7 @@ mod tests {
         let secp_pubkey = KeyPair::new_with_algorithm(Algorithm::Secp256r1).public();
         let ed_pubkey = KeyPair::new_with_algorithm(Algorithm::Ed25519).public();
         let builder = AuthorizerBuilder::new()
-            .limits(RunLimits {
+            .set_limits(RunLimits {
                 max_facts: 42,
                 max_iterations: 42,
                 max_time: Duration::from_secs(1),
@@ -357,7 +357,7 @@ mod tests {
         let secp_pubkey = KeyPair::new_with_algorithm(Algorithm::Secp256r1).public();
         let ed_pubkey = KeyPair::new_with_algorithm(Algorithm::Ed25519).public();
         let builder = AuthorizerBuilder::new()
-            .limits(RunLimits {
+            .set_limits(RunLimits {
                 max_facts: 42,
                 max_iterations: 42,
                 max_time: Duration::from_secs(1),
@@ -415,7 +415,7 @@ mod tests {
     #[test]
     fn roundtrip_without_token() {
         let builder = AuthorizerBuilder::new()
-            .limits(RunLimits {
+            .set_limits(RunLimits {
                 max_facts: 42,
                 max_iterations: 42,
                 max_time: Duration::from_secs(1),
@@ -449,7 +449,7 @@ mod tests {
     #[test]
     fn roundtrip_with_eval_error() {
         let builder = AuthorizerBuilder::new()
-            .limits(RunLimits {
+            .set_limits(RunLimits {
                 max_facts: 42,
                 max_iterations: 42,
                 max_time: Duration::from_secs(1),

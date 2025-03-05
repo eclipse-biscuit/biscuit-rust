@@ -1199,7 +1199,7 @@ mod tests {
                 scope_params,
             )
             .unwrap()
-            .limits(AuthorizerLimits {
+            .set_limits(AuthorizerLimits {
                 max_time: Duration::from_secs(10), //Set 10 seconds as the maximum time allowed for the authorization due to "cheap" worker on GitHub Actions
                 ..Default::default()
             })

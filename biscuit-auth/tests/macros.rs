@@ -76,7 +76,7 @@ fn authorizer_macro() {
     );
 
     let mut authorizer = b
-        .limits(RunLimits {
+        .set_limits(RunLimits {
             max_time: Duration::from_secs(10),
             ..Default::default()
         })
@@ -102,7 +102,7 @@ allow if true;
 #[test]
 fn authorizer_macro_trailing_comma() {
     let a = authorizer!(r#"fact("test", {my_key});"#, my_key = "my_value",)
-        .limits(RunLimits {
+        .set_limits(RunLimits {
             max_time: Duration::from_secs(10),
             ..Default::default()
         })
@@ -272,7 +272,7 @@ fn json() {
           $value.get("id") == $id,
           $value.get("roles").contains("admin");"#
     )
-    .limits(RunLimits {
+    .set_limits(RunLimits {
         max_time: Duration::from_secs(10),
         ..Default::default()
     })

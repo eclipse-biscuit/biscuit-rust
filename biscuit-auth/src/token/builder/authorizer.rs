@@ -237,9 +237,13 @@ impl AuthorizerBuilder {
     /// Sets the runtime limits of the authorizer
     ///
     /// Those limits cover all the executions under the `authorize`, `query` and `query_all` methods
-    pub fn limits(mut self, limits: AuthorizerLimits) -> Self {
+    pub fn set_limits(mut self, limits: AuthorizerLimits) -> Self {
         self.limits = limits;
         self
+    }
+
+    pub fn limits(&self) -> &AuthorizerLimits {
+        &self.limits
     }
 
     /// Replaces the registered external functions

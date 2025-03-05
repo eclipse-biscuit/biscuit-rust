@@ -38,7 +38,7 @@ fn main() {
 
     let mut authorizer = AuthorizerBuilder::new()
         .allow_all()
-        .limits(RunLimits {
+        .set_limits(RunLimits {
             max_time: Duration::from_secs(10),
             ..Default::default()
         })
@@ -50,7 +50,7 @@ fn main() {
 
     let mut authorizer = AuthorizerBuilder::new()
         .allow_all()
-        .limits(RunLimits {
+        .set_limits(RunLimits {
             max_time: Duration::from_secs(10),
             ..Default::default()
         })
