@@ -6,7 +6,7 @@ use nom::{
         complete::{char, digit1, multispace0 as space0, satisfy},
         is_alphabetic, is_alphanumeric,
     },
-    combinator::{consumed, cut, eof, map, map_res, opt, recognize, value},
+    combinator::{consumed, cut, eof, map, map_res, opt, recognize, value, verify},
     error::{ErrorKind, FromExternalError, ParseError},
     multi::{many0, separated_list0, separated_list1},
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
@@ -223,6 +223,7 @@ fn predicate(i: &str) -> IResult<&str, builder::Predicate, Error> {
     ))
 }
 
+/// Parse a rule head, with support for flexible string parsing
 fn rule_head(i: &str) -> IResult<&str, builder::Predicate, Error> {
     let (i, _) = space0(i)?;
     let (i, fact_name) = name(i)?;
@@ -230,7 +231,10 @@ fn rule_head(i: &str) -> IResult<&str, builder::Predicate, Error> {
     let (i, _) = space0(i)?;
     let (i, terms) = delimited(
         char('('),
-        cut(separated_list0(preceded(space0, char(',')), cut(term))),
+        cut(separated_list0(
+            preceded(space0, char(',')),
+            cut(term_with_flexible_string),
+        )),
         preceded(space0, char(')')),
     )(i)?;
 
@@ -726,6 +730,38 @@ fn string(i: &str) -> IResult<&str, builder::Term, Error> {
     parse_string(i).map(|(i, s)| (i, builder::Term::Str(s)))
 }
 
+/// Parse a string that might be unquoted (for use with string interpolation)
+/// This parses either a quoted string using parse_string or an unquoted string
+/// terminated by comma, parenthesis, or whitespace.
+fn flexible_string(i: &str) -> IResult<&str, builder::Term, Error> {
+    alt((
+        string,
+        map(
+            verify(
+                recognize(take_while1(|c| {
+                    !matches!(c, ',' | ')' | ' ' | '\t' | '\n' | '\r' | '$')
+                })),
+                |s: &str| {
+                    if s == "true" || s == "false" {
+                        return false;
+                    }
+
+                    if s.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                        return false;
+                    }
+
+                    if s == "null" {
+                        return false;
+                    }
+
+                    !s.is_empty() && !s.starts_with('$')
+                },
+            ),
+            |s: &str| builder::Term::Str(s.to_string()),
+        ),
+    ))(i)
+}
+
 fn parse_integer(i: &str) -> IResult<&str, i64, Error> {
     map_res(recognize(pair(opt(char('-')), digit1)), |s: &str| s.parse())(i)
 }
@@ -897,6 +933,26 @@ fn term(i: &str) -> IResult<&str, builder::Term, Error> {
         space0,
         alt((
             parameter, string, date, variable, integer, bytes, boolean, null, array, parse_map, set,
+        )),
+    )(i)
+}
+
+/// Similar to term but with flexible string parsing to support unquoted string interpolation
+fn term_with_flexible_string(i: &str) -> IResult<&str, builder::Term, Error> {
+    preceded(
+        space0,
+        alt((
+            parameter,
+            flexible_string,
+            date,
+            variable,
+            integer,
+            bytes,
+            boolean,
+            null,
+            array,
+            parse_map,
+            set,
         )),
     )(i)
 }
@@ -2011,6 +2067,55 @@ mod tests {
                 message: Some("the rule contains variables that are not bound by predicates in the rule's body: $test".to_string()),
             }))
         );
+    }
+
+    #[test]
+    fn rule_with_parameter() {
+        let component = "api_gateway".to_string();
+
+        let rule_string = format!("right({}, $s) <- service($s)", component);
+        let result = super::rule(&rule_string);
+
+        let expected_rule = "right(\"api_gateway\", $s) <- service($s)";
+        let expected = super::rule(expected_rule);
+
+        assert_eq!(
+            result,
+            Ok((
+                "",
+                builder::rule(
+                    "right",
+                    &[builder::string("api_gateway"), builder::variable("s")],
+                    &[builder::pred("service", &[builder::variable("s")])]
+                )
+            ))
+        );
+
+        assert_eq!(
+            expected,
+            Ok((
+                "",
+                builder::rule(
+                    "right",
+                    &[builder::string("api_gateway"), builder::variable("s")],
+                    &[builder::pred("service", &[builder::variable("s")])]
+                )
+            ))
+        );
+    }
+
+    #[test]
+    fn rule_with_third_party_parameter() {
+        let external = "external".to_string();
+        let public_key = "018e3f6864a1c9ffc2e67939a835d41c808b0084b3d7babf9364f674db19eeb3";
+        let rule_string =
+            format!("right({external}, $s) <- service($s) trusting ed25519/{public_key}");
+        let result = super::rule(&rule_string);
+
+        let expected_rule = "right(\"external\", $s) <- service($s) trusting ed25519/018e3f6864a1c9ffc2e67939a835d41c808b0084b3d7babf9364f674db19eeb3";
+        let expected = super::rule(expected_rule);
+
+        assert_eq!(result, expected);
     }
 
     #[test]

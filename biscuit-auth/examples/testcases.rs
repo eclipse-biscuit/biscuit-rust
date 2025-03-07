@@ -143,6 +143,8 @@ fn run(target: String, root_key: Option<String>, test: bool, json: bool) {
 
     add_test_result(&mut results, third_party(&target, &root, test));
 
+    add_test_result(&mut results, third_party_macro(&target, &root, test));
+
     add_test_result(&mut results, check_all(&target, &root, test));
 
     add_test_result(&mut results, public_keys_interning(&target, &root, test));
@@ -1699,6 +1701,112 @@ fn third_party(target: &str, root: &KeyPair, test: bool) -> TestResult {
     token = print_blocks(&biscuit2);
 
     let data = write_or_load_testcase(target, &filename, root, &biscuit2, test);
+
+    let mut validations = BTreeMap::new();
+    validations.insert(
+        "".to_string(),
+        validate_token(root, &data[..], "allow if true"),
+    );
+
+    TestResult {
+        title,
+        filename,
+        token,
+        validations,
+    }
+}
+
+fn third_party_macro(target: &str, root: &KeyPair, test: bool) -> TestResult {
+    let mut rng: StdRng = SeedableRng::seed_from_u64(1234);
+    let title = "Third party validation with string interpolation in rules".to_string();
+    let filename = "test024b_third_party_string_interpolation".to_string();
+
+    // Create a consistent keypair for third-party validation
+    let external = KeyPair::from(
+        &PrivateKey::from_bytes_hex(
+            "12aca40167fbdd1a11037e9fd440e3d510d9d9dea70a6646aa4aaf84d718d75a",
+            Algorithm::Ed25519,
+        )
+        .unwrap(),
+    );
+
+    // ===== PART 1: Authority token with a check that trusts an external party =====
+    // Here we use parameter interpolation with braces {} in the check
+    let resource_name = "document123".to_string();
+    let authority_token = biscuit!(
+        r#"
+        // Grant read access to a specific resource
+        right({resource_name}, "read");
+
+        // Require validation from the external party that the user is an admin
+        check if user_role("admin") trusting {external_key};
+        "#,
+        external_key = external.public()
+    )
+    .build_with_rng(&root, SymbolTable::default(), &mut rng)
+    .unwrap();
+
+    // ===== PART 2: Create a third-party block request =====
+    let req = authority_token.third_party_request().unwrap();
+
+    // ===== PART 3: The external service creates a block using string interpolation =====
+    // This demonstrates flexible string parsing - we can use the user_id without quotes
+    let user_id = "alice".to_string();
+    let user_role = "admin".to_string();
+    let resource_name = "document123".to_string();
+
+    // Create a new block that will be added to the token
+    let third_party_block = block!(
+        r#"
+        // Facts about the user - using string interpolation without quotes
+        user({user_id});
+        user_role({user_role});
+
+        // A rule showing both quoted and unquoted parameters in the same rule
+        can_access({resource_name}, $action) <- right({resource_name}, $action);
+
+        // Check that the user has read access to the resource
+        check if right({resource_name}, "read");
+        "#,
+        resource_name = resource_name,
+        user_id = user_id,
+        user_role = user_role
+    );
+
+    // Sign the block with the external key
+    let external_block = req
+        .create_block(&external.private(), third_party_block)
+        .unwrap();
+
+    // ===== PART 4: Append the third-party block to the token =====
+    // In a real application, this happens after the authority token is sent to the
+    // third party and the third party returns the signed block
+    let keypair3 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let final_token = authority_token
+        .append_third_party_with_keypair(external.public(), external_block, keypair3)
+        .unwrap();
+    let resource_name = "document123".to_string();
+
+    // ===== PART 5: Authorization check =====
+    // Create an authorizer that validates access
+    let mut authorizer = authorizer!(
+        r#"
+        // Check if the required facts are present
+        check if user_role("admin") trusting {external_key};
+        check if right({resource_name}, "read");
+
+        // Allow access if all checks pass
+        allow if true;
+        "#,
+        external_key = external.public(),
+        resource_name = resource_name
+    )
+    .build(&final_token)
+    .unwrap();
+
+    let _result = authorizer.authorize();
+    let token = print_blocks(&final_token);
+    let data = write_or_load_testcase(target, &filename, root, &final_token, test);
 
     let mut validations = BTreeMap::new();
     validations.insert(
