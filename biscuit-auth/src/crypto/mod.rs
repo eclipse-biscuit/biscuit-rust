@@ -166,8 +166,8 @@ impl FromStr for PrivateKey {
     type Err = error::Format;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.split_once('/') {
-            Some(("ed25519", bytes)) => Self::from_bytes_hex(bytes, Algorithm::Ed25519),
-            Some(("secp256r1", bytes)) => Self::from_bytes_hex(bytes, Algorithm::Secp256r1),
+            Some(("ed25519-private", bytes)) => Self::from_bytes_hex(bytes, Algorithm::Ed25519),
+            Some(("secp256r1-private", bytes)) => Self::from_bytes_hex(bytes, Algorithm::Secp256r1),
             Some((alg, _)) => Err(error::Format::InvalidKey(format!(
                 "Unsupported key algorithm {alg}"
             ))),
@@ -195,8 +195,8 @@ impl PrivateKey {
     /// serializes to an hex-encoded string, prefixed with the key algorithm
     pub fn to_prefixed_string(&self) -> String {
         let algorithm = match self.algorithm() {
-            schema::public_key::Algorithm::Ed25519 => "ed25519",
-            schema::public_key::Algorithm::Secp256r1 => "secp256r1",
+            schema::public_key::Algorithm::Ed25519 => "ed25519-private",
+            schema::public_key::Algorithm::Secp256r1 => "secp256r1-private",
         };
         format!("{algorithm}/{}", self.to_bytes_hex())
     }
@@ -808,7 +808,8 @@ mod tests {
 
         assert_eq!(
             private_ed.to_prefixed_string(),
-            "ed25519/bf6065d753c4a2c679dcd28828ac625c6c713efee2d4dd4b9c9ff3c9a2b2f966".to_string()
+            "ed25519-private/bf6065d753c4a2c679dcd28828ac625c6c713efee2d4dd4b9c9ff3c9a2b2f966"
+                .to_string()
         );
 
         let public_ed = PublicKey::from_bytes_hex(
@@ -833,7 +834,7 @@ mod tests {
 
         assert_eq!(
             private_p256.to_prefixed_string(),
-            "secp256r1/4e85237ab258ca7d53051073dd6c1e501ea4699f2fed6b0f5d399dc2a5f7d38f"
+            "secp256r1-private/4e85237ab258ca7d53051073dd6c1e501ea4699f2fed6b0f5d399dc2a5f7d38f"
                 .to_string()
         );
 
