@@ -389,6 +389,48 @@ pub unsafe extern "C" fn key_pair_deserialize(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn key_pair_to_pem(kp: Option<&KeyPair>) -> *const c_char {
+    let kp = match kp {
+        Some(kp) => kp,
+        None => {
+            update_last_error(Error::InvalidArgument);
+            return std::ptr::null();
+        }
+    };
+
+    match kp.0.to_private_key_pem() {
+        Ok(private_key_pem) => match CString::new(private_key_pem.as_str()) {
+            Ok(cstr) => cstr.into_raw(),
+            Err(_) => {
+                update_last_error(Error::InvalidArgument);
+                std::ptr::null()
+            }
+        },
+        Err(_) => {
+            update_last_error(Error::InvalidArgument);
+            std::ptr::null()
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn key_pair_from_pem(pem: *const c_char) -> Option<Box<KeyPair>> {
+    match CStr::from_ptr(pem).to_str() {
+        Ok(pem_str) => match biscuit_auth::KeyPair::from_private_key_pem(pem_str) {
+            Ok(kp) => Some(Box::new(KeyPair(kp))),
+            Err(_) => {
+                update_last_error(Error::InvalidArgument);
+                None
+            }
+        },
+        Err(_) => {
+            update_last_error(Error::InvalidArgument);
+            None
+        }
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn key_pair_free(_kp: Option<Box<KeyPair>>) {}
 
 /// expects a 32 byte buffer
@@ -427,6 +469,48 @@ pub unsafe extern "C" fn public_key_deserialize(
             None
         }
         Some(pubkey) => Some(Box::new(PublicKey(pubkey))),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn public_key_to_pem(kp: Option<&PublicKey>) -> *const c_char {
+    let kp = match kp {
+        Some(kp) => kp,
+        None => {
+            update_last_error(Error::InvalidArgument);
+            return std::ptr::null();
+        }
+    };
+
+    match kp.0.to_pem() {
+        Ok(public_key_pem) => match CString::new(public_key_pem.as_str()) {
+            Ok(cstr) => cstr.into_raw(),
+            Err(_) => {
+                update_last_error(Error::InvalidArgument);
+                std::ptr::null()
+            }
+        },
+        Err(_) => {
+            update_last_error(Error::InvalidArgument);
+            std::ptr::null()
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn public_key_from_pem(pem: *const c_char) -> Option<Box<PublicKey>> {
+    match CStr::from_ptr(pem).to_str() {
+        Ok(pem_str) => match biscuit_auth::PublicKey::from_pem(pem_str) {
+            Ok(kp) => Some(Box::new(PublicKey(kp))),
+            Err(_) => {
+                update_last_error(Error::InvalidArgument);
+                None
+            }
+        },
+        Err(_) => {
+            update_last_error(Error::InvalidArgument);
+            None
+        }
     }
 }
 

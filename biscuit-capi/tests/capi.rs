@@ -165,15 +165,50 @@ fn serialize_keys() {
 
             KeyPair * kp = key_pair_new((const uint8_t *) seed, strlen(seed), 0);
             printf("key_pair creation error? %s\n", error_message());
-            PublicKey* pubkey = key_pair_public(kp);
+            PublicKey * pubkey = key_pair_public(kp);
 
             key_pair_serialize(kp, priv_buf);
             public_key_serialize(pubkey, pub_buf);
 
+            const char * pub_pem = public_key_to_pem(pubkey);
+            printf("public key pem: %s\n", pub_pem);
+
+            PublicKey * pubkey2 = public_key_from_pem(pub_pem);
+            if (pubkey2 == NULL) {
+                printf("public key from pem error %s\n", error_message());
+            }
+
+            string_free((char*) pub_pem);
+
+            const char * kp_pem = key_pair_to_pem(kp);
+            printf("key pair pem: %s\n", kp_pem);
+
+            KeyPair * kp2 = key_pair_from_pem(kp_pem);
+
+            if (kp2 == NULL) {
+                printf("key pair from pem error %s\n", error_message());
+            }
+
+            string_free((char*) kp_pem);
+
             public_key_free(pubkey);
+            public_key_free(pubkey2);
             key_pair_free(kp);
+            key_pair_free(kp2);
         }
     })
     .success()
-    .stdout("key_pair creation error? (null)\n");
+    .stdout(
+        r#"key_pair creation error? (null)
+public key pem: -----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAou4Yi/AQUWXCun1Je7PArhkbH9XCgBMLpoWkGYSGfzs=
+-----END PUBLIC KEY-----
+
+key pair pem: -----BEGIN PRIVATE KEY-----
+MFECAQEwBQYDK2VwBCIEIG93x/199PgIfDH893BO6zbtChlphk8sXd27GuNXfVgG
+gSEAou4Yi/AQUWXCun1Je7PArhkbH9XCgBMLpoWkGYSGfzs=
+-----END PRIVATE KEY-----
+
+"#,
+    );
 }
