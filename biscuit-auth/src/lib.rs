@@ -135,7 +135,7 @@
 //!
 //! # Concepts
 //!
-//! ## blocks
+//! ## Blocks
 //!
 //! A Biscuit token is made with a list of blocks defining data and checks that
 //! must be validated upon reception with a request. Any failed check will invalidate
@@ -157,6 +157,10 @@
 //! - offline delegation like macaroons
 //! - based on public key cryptography like JWT, so any application holding the root public key can verify a token (while macaroons are based on a root shared secret)
 //!
+//! Blocks are signed in a chain, starting with the root key, with each block signature
+//! covering the block content, and the next block's public key.
+//! Signatures can be generated either with Ed25519, or with ECDSA over P256.
+//!
 //! ## A logic language for authorization policies: Datalog with constraints
 //!
 //! We rely on a modified version of Datalog, that can represent complex behaviours
@@ -164,21 +168,26 @@
 //!
 //! Here are examples of checks that can be implemented with that language:
 //!
-//! - valid if the requested resource is "file.txt" and the operation is "read"
-//! - valid if current time is before January 1st 2030, 00h00mn00s UTC
-//! - source IP is in set [1.2.3.4, 5.6.7.8]
-//! - resource matches prefix "/home/biscuit/data/"
+//! - valid if the requested resource is "file.txt" and the operation is "read": `check if resource("file.txt"), operation("read")`
+//! - valid if current time is before January 1st 2030, 00h00mn00s UTC: `check if time($0), $0 < 2030-01-01T00:00:00Z`
+//! - source IP is in set [1.2.3.4, 5.6.7.8]: `check if ip($0), $0 in {"1.2.3.4", "5.6.7.8"}`
+//! - resource matches prefix "/home/biscuit/data/": `check if resource($0), $0.starts_with("home/biscuit/data/")`
 //!
-//! But it can also combine into more complex patterns, like: right is read *if*
-//! user has read *or* user is member of organisation and organisation has read right
-//! *or* other user with read right has delegated to user.
+//! But it can also combine into more complex patterns, like: we can read a resource
+//! **if** the user has the read right, **or** the user is member of an organisation
+//! and that organisation has the read right:
+//!
+//! ```
+//! allow if right($0, "read");
+//! allow if organisation($1), right($1, "read");
+//! ```
 //!
 //! Like Datalog, this language is based around facts and rules, but with some
 //! slight modifications: a block's rules and checks can only apply to facts
 //! from the current or previous blocks. The authorizer executes its checks and
 //! policies in the context of the first block. This allows Biscuit to carry
 //! basic rights in the first block while preventing later blocks from
-//! inreasing the token's rights.
+//! increasing the token's rights.
 //!
 //! ### Checks
 //!
@@ -191,6 +200,9 @@
 //! - `check if resource($0), owner("user1", $0)` the $0 represents a "hole" that must be filled with the correct value
 //! - `check if time($0), $0 < 2019-02-05T23:00:00Z` expiration date
 //! - `check if application($0), operation($1), user($2), right(#app, $0, $1), owner($2, $0), credit($2, $3), $3 > 0` verifies that the user owns the applications, the application has the right on the operation, there's a credit information for the operation, and the credit is larger than 0
+//!
+//! It is also possible to refuse a request if a condition is met, using `reject`:
+//! - `reject if resource("file1")`
 //!
 //! ### Allow/deny policies
 //!
@@ -212,6 +224,12 @@
 //!
 //! deny if true;
 //! ```
+//!
+//! When processing the request, the authorizer will make sure that all checks succeeds
+//! and none of the reject rules matches, otherwise it will retur an error with the list
+//! of failures.
+//!
+//! Then it tries the allow/deny policis and will return the index of the policy that matched.
 //!
 //! ## Symbol table
 //!
