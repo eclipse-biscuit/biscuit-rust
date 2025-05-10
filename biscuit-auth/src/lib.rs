@@ -177,7 +177,7 @@
 //! **if** the user has the read right, **or** the user is member of an organisation
 //! and that organisation has the read right:
 //!
-//! ```
+//! ```ignore
 //! allow if right($0, "read");
 //! allow if organisation($1), right($1, "read");
 //! ```
