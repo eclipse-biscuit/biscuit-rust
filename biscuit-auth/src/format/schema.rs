@@ -69,11 +69,11 @@ pub struct Block {
     #[prost(uint32, optional, tag="3")]
     pub version: ::core::option::Option<u32>,
     #[prost(message, repeated, tag="4")]
-    pub facts_v2: ::prost::alloc::vec::Vec<FactV2>,
+    pub facts: ::prost::alloc::vec::Vec<Fact>,
     #[prost(message, repeated, tag="5")]
-    pub rules_v2: ::prost::alloc::vec::Vec<RuleV2>,
+    pub rules: ::prost::alloc::vec::Vec<Rule>,
     #[prost(message, repeated, tag="6")]
-    pub checks_v2: ::prost::alloc::vec::Vec<CheckV2>,
+    pub checks: ::prost::alloc::vec::Vec<Check>,
     #[prost(message, repeated, tag="7")]
     pub scope: ::prost::alloc::vec::Vec<Scope>,
     #[prost(message, repeated, tag="8")]
@@ -101,30 +101,30 @@ pub mod scope {
     }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct FactV2 {
+pub struct Fact {
     #[prost(message, required, tag="1")]
-    pub predicate: PredicateV2,
+    pub predicate: Predicate,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RuleV2 {
+pub struct Rule {
     #[prost(message, required, tag="1")]
-    pub head: PredicateV2,
+    pub head: Predicate,
     #[prost(message, repeated, tag="2")]
-    pub body: ::prost::alloc::vec::Vec<PredicateV2>,
+    pub body: ::prost::alloc::vec::Vec<Predicate>,
     #[prost(message, repeated, tag="3")]
-    pub expressions: ::prost::alloc::vec::Vec<ExpressionV2>,
+    pub expressions: ::prost::alloc::vec::Vec<Expression>,
     #[prost(message, repeated, tag="4")]
     pub scope: ::prost::alloc::vec::Vec<Scope>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CheckV2 {
+pub struct Check {
     #[prost(message, repeated, tag="1")]
-    pub queries: ::prost::alloc::vec::Vec<RuleV2>,
-    #[prost(enumeration="check_v2::Kind", optional, tag="2")]
+    pub queries: ::prost::alloc::vec::Vec<Rule>,
+    #[prost(enumeration="check::Kind", optional, tag="2")]
     pub kind: ::core::option::Option<i32>,
 }
-/// Nested message and enum types in `CheckV2`.
-pub mod check_v2 {
+/// Nested message and enum types in `Check`.
+pub mod check {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum Kind {
@@ -134,19 +134,19 @@ pub mod check_v2 {
     }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct PredicateV2 {
+pub struct Predicate {
     #[prost(uint64, required, tag="1")]
     pub name: u64,
     #[prost(message, repeated, tag="2")]
-    pub terms: ::prost::alloc::vec::Vec<TermV2>,
+    pub terms: ::prost::alloc::vec::Vec<Term>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct TermV2 {
-    #[prost(oneof="term_v2::Content", tags="1, 2, 3, 4, 5, 6, 7, 8, 9, 10")]
-    pub content: ::core::option::Option<term_v2::Content>,
+pub struct Term {
+    #[prost(oneof="term::Content", tags="1, 2, 3, 4, 5, 6, 7, 8, 9, 10")]
+    pub content: ::core::option::Option<term::Content>,
 }
-/// Nested message and enum types in `TermV2`.
-pub mod term_v2 {
+/// Nested message and enum types in `Term`.
+pub mod term {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Content {
         #[prost(uint32, tag="1")]
@@ -174,12 +174,12 @@ pub mod term_v2 {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TermSet {
     #[prost(message, repeated, tag="1")]
-    pub set: ::prost::alloc::vec::Vec<TermV2>,
+    pub set: ::prost::alloc::vec::Vec<Term>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Array {
     #[prost(message, repeated, tag="1")]
-    pub array: ::prost::alloc::vec::Vec<TermV2>,
+    pub array: ::prost::alloc::vec::Vec<Term>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Map {
@@ -191,7 +191,7 @@ pub struct MapEntry {
     #[prost(message, required, tag="1")]
     pub key: MapKey,
     #[prost(message, required, tag="2")]
-    pub value: TermV2,
+    pub value: Term,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MapKey {
@@ -209,7 +209,7 @@ pub mod map_key {
     }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ExpressionV2 {
+pub struct Expression {
     #[prost(message, repeated, tag="1")]
     pub ops: ::prost::alloc::vec::Vec<Op>,
 }
@@ -223,7 +223,7 @@ pub mod op {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Content {
         #[prost(message, tag="1")]
-        Value(super::TermV2),
+        Value(super::Term),
         #[prost(message, tag="2")]
         Unary(super::OpUnary),
         #[prost(message, tag="3")]
@@ -305,7 +305,7 @@ pub struct OpClosure {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Policy {
     #[prost(message, repeated, tag="1")]
-    pub queries: ::prost::alloc::vec::Vec<RuleV2>,
+    pub queries: ::prost::alloc::vec::Vec<Rule>,
     #[prost(enumeration="policy::Kind", required, tag="2")]
     pub kind: i32,
 }
@@ -325,11 +325,11 @@ pub struct AuthorizerPolicies {
     #[prost(uint32, optional, tag="2")]
     pub version: ::core::option::Option<u32>,
     #[prost(message, repeated, tag="3")]
-    pub facts: ::prost::alloc::vec::Vec<FactV2>,
+    pub facts: ::prost::alloc::vec::Vec<Fact>,
     #[prost(message, repeated, tag="4")]
-    pub rules: ::prost::alloc::vec::Vec<RuleV2>,
+    pub rules: ::prost::alloc::vec::Vec<Rule>,
     #[prost(message, repeated, tag="5")]
-    pub checks: ::prost::alloc::vec::Vec<CheckV2>,
+    pub checks: ::prost::alloc::vec::Vec<Check>,
     #[prost(message, repeated, tag="6")]
     pub policies: ::prost::alloc::vec::Vec<Policy>,
 }
@@ -409,7 +409,7 @@ pub struct GeneratedFacts {
     #[prost(message, repeated, tag="1")]
     pub origins: ::prost::alloc::vec::Vec<Origin>,
     #[prost(message, repeated, tag="2")]
-    pub facts: ::prost::alloc::vec::Vec<FactV2>,
+    pub facts: ::prost::alloc::vec::Vec<Fact>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SnapshotBlock {
@@ -418,11 +418,11 @@ pub struct SnapshotBlock {
     #[prost(uint32, optional, tag="2")]
     pub version: ::core::option::Option<u32>,
     #[prost(message, repeated, tag="3")]
-    pub facts_v2: ::prost::alloc::vec::Vec<FactV2>,
+    pub facts: ::prost::alloc::vec::Vec<Fact>,
     #[prost(message, repeated, tag="4")]
-    pub rules_v2: ::prost::alloc::vec::Vec<RuleV2>,
+    pub rules: ::prost::alloc::vec::Vec<Rule>,
     #[prost(message, repeated, tag="5")]
-    pub checks_v2: ::prost::alloc::vec::Vec<CheckV2>,
+    pub checks: ::prost::alloc::vec::Vec<Check>,
     #[prost(message, repeated, tag="6")]
     pub scope: ::prost::alloc::vec::Vec<Scope>,
     #[prost(message, optional, tag="7")]

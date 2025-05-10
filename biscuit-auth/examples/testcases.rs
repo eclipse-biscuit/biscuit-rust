@@ -390,7 +390,7 @@ fn validate_token_with_limits_and_external_functions(
     let mut authorizer_checks = Vec::new();
     for (i, block) in snapshot.world.blocks.iter().enumerate() {
         let mut rules: Vec<String> = Vec::new();
-        for rule in block.rules_v2.iter() {
+        for rule in block.rules.iter() {
             let r =
                 convert::proto_rule_to_token_rule(&rule, snapshot.world.version.unwrap()).unwrap();
             rules.push(symbols.print_rule(&r.0));
@@ -404,7 +404,7 @@ fn validate_token_with_limits_and_external_functions(
         }
 
         let mut checks = Vec::new();
-        for check in block.checks_v2.iter() {
+        for check in block.checks.iter() {
             let c = convert::proto_check_to_token_check(&check, snapshot.world.version.unwrap())
                 .unwrap();
             checks.push(symbols.print_check(&c));
@@ -419,7 +419,7 @@ fn validate_token_with_limits_and_external_functions(
     }
 
     let mut rules: Vec<String> = Vec::new();
-    for rule in snapshot.world.authorizer_block.rules_v2 {
+    for rule in snapshot.world.authorizer_block.rules {
         let r = convert::proto_rule_to_token_rule(&rule, snapshot.world.version.unwrap()).unwrap();
 
         rules.push(symbols.print_rule(&r.0));
@@ -433,7 +433,7 @@ fn validate_token_with_limits_and_external_functions(
     }
 
     let mut checks = Vec::new();
-    for check in snapshot.world.authorizer_block.checks_v2 {
+    for check in snapshot.world.authorizer_block.checks {
         let c =
             convert::proto_check_to_token_check(&check, snapshot.world.version.unwrap()).unwrap();
         checks.push(symbols.print_check(&c));

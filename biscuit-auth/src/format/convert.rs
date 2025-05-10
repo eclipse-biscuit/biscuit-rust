@@ -21,17 +21,17 @@ pub fn token_block_to_proto_block(input: &Block) -> schema::Block {
         symbols: input.symbols.strings(),
         context: input.context.clone(),
         version: Some(input.version),
-        facts_v2: input
+        facts: input
             .facts
             .iter()
             .map(v2::token_fact_to_proto_fact)
             .collect(),
-        rules_v2: input
+        rules: input
             .rules
             .iter()
             .map(v2::token_rule_to_proto_rule)
             .collect(),
-        checks_v2: input
+        checks: input
             .checks
             .iter()
             .map(v2::token_check_to_proto_check)
@@ -67,23 +67,22 @@ pub fn proto_block_to_token_block(
     let mut rules = vec![];
     let mut checks = vec![];
     let mut scopes = vec![];
-    for fact in input.facts_v2.iter() {
+    for fact in input.facts.iter() {
         facts.push(v2::proto_fact_to_token_fact(fact)?);
     }
 
-    for rule in input.rules_v2.iter() {
+    for rule in input.rules.iter() {
         rules.push(v2::proto_rule_to_token_rule(rule, version)?.0);
     }
 
     if version < MAX_SCHEMA_VERSION {
-        for c in input.checks_v2.iter() {
+        for c in input.checks.iter() {
             if version < DATALOG_3_1 && c.kind.is_some() {
                 return Err(error::Format::DeserializationError(
                     "deserialization error: check kinds are only supported on datalog v3.1+ blocks"
                         .to_string(),
                 ));
-            } else if version < DATALOG_3_3 && c.kind == Some(schema::check_v2::Kind::Reject as i32)
-            {
+            } else if version < DATALOG_3_3 && c.kind == Some(schema::check::Kind::Reject as i32) {
                 return Err(error::Format::DeserializationError(
                     "deserialization error: reject if is only supported in datalog v3.3+"
                         .to_string(),
@@ -99,7 +98,7 @@ pub fn proto_block_to_token_block(
         ));
     }
 
-    for check in input.checks_v2.iter() {
+    for check in input.checks.iter() {
         checks.push(v2::proto_check_to_token_check(check, version)?);
     }
     for scope in input.scope.iter() {
@@ -139,17 +138,17 @@ pub fn token_block_to_proto_snapshot_block(input: &Block) -> schema::SnapshotBlo
     schema::SnapshotBlock {
         context: input.context.clone(),
         version: Some(input.version),
-        facts_v2: input
+        facts: input
             .facts
             .iter()
             .map(v2::token_fact_to_proto_fact)
             .collect(),
-        rules_v2: input
+        rules: input
             .rules
             .iter()
             .map(v2::token_rule_to_proto_rule)
             .collect(),
-        checks_v2: input
+        checks: input
             .checks
             .iter()
             .map(v2::token_check_to_proto_check)
@@ -179,21 +178,21 @@ pub fn proto_snapshot_block_to_token_block(
     let mut rules = vec![];
     let mut checks = vec![];
     let mut scopes = vec![];
-    for fact in input.facts_v2.iter() {
+    for fact in input.facts.iter() {
         facts.push(v2::proto_fact_to_token_fact(fact)?);
     }
 
-    for rule in input.rules_v2.iter() {
+    for rule in input.rules.iter() {
         rules.push(v2::proto_rule_to_token_rule(rule, version)?.0);
     }
 
-    if version == MIN_SCHEMA_VERSION && input.checks_v2.iter().any(|c| c.kind.is_some()) {
+    if version == MIN_SCHEMA_VERSION && input.checks.iter().any(|c| c.kind.is_some()) {
         return Err(error::Format::DeserializationError(
             "deserialization error: v3 blocks must not contain a check kind".to_string(),
         ));
     }
 
-    for check in input.checks_v2.iter() {
+    for check in input.checks.iter() {
         checks.push(v2::proto_check_to_token_check(check, version)?);
     }
     for scope in input.scope.iter() {
@@ -332,22 +331,22 @@ pub mod v2 {
     use std::collections::BTreeMap;
     use std::collections::BTreeSet;
 
-    pub fn token_fact_to_proto_fact(input: &Fact) -> schema::FactV2 {
-        schema::FactV2 {
+    pub fn token_fact_to_proto_fact(input: &Fact) -> schema::Fact {
+        schema::Fact {
             predicate: token_predicate_to_proto_predicate(&input.predicate),
         }
     }
 
-    pub fn proto_fact_to_token_fact(input: &schema::FactV2) -> Result<Fact, error::Format> {
+    pub fn proto_fact_to_token_fact(input: &schema::Fact) -> Result<Fact, error::Format> {
         Ok(Fact {
             predicate: proto_predicate_to_token_predicate(&input.predicate)?,
         })
     }
 
-    pub fn token_check_to_proto_check(input: &Check) -> schema::CheckV2 {
-        use schema::check_v2::Kind;
+    pub fn token_check_to_proto_check(input: &Check) -> schema::Check {
+        use schema::check::Kind;
 
-        schema::CheckV2 {
+        schema::Check {
             queries: input.queries.iter().map(token_rule_to_proto_rule).collect(),
             kind: match input.kind {
                 crate::token::builder::CheckKind::One => None,
@@ -358,7 +357,7 @@ pub mod v2 {
     }
 
     pub fn proto_check_to_token_check(
-        input: &schema::CheckV2,
+        input: &schema::Check,
         version: u32,
     ) -> Result<Check, error::Format> {
         let mut queries = vec![];
@@ -429,8 +428,8 @@ pub mod v2 {
         Ok(crate::token::builder::Policy { queries, kind })
     }
 
-    pub fn token_rule_to_proto_rule(input: &Rule) -> schema::RuleV2 {
-        schema::RuleV2 {
+    pub fn token_rule_to_proto_rule(input: &Rule) -> schema::Rule {
+        schema::Rule {
             head: token_predicate_to_proto_predicate(&input.head),
             body: input
                 .body
@@ -451,7 +450,7 @@ pub mod v2 {
     }
 
     pub fn proto_rule_to_token_rule(
-        input: &schema::RuleV2,
+        input: &schema::Rule,
         version: u32,
     ) -> Result<(Rule, Vec<Scope>), error::Format> {
         let mut body = vec![];
@@ -487,15 +486,15 @@ pub mod v2 {
         ))
     }
 
-    pub fn token_predicate_to_proto_predicate(input: &Predicate) -> schema::PredicateV2 {
-        schema::PredicateV2 {
+    pub fn token_predicate_to_proto_predicate(input: &Predicate) -> schema::Predicate {
+        schema::Predicate {
             name: input.name,
             terms: input.terms.iter().map(token_term_to_proto_id).collect(),
         }
     }
 
     pub fn proto_predicate_to_token_predicate(
-        input: &schema::PredicateV2,
+        input: &schema::Predicate,
     ) -> Result<Predicate, error::Format> {
         let mut terms = vec![];
 
@@ -509,42 +508,42 @@ pub mod v2 {
         })
     }
 
-    pub fn token_term_to_proto_id(input: &Term) -> schema::TermV2 {
-        use schema::term_v2::Content;
+    pub fn token_term_to_proto_id(input: &Term) -> schema::Term {
+        use schema::term::Content;
 
         match input {
-            Term::Variable(v) => schema::TermV2 {
+            Term::Variable(v) => schema::Term {
                 content: Some(Content::Variable(*v)),
             },
-            Term::Integer(i) => schema::TermV2 {
+            Term::Integer(i) => schema::Term {
                 content: Some(Content::Integer(*i)),
             },
-            Term::Str(s) => schema::TermV2 {
+            Term::Str(s) => schema::Term {
                 content: Some(Content::String(*s)),
             },
-            Term::Date(d) => schema::TermV2 {
+            Term::Date(d) => schema::Term {
                 content: Some(Content::Date(*d)),
             },
-            Term::Bytes(s) => schema::TermV2 {
+            Term::Bytes(s) => schema::Term {
                 content: Some(Content::Bytes(s.clone())),
             },
-            Term::Bool(b) => schema::TermV2 {
+            Term::Bool(b) => schema::Term {
                 content: Some(Content::Bool(*b)),
             },
-            Term::Set(s) => schema::TermV2 {
+            Term::Set(s) => schema::Term {
                 content: Some(Content::Set(schema::TermSet {
                     set: s.iter().map(token_term_to_proto_id).collect(),
                 })),
             },
-            Term::Null => schema::TermV2 {
+            Term::Null => schema::Term {
                 content: Some(Content::Null(Empty {})),
             },
-            Term::Array(a) => schema::TermV2 {
+            Term::Array(a) => schema::Term {
                 content: Some(Content::Array(schema::Array {
                     array: a.iter().map(token_term_to_proto_id).collect(),
                 })),
             },
-            Term::Map(m) => schema::TermV2 {
+            Term::Map(m) => schema::Term {
                 content: Some(Content::Map(schema::Map {
                     entries: m
                         .iter()
@@ -568,8 +567,8 @@ pub mod v2 {
         }
     }
 
-    pub fn proto_id_to_token_term(input: &schema::TermV2) -> Result<Term, error::Format> {
-        use schema::term_v2::Content;
+    pub fn proto_id_to_token_term(input: &schema::Term) -> Result<Term, error::Format> {
+        use schema::term::Content;
 
         match &input.content {
             None => Err(error::Format::DeserializationError(
@@ -733,8 +732,8 @@ pub mod v2 {
         }
     }
 
-    pub fn token_expression_to_proto_expression(input: &Expression) -> schema::ExpressionV2 {
-        schema::ExpressionV2 {
+    pub fn token_expression_to_proto_expression(input: &Expression) -> schema::Expression {
+        schema::Expression {
             ops: input.ops.iter().map(token_op_to_proto_op).collect(),
         }
     }
@@ -841,7 +840,7 @@ pub mod v2 {
     }
 
     pub fn proto_expression_to_token_expression(
-        input: &schema::ExpressionV2,
+        input: &schema::Expression,
     ) -> Result<Expression, error::Format> {
         let mut ops = Vec::new();
 
