@@ -19,8 +19,8 @@ use crate::{
     error,
     format::{
         convert::{
-            proto_snapshot_block_to_token_block, token_block_to_proto_snapshot_block,
-            v2::{policy_to_proto_policy, proto_policy_to_policy},
+            policy_to_proto_policy, proto_policy_to_policy, proto_snapshot_block_to_token_block,
+            token_block_to_proto_snapshot_block,
         },
         schema,
     },

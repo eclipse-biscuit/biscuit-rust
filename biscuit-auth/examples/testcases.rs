@@ -9,7 +9,7 @@ extern crate biscuit_auth as biscuit;
 use biscuit::builder::BlockBuilder;
 use biscuit::datalog::SymbolTable;
 use biscuit::error;
-use biscuit::format::convert::v2 as convert;
+use biscuit::format::convert;
 use biscuit::macros::*;
 use biscuit::{builder::*, builder_ext::*, Biscuit};
 use biscuit::{KeyPair, PrivateKey, PublicKey};

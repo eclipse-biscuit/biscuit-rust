@@ -11,11 +11,9 @@ use crate::{
     error,
     format::{
         convert::{
+            policy_to_proto_policy, proto_fact_to_token_fact, proto_policy_to_policy,
             proto_snapshot_block_to_token_block, token_block_to_proto_snapshot_block,
-            v2::{
-                policy_to_proto_policy, proto_fact_to_token_fact, proto_policy_to_policy,
-                token_fact_to_proto_fact,
-            },
+            token_fact_to_proto_fact,
         },
         schema::{self, GeneratedFacts},
     },
