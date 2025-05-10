@@ -672,6 +672,27 @@ pub(crate) fn generate_authority_block_signature_payload_v1(
     to_verify
 }
 
+pub(crate) fn generate_authority_block_signature_payload_v1_prehashed<
+    H: ecdsa::signature::digest::Update,
+>(
+    payload: &[u8],
+    next_key: &PublicKey,
+    version: u32,
+    hasher: &mut H,
+) {
+    hasher.update(b"\0BLOCK\0\0VERSION\0");
+    hasher.update(&version.to_le_bytes());
+
+    hasher.update(&b"\0PAYLOAD\0"[..]);
+    hasher.update(payload);
+
+    hasher.update(&b"\0ALGORITHM\0"[..]);
+    hasher.update(&(next_key.algorithm() as i32).to_le_bytes());
+
+    hasher.update(&b"\0NEXTKEY\0"[..]);
+    hasher.update(&next_key.to_bytes());
+}
+
 pub(crate) fn generate_block_signature_payload_v1(
     payload: &[u8],
     next_key: &PublicKey,
@@ -993,31 +1014,31 @@ mod tests {
         use ecdsa::hazmat::DigestPrimitive;
         use ed25519_dalek::DigestSigner;
 
-        fn generate_authority_block_signature_payload_v1_prehashed<
-            H: ecdsa::signature::digest::Update,
-        >(
-            payload: &[u8],
-            version: u32,
-            hasher: &mut H,
-        ) {
-            hasher.update(b"\0BLOCK\0\0VERSION\0");
-            hasher.update(&version.to_le_bytes());
-
-            hasher.update(&b"\0PAYLOAD\0"[..]);
-            hasher.update(payload);
-        }
-
-        let mut prehashed: ed25519_dalek::Sha512 = ed25519_dalek::Sha512::default();
-        generate_authority_block_signature_payload_v1_prehashed(b"payload", 1, &mut prehashed);
         let kp = ed25519::KeyPair::new();
+        let next_key = KeyPair::new();
+        let version = 1;
+        let payload = b"payload";
+        let mut prehashed: ed25519_dalek::Sha512 = ed25519_dalek::Sha512::default();
+        generate_authority_block_signature_payload_v1_prehashed(
+            payload,
+            &next_key.public(),
+            version,
+            &mut prehashed,
+        );
         //let hash = ed25519_dalek::Digest::finalize(prehashed);
-        let sig = kp.kp.try_sign_digest(prehashed).unwrap();
+        let sig = kp.kp.try_sign_digest(prehashed).unwrap().to_vec();
         println!("{:?}", sig);
 
-        let mut prehashed2 = <NistP256 as DigestPrimitive>::Digest::default();
-        generate_authority_block_signature_payload_v1_prehashed(b"payload", 1, &mut prehashed2);
-        let kp = p256::KeyPair::new();
-        let sig: ecdsa::Signature<NistP256> = kp.kp.try_sign_digest(prehashed2).unwrap();
-        println!("{:?}", sig);
+        let to_sign =
+            generate_authority_block_signature_payload_v1(payload, &next_key.public(), version);
+
+        let sig2 = kp.sign(&to_sign).unwrap();
+        assert_eq!(sig, sig2.to_bytes());
+
+        // let mut prehashed2 = <NistP256 as DigestPrimitive>::Digest::default();
+        // generate_authority_block_signature_payload_v1_prehashed(b"payload", 1, &mut prehashed2);
+        // let kp = p256::KeyPair::new();
+        // let sig: ecdsa::Signature<NistP256> = kp.kp.try_sign_digest(prehashed2).unwrap();
+        // println!("{:?}", sig);
     }
 }
