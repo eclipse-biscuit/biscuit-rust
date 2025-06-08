@@ -33,6 +33,15 @@ jobs:
           - os: ubuntu-latest
             target_arch: aarch64-unknown-linux-gnu
             arch: arm64-linux
+          - os: windows-latest
+            target_arch: x86_64-pc-windows-msvc
+            arch: x86_64-windows
+          - os: windows-latest
+            target_arch: i686-pc-windows-msvc
+            arch: i686-windows
+          - os: windows-latest
+            target_arch: aarch64-pc-windows-msvc
+            arch: arm64-windows
 
     steps:
       - name: Checkout sources
@@ -68,11 +77,23 @@ jobs:
           CARGO_C_VERSION: v0.10.13
         run: |
           curl -L $LINK/$CARGO_C_VERSION/$CARGO_C_FILE | tar xz -C ~/.cargo/bin
+      - name: Install cargo-c (Windows)
+        if: matrix.os == 'windows-latest'
+        env:
+          LINK: https://github.com/lu-zero/cargo-c/releases/download
+          CARGO_C_FILE: cargo-c-windows-msvc.zip
+          CARGO_C_VERSION: v0.10.13
+        shell: cmd
+        run: |
+          curl -L %LINK%/%CARGO_C_VERSION%/%CARGO_C_FILE% -o %TEMP%\%CARGO_C_FILE%
+          tar xzf %TEMP%\%CARGO_C_FILE% -C %USERPROFILE%\.cargo\bin
+          del %TEMP%\%CARGO_C_FILE%
       - name: Run cargo-c tests
         run: cargo ctest --release --features="capi"
         if: matrix.os == 'ubuntu-latest' && matrix.target_arch == 'x86_64-unknown-linux-gnu'
 
       - name: Build C-API
+        shell: bash
         run: |
           cargo cinstall --target ${{ matrix.target_arch }} \
             --prefix=/usr \
@@ -83,8 +104,9 @@ jobs:
         run: tar cvzf biscuit-auth-${{github.ref_name}}-${{matrix.arch}}.tar.gz -C build/ .
 
       - name: Generate checksum
+        shell: bash
         run: |
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
+          if [[ "$RUNNER_OS" == "Linux" || "$RUNNER_OS" == "Windows" ]]; then
             sha256sum "biscuit-auth-${{github.ref_name}}-${{matrix.arch}}.tar.gz" > "biscuit-auth-${{github.ref_name}}-${{matrix.arch}}.tar.gz.sha256"
           else
             shasum -a 256 "biscuit-auth-${{github.ref_name}}-${{matrix.arch}}.tar.gz" > "biscuit-auth-${{github.ref_name}}-${{matrix.arch}}.tar.gz.sha256"
