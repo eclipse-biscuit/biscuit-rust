@@ -3011,7 +3011,7 @@ result: `Ok(0)`
 
 authorizer code:
 ```
-allow if [true].any($p -> [true].all($p -> $p));
+allow if {"true"}.any($p -> {"true"}.all($p -> $p));
 ```
 
 revocation ids:
@@ -3042,7 +3042,7 @@ World {
     },
 ]
   policies: [
-    "allow if [true].any($p -> [true].all($p -> $p))",
+    "allow if {\"true\"}.any($p -> {\"true\"}.all($p -> $p))",
 ]
 }
 ```
