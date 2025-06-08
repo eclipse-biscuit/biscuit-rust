@@ -2850,7 +2850,7 @@
               }
             ],
             "policies": [
-              "allow if [true].any($p -> [true].all($p -> $p))"
+              "allow if {\"true\"}.any($p -> {\"true\"}.all($p -> $p))"
             ]
           },
           "result": {
@@ -2858,7 +2858,7 @@
               "Execution": "ShadowedVariable"
             }
           },
-          "authorizer_code": "allow if [true].any($p -> [true].all($p -> $p));\n",
+          "authorizer_code": "allow if {\"true\"}.any($p -> {\"true\"}.all($p -> $p));\n",
           "revocation_ids": [
             "2cd348b6df5f08b900903fd8d3fbea0bb89b665c331a2aa2131e0b8ecb38b3550275d4ccd8db35da6c4433eed1d456cfb761e3fcc7845894d891e986ca044b02"
           ]
