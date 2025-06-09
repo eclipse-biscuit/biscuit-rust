@@ -1,3 +1,8 @@
 [workspace]
 members = ["biscuit-auth", "biscuit-quote", "biscuit-parser", "biscuit-capi"]
 resolver = "2"
+
+# Used by capi crate
+[profile.release-strip]
+inherits = "release"
+strip = "symbols"

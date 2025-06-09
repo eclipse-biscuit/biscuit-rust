@@ -42,6 +42,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools
+          echo "RUSTFLAGS=-C target-feature=-crt-static" >> $GITHUB_ENV
+      - name: Install linux arm toolchain
+        if: matrix.os == 'ubuntu-latest' && matrix.target_arch == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.target_arch }}
@@ -50,7 +56,7 @@ jobs:
         env:
           LINK: https://github.com/lu-zero/cargo-c/releases/download
           CARGO_C_FILE: cargo-c-macos.zip
-          CARGO_C_VERSION: v0.10.11
+          CARGO_C_VERSION: v0.10.13
         run: |
           curl -L $LINK/$CARGO_C_VERSION/$CARGO_C_FILE -o ${{ env.CARGO_C_FILE }}
           unzip ${{ env.CARGO_C_FILE }} -d ~/.cargo/bin
@@ -59,24 +65,19 @@ jobs:
         env:
           LINK: https://github.com/lu-zero/cargo-c/releases/download
           CARGO_C_FILE: cargo-c-x86_64-unknown-linux-musl.tar.gz
-          CARGO_C_VERSION: v0.10.11
+          CARGO_C_VERSION: v0.10.13
         run: |
           curl -L $LINK/$CARGO_C_VERSION/$CARGO_C_FILE | tar xz -C ~/.cargo/bin
       - name: Run cargo-c tests
         run: cargo ctest --release --features="capi"
         if: matrix.os == 'ubuntu-latest' && matrix.target_arch == 'x86_64-unknown-linux-gnu'
 
-      - name: Build C-API (Linux)
-        if: matrix.os == 'ubuntu-latest' && matrix.target_arch == 'x86_64-unknown-linux-gnu'
-        run: cargo cinstall --release --target ${{ matrix.target_arch }} --prefix=/usr --destdir=./build
-      - name: Build C-API (musl)
-        if: matrix.os == 'ubuntu-latest' && matrix.target_arch == 'x86_64-unknown-linux-musl'
+      - name: Build C-API
         run: |
-          cargo cinstall --target ${{ matrix.target_arch }} --release --prefix=/usr --destdir=./build
-      - name: Build C-API (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          cargo cinstall --target ${{ matrix.target_arch }} --release --prefix=/usr --destdir=./build
+          cargo cinstall --target ${{ matrix.target_arch }} \
+            --prefix=/usr \
+            --destdir=./build \
+            --profile release-strip
 
       - name: Compress
         run: tar cvzf biscuit-auth-${{github.ref_name}}-${{matrix.arch}}.tar.gz -C build/ .
