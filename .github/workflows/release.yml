@@ -87,7 +87,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.target_arch == 'x86_64-unknown-linux-gnu'
 
       - name: Build C-API (Linux)
-        if: matrix.os == 'ubuntu-latest' && matrix.target_arch != 'x86_64-unknown-linux-musl'
+        if: matrix.os == 'ubuntu-latest' && (matrix.target_arch == 'x86_64-unknown-linux-gnu' || matrix.target_arch == 'aarch64-unknown-linux-gnu' )
         run: cargo cinstall --release --target ${{ matrix.target_arch }} --prefix=/usr --destdir=./build
       - name: Build C-API (musl)
         if: matrix.os == 'ubuntu-latest' && matrix.target_arch == 'x86_64-unknown-linux-musl'
