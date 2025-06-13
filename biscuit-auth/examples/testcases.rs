@@ -1766,6 +1766,17 @@ fn check_all(target: &str, root: &KeyPair, test: bool) -> TestResult {
         ),
     );
 
+    validations.insert(
+        "no matches".to_string(),
+        validate_token(
+            root,
+            &data[..],
+            r#"
+                allow if true
+            "#,
+        ),
+    );
+
     TestResult {
         title,
         filename,
