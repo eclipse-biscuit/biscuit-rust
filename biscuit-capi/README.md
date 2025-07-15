@@ -1,6 +1,6 @@
-## Biscuit C API
+## Eclipse Biscuit C API
 
-This crate provides a C API for the Biscuit token library. It is a wrapper around the Rust API, and is intended to be used by other languages that can interface with C.
+This crate provides a C API for the Eclipse Biscuit token library. It is a wrapper around the Rust API, and is intended to be used by other languages that can interface with C.
 
 ### Building from sources
 

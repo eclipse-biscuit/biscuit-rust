@@ -1,6 +1,6 @@
-# Biscuit authentication and authorization token
+# Eclipse Biscuit authentication and authorization token
 
-Biscuit is an authorization token for microservices architectures with the following properties:
+Eclipse Biscuit is an authorization token for microservices architectures with the following properties:
 
 - decentralized validation: any node could validate the token only with public information;
 - offline delegation: a new, valid token can be created from another one by attenuating its rights, by its holder, without communicating with anyone;
