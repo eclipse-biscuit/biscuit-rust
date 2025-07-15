@@ -95,10 +95,17 @@ jobs:
       - name: Build C-API
         shell: bash
         run: |
-          cargo cinstall --target ${{ matrix.target_arch }} \
-            --prefix=/usr \
-            --destdir=./build \
-            --profile release-strip
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            # Don't use --prefix on Windows, as there is no global location to install shared libraries and headers.
+            cargo cinstall --target ${{ matrix.target_arch }} \
+              --destdir=./build \
+              --profile release-strip
+          else
+            cargo cinstall --target ${{ matrix.target_arch }} \
+              --prefix=/usr \
+              --destdir=./build \
+              --profile release-strip
+          fi
 
       - name: Compress
         run: tar cvzf biscuit-auth-${{github.ref_name}}-${{matrix.arch}}.tar.gz -C build/ .
