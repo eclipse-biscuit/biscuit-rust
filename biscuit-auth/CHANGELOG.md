@@ -1,20 +1,15 @@
-# `6.0.0-beta.3`
-
-- dedicated prefix for private keys (#276)
-- missing `AuthorizerBuilder` features (#274)
-- `.try_or()` (#271)
-
-# `6.0.0-beta.2`
+# `6.0.0`
 
 - support for `pem` / `der` private and public keys (#212 and #265)
-
-# `6.0.0-beta.1`
-
-- [biscuit-datalog 3.3](https://www.biscuitsec.org/blog/biscuit-3-3/) support (#217)
-- Separate `AuthorizerBuilder` from `Authorizer` (#250 and #255)
+- [biscuit-datalog 3.3](https://www.biscuitsec.org/blog/biscuit-3-3/) support (#217 and #271)
 - Support for P256 signatures (#108)
 - `query_exactly_once()` (#260) (Baran Yildirim)
-- include algorithm prefix in public/private key strings (#261)
+
+## Breaking changes
+
+- Syntax updates related to [biscuit-datalog 3.3](https://www.biscuitsec.org/blog/biscuit-3-3/) support (#217) (sets are now denoted with `{}`, `==` is now lenient equals).
+- Separate `AuthorizerBuilder` from `Authorizer` (#250, #255, #274)
+- include algorithm prefix in public/private key strings (#261, #276)
 - `UnverifiedBiscuit.external_public_keys()` now returns `PublicKey`s, not byte vecs (#263)
 
 # `5.0.0`
