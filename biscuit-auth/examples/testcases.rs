@@ -2206,7 +2206,7 @@ fn closures(target: &str, root: &KeyPair, test: bool) -> TestResult {
         validate_token(
             root,
             &data[..],
-            "allow if [true].any($p -> [true].all($p -> $p))",
+            r#"allow if { "true" }.any($p -> { "true" }.all($p -> $p))"#,
         ),
     );
 
