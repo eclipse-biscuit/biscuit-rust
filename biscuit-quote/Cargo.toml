@@ -1,6 +1,6 @@
 [package]
 name = "biscuit-quote"
-version = "0.3.0-beta.1"
+version = "0.3.0"
 edition = "2021"
 description = "macros for compile time datalog parsing for Biscuit authorization tokens"
 authors = ["Clément Delafargue <clement@delafargue.name>", "Geoffroy Couprie <contact@geoffroycouprie.com>"]
@@ -10,7 +10,7 @@ license = "Apache-2.0"
 proc-macro = true
 
 [dependencies]
-biscuit-parser = { path = "../biscuit-parser", features = ["datalog-macro"], version = "0.2.0-beta.1" }
+biscuit-parser = { path = "../biscuit-parser", features = ["datalog-macro"], version = "0.2.0" }
 proc-macro2 = "1"
 quote = "1.0.14"
 syn = { version = "1.0.85", features = ["full", "extra-traits"] }

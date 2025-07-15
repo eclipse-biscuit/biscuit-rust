@@ -1,10 +1,6 @@
-# `0.2.0-beta.1`
+# `0.2.0`
 
-- support for `try_or`
-
-# `0.2.0-alpha.1`
-
-- [biscuit-datalog 3.3](https://www.biscuitsec.org/blog/biscuit-3-3/) support (#217)
+- [biscuit-datalog 3.3](https://www.biscuitsec.org/blog/biscuit-3-3/) support (#217 and #271)
 
 # `0.1.1`
 

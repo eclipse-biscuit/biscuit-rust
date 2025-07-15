@@ -1,6 +1,6 @@
 [package]
 name = "biscuit-auth"
-version = "6.0.0-beta.3"
+version = "6.0.0"
 description = "an authorization token with decentralized verification and offline attenuation"
 authors = ["Geoffroy Couprie <contact@geoffroycouprie.com>"]
 edition = "2018"
@@ -43,8 +43,8 @@ serde = { version = "1.0.132", optional = true, features = ["derive"] }
 getrandom = { version = "0.2.15" }
 time = { version = "0.3.7", features = ["formatting", "parsing"] }
 uuid = { version = "1", optional = true }
-biscuit-parser = { version = "0.2.0-beta.1", path = "../biscuit-parser" }
-biscuit-quote = { version = "0.3.0-beta.1", optional = true, path = "../biscuit-quote" }
+biscuit-parser = { version = "0.2.0", path = "../biscuit-parser" }
+biscuit-quote = { version = "0.3.0", optional = true, path = "../biscuit-quote" }
 chrono = { version = "0.4.26", optional = true, default-features = false, features = [
   "serde",
 ] }

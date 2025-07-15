@@ -13,7 +13,7 @@ repository = "https://github.com/biscuit-auth/biscuit-rust"
 capi = []
 
 [dependencies]
-biscuit-auth = { version = "6.0.0-beta.3", path = "../biscuit-auth", features = [
+biscuit-auth = { version = "6.0.0", path = "../biscuit-auth", features = [
     "datalog-macro",
     "serde-error",
     "pem",
