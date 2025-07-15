@@ -96,8 +96,8 @@
 //!      resource("/a/file1.txt");
 //!      operation("read");
 //!      
-//!      // a verifier can come with allow/deny policies. While checks are all tested
-//!      // and must all succeeed, allow/deny policies are tried one by one in order,
+//!      // an authorizer can come with allow/deny policies. While checks are all tested
+//!      // and must all succeed, allow/deny policies are tried one by one in order,
 //!      // and we stop verification on the first that matches
 //!      //
 //!      // here we will check that the token has the corresponding right
@@ -124,9 +124,9 @@
 //!
 //!   // the token restricts to read operations:
 //!   assert!(v1.authorize().is_ok());
-//!   // the second verifier requested a read operation
+//!   // the second authorizer requested a read operation
 //!   assert!(v2.authorize().is_err());
-//!   // the third verifier requests /a/file2.txt
+//!   // the third authorizer requests /a/file2.txt
 //!   assert!(v3.authorize().is_err());
 //!
 //!   Ok(())

@@ -4,7 +4,7 @@ Eclipse Biscuit is an authorization token for microservices architectures with t
 
 - decentralized validation: any node could validate the token only with public information;
 - offline delegation: a new, valid token can be created from another one by attenuating its rights, by its holder, without communicating with anyone;
-- capabilities based: authorization in microservices should be tied to rights related to the request, instead of relying to an identity that might not make sense to the verifier;
+- capabilities based: authorization in microservices should be tied to rights related to the request, instead of relying to an identity that might not make sense to the authorizer;
 - flexible rights managements: the token uses a logic language to specify attenuation and add bounds on ambient data;
 - small enough to fit anywhere (cookies, etc).
 
@@ -74,7 +74,7 @@ fn main() -> Result<(), error::Token> {
   // let's deserialize the token:
   let biscuit2 = Biscuit::from(&token2, public_key)?;
 
-  // let's define 3 verifiers (corresponding to 3 different requests):
+  // let's define 3 authorizers (corresponding to 3 different requests):
   // - one for /a/file1.txt and a read operation
   // - one for /a/file1.txt and a write operation
   // - one for /a/file2.txt and a read operation
@@ -83,8 +83,8 @@ fn main() -> Result<(), error::Token> {
      resource("/a/file1.txt");
      operation("read");
      
-     // a verifier can come with allow/deny policies. While checks are all tested
-     // and must all succeeed, allow/deny policies are tried one by one in order,
+     // an authorizer can come with allow/deny policies. While checks are all tested
+     // and must all succeed, allow/deny policies are tried one by one in order,
      // and we stop verification on the first that matches
      //
      // here we will check that the token has the corresponding right
@@ -92,26 +92,29 @@ fn main() -> Result<(), error::Token> {
      // explicit catch-all deny. here it is not necessary: if no policy
      // matches, a default deny applies
      deny if true;
-  "#);
+  "#)
+  .build(&biscuit2)?;
 
   let mut v2 = authorizer!(r#"
      resource("/a/file1.txt");
      operation("write");
      allow if right("/a/file1.txt", "write");
-  "#);
+  "#)
+  .build(&biscuit2)?;
   
   let mut v3 = authorizer!(r#"
      resource("/a/file2.txt");
      operation("read");
      allow if right("/a/file2.txt", "read");
-  "#);
+  "#)
+  .build(&biscuit2)?;
 
   // the token restricts to read operations:
-  assert!(biscuit2.authorize(&v1).is_ok());
-  // the second verifier requested a read operation
-  assert!(biscuit2.authorize(&v2).is_err());
-  // the third verifier requests /a/file2.txt
-  assert!(biscuit2.authorize(&v3).is_err());
+  assert!(v1.authorize().is_ok());
+  // the second authorizer requested a read operation
+  assert!(v2.authorize().is_err());
+  // the third authorizer requests /a/file2.txt
+  assert!(v3.authorize().is_err());
 
   Ok(())
 }
