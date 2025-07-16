@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "*"
+      - "biscuit-capi-*"
 
 permissions:
   contents: write
@@ -108,19 +108,19 @@ jobs:
           fi
 
       - name: Compress
-        run: tar cvzf biscuit-auth-${{github.ref_name}}-${{matrix.arch}}.tar.gz -C build/ .
+        run: tar cvzf ${{github.ref_name}}-${{matrix.arch}}.tar.gz -C build/ .
 
       - name: Generate checksum
         shell: bash
         run: |
           if [[ "$RUNNER_OS" == "Linux" || "$RUNNER_OS" == "Windows" ]]; then
-            sha256sum "biscuit-auth-${{github.ref_name}}-${{matrix.arch}}.tar.gz" > "biscuit-auth-${{github.ref_name}}-${{matrix.arch}}.tar.gz.sha256"
+            sha256sum "${{github.ref_name}}-${{matrix.arch}}.tar.gz" > "${{github.ref_name}}-${{matrix.arch}}.tar.gz.sha256"
           else
-            shasum -a 256 "biscuit-auth-${{github.ref_name}}-${{matrix.arch}}.tar.gz" > "biscuit-auth-${{github.ref_name}}-${{matrix.arch}}.tar.gz.sha256"
+            shasum -a 256 "${{github.ref_name}}-${{matrix.arch}}.tar.gz" > "${{github.ref_name}}-${{matrix.arch}}.tar.gz.sha256"
           fi
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            biscuit-auth-${{github.ref_name}}-${{matrix.arch}}.tar.gz
-            biscuit-auth-${{github.ref_name}}-${{matrix.arch}}.tar.gz.sha256
+            ${{github.ref_name}}-${{matrix.arch}}.tar.gz
+            ${{github.ref_name}}-${{matrix.arch}}.tar.gz.sha256
