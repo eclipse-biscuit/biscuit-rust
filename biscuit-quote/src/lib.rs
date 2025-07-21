@@ -334,6 +334,7 @@ impl Builder {
 
 struct Item {
     parameters: HashSet<String>,
+    scope_parameters: HashSet<String>,
     start: TokenStream,
     middle: TokenStream,
     end: TokenStream,
@@ -348,6 +349,7 @@ impl Item {
                 .flatten()
                 .map(|(name, _)| name.to_owned())
                 .collect(),
+            scope_parameters: HashSet::new(),
             start: quote! {
                 let mut __biscuit_auth_item = #fact;
             },
@@ -360,6 +362,7 @@ impl Item {
     fn rule(rule: &Rule) -> Self {
         Self {
             parameters: Item::rule_params(rule).collect(),
+            scope_parameters: todo!(),
             start: quote! {
                 let mut __biscuit_auth_item = #rule;
             },
@@ -373,6 +376,7 @@ impl Item {
     fn check(check: &Check) -> Self {
         Self {
             parameters: check.queries.iter().flat_map(Item::rule_params).collect(),
+            scope_parameters: todo!(),
             start: quote! {
                 let mut __biscuit_auth_item = #check;
             },
@@ -386,6 +390,7 @@ impl Item {
     fn policy(policy: &Policy) -> Self {
         Self {
             parameters: policy.queries.iter().flat_map(Item::rule_params).collect(),
+            scope_parameters: todo!(),
             start: quote! {
                 let mut __biscuit_auth_item = #policy;
             },

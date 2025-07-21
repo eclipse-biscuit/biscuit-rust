@@ -2,7 +2,7 @@
  * Copyright (c) 2019 Geoffroy Couprie <contact@geoffroycouprie.com> and Contributors to the Eclipse Foundation.
  * SPDX-License-Identifier: Apache-2.0
  */
-use biscuit_auth::{builder, datalog::RunLimits, KeyPair};
+use biscuit_auth::{builder, datalog::RunLimits, AuthorizerBuilder, KeyPair, PublicKey};
 use biscuit_quote::{
     authorizer, authorizer_merge, biscuit, biscuit_merge, block, block_merge, check, fact, policy,
     rule,
@@ -313,4 +313,33 @@ fn ecdsa() {
         r.to_string(),
         r#"rule($0, true) <- fact($0, $1, $2, "my_value", {0}) trusting secp256r1/0245dd01132962da3812911b746b080aed714873c1812e7cefacf13e3880712da0"#,
     );
+}
+
+#[test]
+fn trusting() {
+    let pubkeys_str =
+        "secp256r1/0245dd01132962da3812911b746b080aed714873c1812e7cefacf13e3880712da0";
+    let x = 0f64;
+    let mut authorizer = authorizer!(
+        r#"
+    nonce("a"); operation("o"); pathname("p");
+    // d($x) <- nonce($x) trusting {pubkeys_str}
+        "#
+    );
+    let mut qry = rule!(
+        r#"
+    data($nonce, $operation, $pathname)
+      <- nonce($nonce), operation($operation), pathname($pathname)
+
+      trusting {pubkeys_str}
+    "#,
+    );
+
+    /* .build_unauthenticated()
+    .unwrap();
+
+    qry.validate_parameters().unwrap();
+
+    let (nonce, operation, pathname): (String, String, String) =
+        authorizer.query_exactly_one(qry).unwrap(); */
 }
