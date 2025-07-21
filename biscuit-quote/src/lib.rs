@@ -204,6 +204,8 @@ struct Builder {
 
     // parameters used in the datalog source
     pub datalog_parameters: HashSet<String>,
+    // scope parameters used in the datalog source
+    pub datalog_scope_parameters: HashSet<String>,
     // parameters provided to the macro
     pub macro_parameters: HashSet<String>,
 
@@ -227,6 +229,7 @@ impl Builder {
             parameters,
 
             datalog_parameters: HashSet::new(),
+            datalog_scope_parameters: HashSet::new(),
             macro_parameters,
 
             facts: Vec::new(),
@@ -286,7 +289,8 @@ impl Builder {
         }
 
         if let Some(parameters) = &rule.scope_parameters {
-            self.datalog_parameters.extend(parameters.keys().cloned());
+            self.datalog_scope_parameters
+                .extend(parameters.keys().cloned());
         }
     }
 
@@ -316,12 +320,17 @@ impl Builder {
     }
 
     fn validate(&self) -> Result<(), error::LanguageError> {
-        if self.macro_parameters.is_subset(&self.datalog_parameters) {
+        let all_parameters = self
+            .datalog_parameters
+            .union(&self.datalog_scope_parameters)
+            .cloned()
+            .collect();
+        if self.macro_parameters.is_subset(&all_parameters) {
             Ok(())
         } else {
             let unused_parameters: Vec<String> = self
                 .macro_parameters
-                .difference(&self.datalog_parameters)
+                .difference(&all_parameters)
                 .cloned()
                 .collect();
             Err(error::LanguageError::Parameters {
@@ -334,6 +343,7 @@ impl Builder {
 
 struct Item {
     parameters: HashSet<String>,
+    scope_parameters: HashSet<String>,
     start: TokenStream,
     middle: TokenStream,
     end: TokenStream,
@@ -348,6 +358,7 @@ impl Item {
                 .flatten()
                 .map(|(name, _)| name.to_owned())
                 .collect(),
+            scope_parameters: HashSet::new(),
             start: quote! {
                 let mut __biscuit_auth_item = #fact;
             },
@@ -360,6 +371,7 @@ impl Item {
     fn rule(rule: &Rule) -> Self {
         Self {
             parameters: Item::rule_params(rule).collect(),
+            scope_parameters: Item::rule_scope_params(rule).collect(),
             start: quote! {
                 let mut __biscuit_auth_item = #rule;
             },
@@ -373,6 +385,11 @@ impl Item {
     fn check(check: &Check) -> Self {
         Self {
             parameters: check.queries.iter().flat_map(Item::rule_params).collect(),
+            scope_parameters: check
+                .queries
+                .iter()
+                .flat_map(Item::rule_scope_params)
+                .collect(),
             start: quote! {
                 let mut __biscuit_auth_item = #check;
             },
@@ -386,6 +403,11 @@ impl Item {
     fn policy(policy: &Policy) -> Self {
         Self {
             parameters: policy.queries.iter().flat_map(Item::rule_params).collect(),
+            scope_parameters: policy
+                .queries
+                .iter()
+                .flat_map(Item::rule_scope_params)
+                .collect(),
             start: quote! {
                 let mut __biscuit_auth_item = #policy;
             },
@@ -400,18 +422,21 @@ impl Item {
         rule.parameters
             .iter()
             .flatten()
-            .map(|(name, _)| name.as_ref())
-            .chain(
-                rule.scope_parameters
-                    .iter()
-                    .flatten()
-                    .map(|(name, _)| name.as_ref()),
-            )
-            .map(str::to_owned)
+            .map(|(name, _)| name.to_string())
+    }
+
+    fn rule_scope_params(rule: &Rule) -> impl Iterator<Item = String> + '_ {
+        rule.scope_parameters
+            .iter()
+            .flatten()
+            .map(|(name, _)| name.to_string())
     }
 
     fn needs_param(&self, name: &str) -> bool {
         self.parameters.contains(name)
+    }
+    fn needs_scope_param(&self, name: &str) -> bool {
+        self.scope_parameters.contains(name)
     }
 
     fn add_param(&mut self, name: &str, clone: bool) {
@@ -425,6 +450,20 @@ impl Item {
 
         self.middle.extend(quote! {
             __biscuit_auth_item.set_macro_param(#name, #expr).unwrap();
+        });
+    }
+
+    fn add_scope_param(&mut self, name: &str, clone: bool) {
+        let ident = Ident::new(name, Span::call_site());
+
+        let expr = if clone {
+            quote! { ::core::clone::Clone::clone(&#ident) }
+        } else {
+            quote! { #ident }
+        };
+
+        self.middle.extend(quote! {
+            __biscuit_auth_item.set_macro_scope_param(#name, #expr).unwrap();
         });
     }
 }
@@ -472,6 +511,21 @@ impl ToTokens for Builder {
                 match (items.next(), items.peek()) {
                     (Some(cur), Some(_next)) => cur.add_param(param, true),
                     (Some(cur), None) => cur.add_param(param, false),
+                    (None, _) => break,
+                }
+            }
+        }
+
+        for param in &self.datalog_scope_parameters {
+            let mut items = items
+                .iter_mut()
+                .filter(|i| i.needs_scope_param(param))
+                .peekable();
+
+            loop {
+                match (items.next(), items.peek()) {
+                    (Some(cur), Some(_next)) => cur.add_scope_param(param, true),
+                    (Some(cur), None) => cur.add_scope_param(param, false),
                     (None, _) => break,
                 }
             }
@@ -555,6 +609,12 @@ pub fn rule(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     for param in &builder.datalog_parameters {
         if rule_item.needs_param(param) {
             rule_item.add_param(param, false);
+        }
+    }
+
+    for param in &builder.datalog_scope_parameters {
+        if rule_item.needs_scope_param(param) {
+            rule_item.add_scope_param(param, false);
         }
     }
 
@@ -694,6 +754,12 @@ pub fn check(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     }
 
+    for param in &builder.datalog_scope_parameters {
+        if check_item.needs_scope_param(param) {
+            check_item.add_scope_param(param, false);
+        }
+    }
+
     (quote! {
         {
             #params_quote
@@ -763,6 +829,12 @@ pub fn policy(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     for param in &builder.datalog_parameters {
         if policy_item.needs_param(param) {
             policy_item.add_param(param, false);
+        }
+    }
+
+    for param in &builder.datalog_scope_parameters {
+        if policy_item.needs_scope_param(param) {
+            policy_item.add_scope_param(param, false);
         }
     }
 

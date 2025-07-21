@@ -104,6 +104,16 @@ impl Policy {
         }
     }
 
+    // TODO maybe introduce a conversion trait to support refs, multiple values, non-pk scopes
+    #[cfg(feature = "datalog-macro")]
+    pub fn set_macro_scope_param(
+        &mut self,
+        name: &str,
+        param: PublicKey,
+    ) -> Result<(), error::Token> {
+        self.set_scope_lenient(name, param)
+    }
+
     pub fn validate_parameters(&self) -> Result<(), error::Token> {
         for query in &self.queries {
             query.validate_parameters()?;
