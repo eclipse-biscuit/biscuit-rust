@@ -11,8 +11,6 @@ use crate::{
     error, PublicKey,
 };
 
-#[cfg(feature = "datalog-macro")]
-use super::ToAnyParam;
 use super::{display_rule_body, Convert, Rule, Term};
 
 /// Builder for a Biscuit check
@@ -98,17 +96,12 @@ impl Check {
     }
 
     #[cfg(feature = "datalog-macro")]
-    pub fn set_macro_param<T: ToAnyParam>(
+    pub fn set_macro_param<T: Into<Term>>(
         &mut self,
         name: &str,
         param: T,
     ) -> Result<(), error::Token> {
-        use super::AnyParam;
-
-        match param.to_any_param() {
-            AnyParam::Term(t) => self.set_lenient(name, t),
-            AnyParam::PublicKey(p) => self.set_scope_lenient(name, p),
-        }
+        self.set_lenient(name, param.into())
     }
 
     // TODO maybe introduce a conversion trait to support refs, multiple values, non-pk scopes
