@@ -2,6 +2,9 @@
  * Copyright (c) 2019 Geoffroy Couprie <contact@geoffroycouprie.com> and Contributors to the Eclipse Foundation.
  * SPDX-License-Identifier: Apache-2.0
  */
+
+// This warning makes all parser signatures extremely verbose
+#![allow(mismatched_lifetime_syntaxes)]
 use crate::builder::{self, CheckKind, PublicKey};
 use nom::{
     branch::alt,
