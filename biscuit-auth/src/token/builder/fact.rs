@@ -11,7 +11,9 @@ use crate::{
     error,
 };
 
-use super::{Convert, Predicate, Term, ToAnyParam};
+#[cfg(feature = "datalog-macro")]
+use super::ToAnyParam;
+use super::{Convert, Predicate, Term};
 
 /// Builder for a Datalog fact
 #[derive(Debug, Clone, PartialEq, Eq)]

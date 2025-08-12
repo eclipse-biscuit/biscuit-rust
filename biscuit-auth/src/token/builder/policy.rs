@@ -8,7 +8,9 @@ use nom::Finish;
 
 use crate::{error, PublicKey};
 
-use super::{display_rule_body, Rule, Term, ToAnyParam};
+#[cfg(feature = "datalog-macro")]
+use super::ToAnyParam;
+use super::{display_rule_body, Rule, Term};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PolicyKind {

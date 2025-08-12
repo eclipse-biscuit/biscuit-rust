@@ -11,7 +11,9 @@ use crate::{
     error, PublicKey,
 };
 
-use super::{display_rule_body, Convert, Rule, Term, ToAnyParam};
+#[cfg(feature = "datalog-macro")]
+use super::ToAnyParam;
+use super::{display_rule_body, Convert, Rule, Term};
 
 /// Builder for a Biscuit check
 #[derive(Debug, Clone, PartialEq, Eq)]
