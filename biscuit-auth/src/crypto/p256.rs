@@ -9,9 +9,9 @@ use super::error;
 use super::Signature;
 
 use p256::ecdsa::{signature::Signer, signature::Verifier, SigningKey, VerifyingKey};
-use p256::elliptic_curve::rand_core::{CryptoRng, OsRng, RngCore};
+use p256::elliptic_curve::rand_core::{CryptoRng, RngCore};
 use p256::NistP256;
-use std::hash::Hash;
+use std::{convert::TryInto, hash::Hash};
 
 /// pair of cryptographic keys used to sign a token's block
 #[derive(Debug, PartialEq)]
@@ -21,10 +21,10 @@ pub struct KeyPair {
 
 impl KeyPair {
     pub fn new() -> Self {
-        Self::new_with_rng(&mut OsRng)
+        Self::new_with_rng(&mut rand::rng())
     }
 
-    pub fn new_with_rng<T: RngCore + CryptoRng>(rng: &mut T) -> Self {
+    pub fn new_with_rng<T: RngCore + CryptoRng + ?Sized>(rng: &mut T) -> Self {
         let kp = SigningKey::random(rng);
 
         KeyPair { kp }
@@ -41,9 +41,13 @@ impl KeyPair {
         if bytes.len() != 32 {
             return Err(Format::InvalidKeySize(bytes.len()));
         }
-        let kp = SigningKey::from_bytes(bytes.into())
-            .map_err(|s| s.to_string())
-            .map_err(Format::InvalidKey)?;
+        let kp = SigningKey::from_bytes(
+            bytes
+                .try_into()
+                .map_err(|_| Format::InvalidKeySize(bytes.len()))?,
+        )
+        .map_err(|s| s.to_string())
+        .map_err(Format::InvalidKey)?;
 
         Ok(KeyPair { kp })
     }
@@ -134,15 +138,14 @@ impl PrivateKey {
 
     /// deserializes from a big endian byte array
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, error::Format> {
-        // the version of generic-array used by p256 panics if the input length
-        // is incorrect (including when using `.try_into()`)
-        if bytes.len() != 32 {
-            return Err(Format::InvalidKeySize(bytes.len()));
-        }
-        SigningKey::from_bytes(bytes.into())
-            .map(PrivateKey)
-            .map_err(|s| s.to_string())
-            .map_err(Format::InvalidKey)
+        SigningKey::from_bytes(
+            bytes
+                .try_into()
+                .map_err(|_| Format::InvalidKeySize(bytes.len()))?,
+        )
+        .map(PrivateKey)
+        .map_err(|s| s.to_string())
+        .map_err(Format::InvalidKey)
     }
 
     /// deserializes from an hex-encoded string
