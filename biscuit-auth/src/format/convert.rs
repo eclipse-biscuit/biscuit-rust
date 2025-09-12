@@ -113,9 +113,6 @@ pub fn proto_block_to_token_block(
 
     detected_schema_version.check_compatibility(version)?;
 
-    let scopes: Result<Vec<Scope>, _> =
-        input.scope.iter().map(proto_scope_to_token_scope).collect();
-
     Ok(Block {
         symbols,
         facts,
