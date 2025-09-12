@@ -1991,11 +1991,13 @@ fn expressions_v4(target: &str, root: &KeyPair, test: bool) -> TestResult {
 
     let biscuit = biscuit!(
         r#"
+        //bool not strict equal
+        check if true !== false;
         //integer not strict equal
         check if 1 !== 3;
         //integer bitwise and or xor
         check if 1 | 2 ^ 3 === 0;
-        // string not strict equal
+        //string not strict equal
         check if "abcD12x" !== "abcD12";
         //date not strict equal
         check if 2022-12-04T09:46:41+00:00 !== 2020-12-04T09:46:41+00:00;
