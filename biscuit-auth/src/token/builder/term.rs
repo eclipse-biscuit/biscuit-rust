@@ -14,9 +14,9 @@ use crate::{
     error,
 };
 
+use super::{set, Convert, Fact};
 #[cfg(feature = "datalog-macro")]
-use super::AnyParam;
-use super::{set, Convert, Fact, ToAnyParam};
+use super::{AnyParam, ToAnyParam};
 
 /// Builder for a Datalog value
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -530,7 +530,7 @@ impl ToAnyParam for [u8] {
     }
 }
 
-#[cfg(feature = "uuid")]
+#[cfg(all(feature = "uuid", feature = "datalog-macro"))]
 impl ToAnyParam for uuid::Uuid {
     fn to_any_param(&self) -> AnyParam {
         AnyParam::Term(Term::Bytes(self.as_bytes().to_vec()))
