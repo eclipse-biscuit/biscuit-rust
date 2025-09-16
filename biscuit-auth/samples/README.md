@@ -2460,6 +2460,7 @@ public keys: []
 block version: 4
 
 ```
+check if true !== false;
 check if 1 !== 3;
 check if 1 | 2 ^ 3 === 0;
 check if "abcD12x" !== "abcD12";
@@ -2476,7 +2477,7 @@ allow if true;
 ```
 
 revocation ids:
-- `117fa653744c859561555e6a6f5990e3a8e7817f91b87aa6991b6d64297158b4e884c92d10f49f74c96069df722aa676839b72751ca9d1fe83a7025b591de00b`
+- `9402c07923aa33bc911de80e61f388f5c4533e6b36e45317dc1db1e6bcc7664ed0c1c504d0ca8925208008961d95bbdbc36f6e3d91b3173369cc19ed625e9a0c`
 
 authorizer world:
 ```
@@ -2494,6 +2495,7 @@ World {
             "check if 1 | 2 ^ 3 === 0",
             "check if 2022-12-04T09:46:41Z !== 2020-12-04T09:46:41Z",
             "check if hex:12abcd !== hex:12ab",
+            "check if true !== false",
             "check if {1, 4} !== {1, 2}",
         ],
     },
