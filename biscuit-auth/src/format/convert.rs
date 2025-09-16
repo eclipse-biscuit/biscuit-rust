@@ -122,7 +122,7 @@ pub fn proto_block_to_token_block(
         version,
         external_key,
         public_keys,
-        scopes: scopes?,
+        scopes,
     })
 }
 
@@ -189,9 +189,6 @@ pub fn proto_snapshot_block_to_token_block(
 
     detected_schema_version.check_compatibility(version)?;
 
-    let scopes: Result<Vec<Scope>, _> =
-        input.scope.iter().map(proto_scope_to_token_scope).collect();
-
     let external_key = match &input.external_key {
         None => None,
         Some(key) => Some(PublicKey::from_proto(key)?),
@@ -206,7 +203,7 @@ pub fn proto_snapshot_block_to_token_block(
         version,
         external_key,
         public_keys: PublicKeys::default(),
-        scopes: scopes?,
+        scopes,
     })
 }
 pub fn authorizer_to_proto_authorizer(input: &AuthorizerPolicies) -> schema::AuthorizerPolicies {
