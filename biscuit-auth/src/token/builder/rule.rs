@@ -258,6 +258,16 @@ impl Rule {
         }
     }
 
+    // TODO maybe introduce a conversion trait to support refs, multiple values, non-pk scopes
+    #[cfg(feature = "datalog-macro")]
+    pub fn set_macro_scope_param(
+        &mut self,
+        name: &str,
+        param: PublicKey,
+    ) -> Result<(), error::Token> {
+        self.set_scope_lenient(name, param)
+    }
+
     pub(super) fn apply_parameters(&mut self) {
         if let Some(parameters) = self.parameters.clone() {
             self.head.terms = self

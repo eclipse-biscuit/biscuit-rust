@@ -173,13 +173,6 @@ pub trait ToAnyParam {
     fn to_any_param(&self) -> AnyParam;
 }
 
-#[cfg(feature = "datalog-macro")]
-impl ToAnyParam for PublicKey {
-    fn to_any_param(&self) -> AnyParam {
-        AnyParam::PublicKey(*self)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{collections::HashMap, convert::TryFrom};
