@@ -40,12 +40,15 @@ pub struct Authorizer {
 
 impl Authorizer {
     pub fn run(&mut self) -> Result<Duration, error::Token> {
+        self.run_with_limits(self.limits.clone())
+    }
+
+    pub fn run_with_limits(&mut self, limits: AuthorizerLimits) -> Result<Duration, error::Token> {
         match self.execution_time {
             Some(execution_time) => Ok(execution_time),
             None => {
                 let start = Instant::now();
-                self.world
-                    .run_with_limits(&self.symbols, self.limits.clone())?;
+                self.world.run_with_limits(&self.symbols, limits)?;
                 let execution_time = start.elapsed();
                 self.execution_time = Some(execution_time);
                 Ok(execution_time)
@@ -383,7 +386,7 @@ impl Authorizer {
         &mut self,
         limits: AuthorizerLimits,
     ) -> Result<usize, error::Token> {
-        let execution_time = self.run()?;
+        let execution_time = self.run_with_limits(limits.clone())?;
         let start = Instant::now();
         let result = self.authorize_inner(limits);
         self.execution_time = Some(execution_time + start.elapsed());
