@@ -722,7 +722,7 @@ fn random_block(target: &str, root: &KeyPair, test: bool) -> TestResult {
     } else {
         let serialized = biscuit2.container();
         let mut proto = serialized.to_proto();
-        let arr: [u8; 32] = rng.gen();
+        let arr: [u8; 32] = rng.random();
         proto.blocks[0].block = Vec::from(&arr[..]);
         let mut data = Vec::new();
         proto.encode(&mut data).unwrap();

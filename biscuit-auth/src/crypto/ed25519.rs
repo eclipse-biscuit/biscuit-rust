@@ -31,10 +31,10 @@ pub struct KeyPair {
 
 impl KeyPair {
     pub fn new() -> Self {
-        Self::new_with_rng(&mut rand::rngs::OsRng)
+        Self::new_with_rng(&mut rand::rng())
     }
 
-    pub fn new_with_rng<T: RngCore + CryptoRng>(rng: &mut T) -> Self {
+    pub fn new_with_rng<T: RngCore + CryptoRng + ?Sized>(rng: &mut T) -> Self {
         let kp = ed25519_dalek::SigningKey::generate(rng);
         KeyPair { kp }
     }
