@@ -174,7 +174,7 @@ impl Biscuit {
     /// since the public key is integrated into the token, the keypair can be
     /// discarded right after calling this function
     pub fn append(&self, block_builder: BlockBuilder) -> Result<Self, error::Token> {
-        let keypair = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
+        let keypair = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rng());
         self.append_with_keypair(&keypair, block_builder)
     }
 
@@ -251,7 +251,7 @@ impl Biscuit {
     /// creates a new token, using a provided CSPRNG
     ///
     /// the public part of the root keypair must be used for verification
-    pub(crate) fn new_with_rng<T: RngCore + CryptoRng>(
+    pub(crate) fn new_with_rng<T: RngCore + CryptoRng + ?Sized>(
         rng: &mut T,
         root_key_id: Option<u32>,
         root: &KeyPair,
@@ -413,8 +413,7 @@ impl Biscuit {
         external_key: PublicKey,
         response: ThirdPartyBlock,
     ) -> Result<Self, error::Token> {
-        let next_keypair =
-            KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
+        let next_keypair = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rng());
 
         self.append_third_party_with_keypair(external_key, response, next_keypair)
     }

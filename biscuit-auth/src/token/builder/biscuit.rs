@@ -133,10 +133,10 @@ impl BiscuitBuilder {
         root_key: &KeyPair,
         symbols: SymbolTable,
     ) -> Result<Biscuit, error::Token> {
-        self.build_with_rng(root_key, symbols, &mut rand::rngs::OsRng)
+        self.build_with_rng(root_key, symbols, &mut rand::rng())
     }
 
-    pub fn build_with_rng<R: RngCore + CryptoRng>(
+    pub fn build_with_rng<R: RngCore + CryptoRng + ?Sized>(
         self,
         root: &KeyPair,
         symbols: SymbolTable,
