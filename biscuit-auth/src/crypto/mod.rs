@@ -16,7 +16,9 @@ use crate::format::schema;
 use crate::format::ThirdPartyVerificationMode;
 
 use super::error;
+#[cfg(all(feature = "awslc-backend", not(feature = "default-backend")))]
 mod awslc;
+#[cfg(feature = "default-backend")]
 mod default;
 mod traits;
 
@@ -30,9 +32,16 @@ use zeroize::Zeroizing;
 /// The default cryptographic backend using ed25519-dalek and p256 crates.
 pub struct DefaultBackend;
 
+#[cfg(feature = "default-backend")]
 impl Backend for DefaultBackend {
     type Ed25519 = default::ed25519::KeyPair;
     type P256 = default::secp256r1::KeyPair;
+}
+
+#[cfg(all(feature = "awslc-backend", not(feature = "default-backend")))]
+impl Backend for DefaultBackend {
+    type Ed25519 = awslc::ed25519::KeyPair;
+    type P256 = awslc::secp256r1::KeyPair;
 }
 
 type Ed25519KeyPair = <DefaultBackend as Backend>::Ed25519;
