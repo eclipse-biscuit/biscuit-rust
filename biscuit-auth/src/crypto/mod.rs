@@ -18,6 +18,7 @@ use crate::format::ThirdPartyVerificationMode;
 use super::error;
 mod ed25519;
 mod p256;
+mod traits;
 
 use nom::Finish;
 use rand_core::{CryptoRng, RngCore};
