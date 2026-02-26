@@ -27,9 +27,7 @@ pem = ["ed25519-dalek/pem", "ed25519-dalek/pkcs8"]
 
 [dependencies]
 rand_core = "^0.6"
-sha2 = "^0.9"
 prost = "0.10"
-prost-types = "0.10"
 regex = { version = "1.5", default-features = false, features = ["std"] }
 nom = { version = "7", default-features = false, features = ["std"] }
 hex = "0.4"
@@ -40,19 +38,18 @@ wasm-bindgen = { version = "0.2", optional = true }
 base64 = "0.13.0"
 ed25519-dalek = { version = "2.0.0", features = ["rand_core", "zeroize"] }
 serde = { version = "1.0.132", optional = true, features = ["derive"] }
-getrandom = { version = "0.2.15" }
 time = { version = "0.3.7", features = ["formatting", "parsing"] }
 uuid = { version = "1", optional = true }
 biscuit-parser = { version = "0.2.0", path = "../biscuit-parser" }
 biscuit-quote = { version = "0.3.0", optional = true, path = "../biscuit-quote" }
 chrono = { version = "0.4.26", optional = true, default-features = false, features = [
-  "serde",
+    "serde",
 ] }
 serde_json = "1.0.117"
-ecdsa = { version = "0.16.9", features = ["signing", "verifying", "pem", "alloc", "pkcs8", "serde"] }
 p256 = "0.13.2"
-pkcs8 = "0.9.0"
-elliptic-curve = { version = "0.13.8", features = ["pkcs8"] }
+pkcs8 = { version = "0.10.2", features = ["pem"] }
+aws-lc-rs = "1.16.0"
+aws-lc-sys = "0.37.1"
 
 [dev-dependencies]
 bencher = "0.1.5"

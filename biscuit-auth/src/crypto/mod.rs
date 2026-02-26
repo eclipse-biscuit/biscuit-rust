@@ -16,6 +16,7 @@ use crate::format::schema;
 use crate::format::ThirdPartyVerificationMode;
 
 use super::error;
+mod awslc;
 mod default;
 mod traits;
 
