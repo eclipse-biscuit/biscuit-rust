@@ -57,7 +57,7 @@ impl fmt::Display for Scope {
         match self {
             Scope::Authority => write!(f, "authority"),
             Scope::Previous => write!(f, "previous"),
-            Scope::PublicKey(pk) => pk.write(f),
+            Scope::PublicKey(pk) => write!(f, "{}", pk),
             Scope::Parameter(s) => {
                 write!(f, "{{{}}}", s)
             }
