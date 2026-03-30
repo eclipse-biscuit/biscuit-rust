@@ -660,13 +660,13 @@ pub(crate) fn generate_authority_block_signature_payload_v1(
     let mut to_verify = b"\0BLOCK\0\0VERSION\0".to_vec();
     to_verify.extend(version.to_le_bytes());
 
-    to_verify.extend(b"\0PAYLOAD\0".to_vec());
-    to_verify.extend(payload.to_vec());
+    to_verify.extend(b"\0PAYLOAD\0");
+    to_verify.extend(payload);
 
-    to_verify.extend(b"\0ALGORITHM\0".to_vec());
+    to_verify.extend(b"\0ALGORITHM\0");
     to_verify.extend(&(next_key.algorithm() as i32).to_le_bytes());
 
-    to_verify.extend(b"\0NEXTKEY\0".to_vec());
+    to_verify.extend(b"\0NEXTKEY\0");
     to_verify.extend(&next_key.to_bytes());
 
     to_verify
@@ -682,20 +682,20 @@ pub(crate) fn generate_block_signature_payload_v1(
     let mut to_verify = b"\0BLOCK\0\0VERSION\0".to_vec();
     to_verify.extend(version.to_le_bytes());
 
-    to_verify.extend(b"\0PAYLOAD\0".to_vec());
-    to_verify.extend(payload.to_vec());
+    to_verify.extend(b"\0PAYLOAD\0");
+    to_verify.extend(payload);
 
-    to_verify.extend(b"\0ALGORITHM\0".to_vec());
+    to_verify.extend(b"\0ALGORITHM\0");
     to_verify.extend(&(next_key.algorithm() as i32).to_le_bytes());
 
-    to_verify.extend(b"\0NEXTKEY\0".to_vec());
+    to_verify.extend(b"\0NEXTKEY\0");
     to_verify.extend(&next_key.to_bytes());
 
-    to_verify.extend(b"\0PREVSIG\0".to_vec());
+    to_verify.extend(b"\0PREVSIG\0");
     to_verify.extend(previous_signature.to_bytes());
 
     if let Some(signature) = external_signature.as_ref() {
-        to_verify.extend(b"\0EXTERNALSIG\0".to_vec());
+        to_verify.extend(b"\0EXTERNALSIG\0");
         to_verify.extend_from_slice(&signature.signature.to_bytes());
     }
 
@@ -718,10 +718,10 @@ pub(crate) fn generate_external_signature_payload_v1(
     let mut to_verify = b"\0EXTERNAL\0\0VERSION\0".to_vec();
     to_verify.extend(version.to_le_bytes());
 
-    to_verify.extend(b"\0PAYLOAD\0".to_vec());
-    to_verify.extend(payload.to_vec());
+    to_verify.extend(b"\0PAYLOAD\0");
+    to_verify.extend(payload);
 
-    to_verify.extend(b"\0PREVSIG\0".to_vec());
+    to_verify.extend(b"\0PREVSIG\0");
     to_verify.extend(previous_signature);
     to_verify
 }
