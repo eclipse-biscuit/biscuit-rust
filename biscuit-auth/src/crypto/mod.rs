@@ -35,15 +35,18 @@ pub enum KeyPair {
 impl KeyPair {
     /// Create a new ed25519 keypair with the default OS RNG
     pub fn new() -> Self {
-        Self::new_with_rng(Algorithm::Ed25519, &mut rand::rngs::OsRng)
+        Self::new_with_rng(Algorithm::Ed25519, &mut rand::rng())
     }
 
     /// Create a new keypair with a chosen algorithm and the default OS RNG
     pub fn new_with_algorithm(algorithm: Algorithm) -> Self {
-        Self::new_with_rng(algorithm, &mut rand::rngs::OsRng)
+        Self::new_with_rng(algorithm, &mut rand::rng())
     }
 
-    pub fn new_with_rng<T: RngCore + CryptoRng>(algorithm: Algorithm, rng: &mut T) -> Self {
+    pub fn new_with_rng<T: RngCore + CryptoRng + ?Sized>(
+        algorithm: Algorithm,
+        rng: &mut T,
+    ) -> Self {
         match algorithm {
             Algorithm::Ed25519 => KeyPair::Ed25519(ed25519::KeyPair::new_with_rng(rng)),
             Algorithm::Secp256r1 => KeyPair::P256(p256::KeyPair::new_with_rng(rng)),

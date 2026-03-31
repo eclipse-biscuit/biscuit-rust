@@ -6,9 +6,10 @@
 //!
 //! code from <https://github.com/rust-lang/rust/issues/48564#issuecomment-698712971>
 
-#[cfg(feature = "wasm")]
-use std::convert::TryInto;
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::{
+    convert::TryInto,
+    ops::{Add, AddAssign, Sub, SubAssign},
+};
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
