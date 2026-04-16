@@ -53,8 +53,7 @@ impl ThirdPartyRequest {
 
         request.encode(&mut v).map(|_| v).map_err(|e| {
             error::Token::Format(error::Format::SerializationError(format!(
-                "serialization error: {:?}",
-                e
+                "serialization error: {e:?}"
             )))
         })
     }
@@ -65,7 +64,7 @@ impl ThirdPartyRequest {
 
     pub fn deserialize(slice: &[u8]) -> Result<Self, error::Token> {
         let data = schema::ThirdPartyBlockRequest::decode(slice).map_err(|e| {
-            error::Format::DeserializationError(format!("deserialization error: {:?}", e))
+            error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
 
         if !data.legacy_public_keys.is_empty() {
@@ -107,7 +106,7 @@ impl ThirdPartyRequest {
         token_block_to_proto_block(&block)
             .encode(&mut payload)
             .map_err(|e| {
-                error::Format::SerializationError(format!("serialization error: {:?}", e))
+                error::Format::SerializationError(format!("serialization error: {e:?}"))
             })?;
 
         let signed_payload = generate_external_signature_payload_v1(
@@ -144,8 +143,7 @@ impl ThirdPartyBlock {
         let mut buffer = vec![];
         self.0.encode(&mut buffer).map(|_| buffer).map_err(|e| {
             error::Token::Format(error::Format::SerializationError(format!(
-                "serialization error: {:?}",
-                e
+                "serialization error: {e:?}"
             )))
         })
     }

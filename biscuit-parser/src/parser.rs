@@ -5,6 +5,7 @@
 
 // This warning makes all parser signatures extremely verbose
 #![allow(mismatched_lifetime_syntaxes)]
+#![allow(clippy::type_complexity)]
 use crate::builder::{self, CheckKind, PublicKey};
 use nom::{
     branch::alt,
@@ -31,7 +32,7 @@ pub fn fact(i: &str) -> IResult<&str, builder::Fact, Error> {
 
     let (i, _) = error(
         preceded(space0, eof),
-        |input| format!("unexpected trailing data after fact: '{}'", input),
+        |input| format!("unexpected trailing data after fact: '{input}'"),
         " ,\n",
     )(i)?;
 
@@ -64,8 +65,7 @@ pub fn check(i: &str) -> IResult<&str, builder::Check, Error> {
         |input| {
             match input.chars().next() {
             Some(')') => "unexpected parens".to_string(),
-            _ => format!("expected either the next term after ',' or the next check variant after 'or', but got '{}'",
-                     input)
+            _ => format!("expected either the next term after ',' or the next check variant after 'or', but got '{input}'")
         }
         },
         " ,\n",
@@ -96,8 +96,7 @@ pub fn policy(i: &str) -> IResult<&str, builder::Policy, Error> {
         |input| {
             match input.chars().next() {
             Some(')') => "unexpected parens".to_string(),
-            _ => format!("expected either the next term after ',' or the next policy variant after 'or', but got '{}'",
-                     input)
+            _ => format!("expected either the next term after ',' or the next policy variant after 'or', but got '{input}'")
         }
         },
         " ,\n",
@@ -174,10 +173,7 @@ pub fn rule(i: &str) -> IResult<&str, builder::Rule, Error> {
         preceded(space0, eof),
         |input| match input.chars().next() {
             Some(')') => "unexpected parens".to_string(),
-            _ => format!(
-                "expected the next term or expression after ',', but got '{}'",
-                input
-            ),
+            _ => format!("expected the next term or expression after ',', but got '{input}'"),
         },
         " ,\n",
     )(i)?;
@@ -1036,12 +1032,12 @@ pub fn parse_source(mut i: &str) -> Result<SourceResult, Vec<Error>> {
             }
             Err(nom::Err::Incomplete(_)) => panic!(),
             Err(nom::Err::Error(mut e)) => {
-                if let Some(index) = e.input.find(|c| c == ';') {
+                if let Some(index) = e.input.find(';') {
                     e.input = &(e.input)[..index];
                 }
 
                 let offset = i.offset(e.input);
-                if let Some(index) = &i[offset..].find(|c| c == ';') {
+                if let Some(index) = &i[offset..].find(';') {
                     i = &i[offset + index + 1..];
                 } else {
                     i = &i[i.len()..];
@@ -1050,12 +1046,12 @@ pub fn parse_source(mut i: &str) -> Result<SourceResult, Vec<Error>> {
                 errors.push(e);
             }
             Err(nom::Err::Failure(mut e)) => {
-                if let Some(index) = e.input.find(|c| c == ';') {
+                if let Some(index) = e.input.find(';') {
                     e.input = &(e.input)[..index];
                 }
 
                 let offset = i.offset(e.input);
-                if let Some(index) = &i[offset..].find(|c| c == ';') {
+                if let Some(index) = &i[offset..].find(';') {
                     i = &i[offset + index + 1..];
                 } else {
                     i = &i[i.len()..];
@@ -1080,12 +1076,12 @@ pub fn parse_block_source(mut i: &str) -> Result<SourceResult, Vec<Error>> {
         }
         Err(nom::Err::Incomplete(_)) => panic!(),
         Err(nom::Err::Error(mut e)) => {
-            if let Some(index) = e.input.find(|c| c == ';') {
+            if let Some(index) = e.input.find(';') {
                 e.input = &(e.input)[..index];
             }
 
             let offset = i.offset(e.input);
-            if let Some(index) = &i[offset..].find(|c| c == ';') {
+            if let Some(index) = &i[offset..].find(';') {
                 i = &i[offset + index + 1..];
             } else {
                 i = &i[i.len()..];
@@ -1094,12 +1090,12 @@ pub fn parse_block_source(mut i: &str) -> Result<SourceResult, Vec<Error>> {
             errors.push(e);
         }
         Err(nom::Err::Failure(mut e)) => {
-            if let Some(index) = e.input.find(|c| c == ';') {
+            if let Some(index) = e.input.find(';') {
                 e.input = &(e.input)[..index];
             }
 
             let offset = i.offset(e.input);
-            if let Some(index) = &i[offset..].find(|c| c == ';') {
+            if let Some(index) = &i[offset..].find(';') {
                 i = &i[offset + index + 1..];
             } else {
                 i = &i[i.len()..];
@@ -1148,12 +1144,12 @@ pub fn parse_block_source(mut i: &str) -> Result<SourceResult, Vec<Error>> {
             }
             Err(nom::Err::Incomplete(_)) => panic!(),
             Err(nom::Err::Error(mut e)) => {
-                if let Some(index) = e.input.find(|c| c == ';') {
+                if let Some(index) = e.input.find(';') {
                     e.input = &(e.input)[..index];
                 }
 
                 let offset = i.offset(e.input);
-                if let Some(index) = &i[offset..].find(|c| c == ';') {
+                if let Some(index) = &i[offset..].find(';') {
                     i = &i[offset + index + 1..];
                 } else {
                     i = &i[i.len()..];
@@ -1162,12 +1158,12 @@ pub fn parse_block_source(mut i: &str) -> Result<SourceResult, Vec<Error>> {
                 errors.push(e);
             }
             Err(nom::Err::Failure(mut e)) => {
-                if let Some(index) = e.input.find(|c| c == ';') {
+                if let Some(index) = e.input.find(';') {
                     e.input = &(e.input)[..index];
                 }
 
                 let offset = i.offset(e.input);
-                if let Some(index) = &i[offset..].find(|c| c == ';') {
+                if let Some(index) = &i[offset..].find(';') {
                     i = &i[offset + index + 1..];
                 } else {
                     i = &i[i.len()..];
@@ -2098,15 +2094,15 @@ mod tests {
         use std::time::{Duration, SystemTime};
 
         let input = " -1 ";
-        println!("parsing: {}", input);
+        println!("parsing: {input}");
         let res = super::expr(input);
         assert_eq!(res, Ok((" ", Expr::Value(Term::Integer(-1)))));
 
         let ops = res.unwrap().1.opcodes();
-        println!("ops: {:#?}", ops);
+        println!("ops: {ops:#?}");
 
         let input = " $0 <= 2019-12-04T09:46:41+00:00";
-        println!("parsing: {}", input);
+        println!("parsing: {input}");
         let res = super::expr(input);
         assert_eq!(
             res,
@@ -2123,9 +2119,9 @@ mod tests {
         );
 
         let ops = res.unwrap().1.opcodes();
-        println!("ops: {:#?}", ops);
+        println!("ops: {ops:#?}");
         let input = " 1 < $test + 2 ";
-        println!("parsing: {}", input);
+        println!("parsing: {input}");
         let res = super::expr(input);
         assert_eq!(
             res,
@@ -2144,10 +2140,10 @@ mod tests {
         );
 
         let ops = res.unwrap().1.opcodes();
-        println!("ops: {:#?}", ops);
+        println!("ops: {ops:#?}");
 
         let input = " 2 < $test && $var2.starts_with(\"test\") && true ";
-        println!("parsing: {}", input);
+        println!("parsing: {input}");
         let res = super::expr(input);
         assert_eq!(
             res,
@@ -2179,7 +2175,7 @@ mod tests {
             ))
         );
         let ops = res.unwrap().1.opcodes();
-        println!("ops: {:#?}", ops);
+        println!("ops: {ops:#?}");
     }
 
     #[test]
@@ -2187,11 +2183,11 @@ mod tests {
         use builder::{int, Binary, Op, Unary};
 
         let input = " 1 + 2 * 3 ";
-        println!("parsing: {}", input);
+        println!("parsing: {input}");
         let (_, res) = super::expr(input).unwrap();
 
         let ops = res.opcodes();
-        println!("ops: {:#?}", ops);
+        println!("ops: {ops:#?}");
 
         assert_eq!(
             ops,
@@ -2205,11 +2201,11 @@ mod tests {
         );
 
         let input = " (1 + 2) * 3 ";
-        println!("parsing: {}", input);
+        println!("parsing: {input}");
         let (_, res) = super::expr(input).unwrap();
 
         let ops = res.opcodes();
-        println!("ops: {:#?}", ops);
+        println!("ops: {ops:#?}");
 
         assert_eq!(
             ops,
@@ -2256,7 +2252,7 @@ mod tests {
         "#;
 
         let res = super::parse_source(input);
-        println!("parse_source res:\n{:#?}", res);
+        println!("parse_source res:\n{res:#?}");
 
         let empty_terms: &[builder::Term] = &[];
         let empty_preds: &[builder::Predicate] = &[];
@@ -2402,7 +2398,7 @@ mod tests {
         "#;
 
         let res = super::parse_block_source(input);
-        println!("parse_block_source res:\n{:#?}", res);
+        println!("parse_block_source res:\n{res:#?}");
 
         let empty_terms: &[builder::Term] = &[];
         let empty_preds: &[builder::Predicate] = &[];

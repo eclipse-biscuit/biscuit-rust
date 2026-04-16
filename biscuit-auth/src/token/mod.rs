@@ -291,8 +291,7 @@ impl Biscuit {
 
         let authority = schema::Block::decode(&container.authority.data[..]).map_err(|e| {
             error::Token::Format(error::Format::BlockDeserializationError(format!(
-                "error deserializing block: {:?}",
-                e
+                "error deserializing block: {e:?}"
             )))
         })?;
 
@@ -389,8 +388,7 @@ impl Biscuit {
         )
         .map_err(|e| {
             error::Token::Format(error::Format::BlockDeserializationError(format!(
-                "error deserializing block: {:?}",
-                e
+                "error deserializing block: {e:?}"
             )))
         })?;
         blocks.push(deser);
@@ -468,8 +466,7 @@ impl Biscuit {
 
         let block = schema::Block::decode(&payload[..]).map_err(|e| {
             error::Token::Format(error::Format::DeserializationError(format!(
-                "deserialization error: {:?}",
-                e
+                "deserialization error: {e:?}"
             )))
         })?;
 
@@ -759,7 +756,7 @@ mod tests {
                 .build_with_rng(&root, default_symbol_table(), &mut rng)
                 .unwrap();
 
-            println!("biscuit1 (authority): {}", biscuit1);
+            println!("biscuit1 (authority): {biscuit1}");
 
             biscuit1.to_vec().unwrap()
         };
@@ -818,7 +815,7 @@ mod tests {
                 .append_with_keypair(&keypair2, block2)
                 .unwrap();
 
-            println!("biscuit2 (1 check): {}", biscuit2);
+            println!("biscuit2 (1 check): {biscuit2}");
 
             biscuit2.to_vec().unwrap()
         };
@@ -851,7 +848,7 @@ mod tests {
         //panic!();
 
         let final_token = Biscuit::from(&serialized3, root.public()).unwrap();
-        println!("final token:\n{}", final_token);
+        println!("final token:\n{final_token}");
         {
             let mut builder = AuthorizerBuilder::new();
 
@@ -869,7 +866,7 @@ mod tests {
             let mut authorizer = builder.allow_all().build(&final_token).unwrap();
 
             let res = authorizer.authorize();
-            println!("res1: {:?}", res);
+            println!("res1: {res:?}");
             res.unwrap();
         }
 
@@ -892,7 +889,7 @@ mod tests {
                 max_time: Duration::from_secs(10),
                 ..Default::default()
             });
-            println!("res2: {:#?}", res);
+            println!("res2: {res:#?}");
             assert_eq!(res,
               Err(Token::FailedLogic(Logic::Unauthorized {
                   policy: MatchedPolicy::Allow(0),
@@ -918,7 +915,7 @@ mod tests {
             .build_with_rng(&root, default_symbol_table(), &mut rng)
             .unwrap();
 
-        println!("biscuit1 (authority): {}", biscuit1);
+        println!("biscuit1 (authority): {biscuit1}");
 
         let block2 = BlockBuilder::new()
             .check_resource_prefix("/folder1/")
@@ -942,7 +939,7 @@ mod tests {
                 max_time: Duration::from_secs(10),
                 ..Default::default()
             });
-            println!("res1: {:?}", res);
+            println!("res1: {res:?}");
             println!("authorizer:\n{}", authorizer.print_world());
             res.unwrap();
         }
@@ -961,7 +958,7 @@ mod tests {
                 max_time: Duration::from_secs(10),
                 ..Default::default()
             });
-            println!("res2: {:?}", res);
+            println!("res2: {res:?}");
             assert_eq!(
                 res,
                 Err(Token::FailedLogic(Logic::Unauthorized {
@@ -987,7 +984,7 @@ mod tests {
                 .unwrap();
 
             let res = authorizer.authorize();
-            println!("res3: {:?}", res);
+            println!("res3: {res:?}");
             assert_eq!(res,
               Err(Token::FailedLogic(Logic::NoMatchingPolicy {
                   checks: vec![
@@ -1008,7 +1005,7 @@ mod tests {
             .build_with_rng(&root, default_symbol_table(), &mut rng)
             .unwrap();
 
-        println!("biscuit1 (authority): {}", biscuit1);
+        println!("biscuit1 (authority): {biscuit1}");
 
         let block2 = BlockBuilder::new()
             .check_expiration_date(SystemTime::now() + Duration::from_secs(30))
@@ -1033,12 +1030,12 @@ mod tests {
                 max_time: Duration::from_secs(10),
                 ..Default::default()
             });
-            println!("res1: {:?}", res);
+            println!("res1: {res:?}");
             res.unwrap();
         }
 
         {
-            println!("biscuit2: {}", biscuit2);
+            println!("biscuit2: {biscuit2}");
             let mut authorizer = AuthorizerBuilder::new()
                 .fact("resource(\"file1\")")
                 .unwrap()
@@ -1053,7 +1050,7 @@ mod tests {
                 max_time: Duration::from_secs(10),
                 ..Default::default()
             });
-            println!("res3: {:?}", res);
+            println!("res3: {res:?}");
 
             // error message should be like this:
             //"authorizer check 0 failed: check if revocation_id($0), $0 not in [2, 1234, 1, 5, 0]"
@@ -1074,7 +1071,7 @@ mod tests {
             .build_with_rng(&root, default_symbol_table(), &mut rng)
             .unwrap();
 
-        println!("biscuit1 (authority): {}", biscuit1);
+        println!("biscuit1 (authority): {biscuit1}");
 
         let block2 = BlockBuilder::new()
             .check_resource_prefix("/folder1/")
@@ -1100,7 +1097,7 @@ mod tests {
                 max_time: Duration::from_secs(10),
                 ..Default::default()
             });
-            println!("res1: {:?}", res);
+            println!("res1: {res:?}");
             res.unwrap();
         }
 
@@ -1123,7 +1120,7 @@ mod tests {
                 .unwrap();
 
             let res = authorizer.authorize();
-            println!("res1: {:?}", res);
+            println!("res1: {res:?}");
             res.unwrap();
         }
     }
@@ -1144,7 +1141,7 @@ mod tests {
             .unwrap()
             .build_with_rng(&root, default_symbol_table(), &mut rng)
             .unwrap();
-        println!("{}", biscuit1);
+        println!("{biscuit1}");
 
         let mut authorizer = AuthorizerBuilder::new()
             .check(rule(
@@ -1161,7 +1158,7 @@ mod tests {
             max_time: Duration::from_secs(10),
             ..Default::default()
         });
-        println!("res: {:?}", res);
+        println!("res: {res:?}");
         assert_eq!(
             res,
             Err(Token::FailedLogic(Logic::NoMatchingPolicy {
@@ -1186,7 +1183,7 @@ mod tests {
             .build_with_rng(&root, default_symbol_table(), &mut rng)
             .unwrap();
 
-        println!("biscuit1 (authority): {}", biscuit1);
+        println!("biscuit1 (authority): {biscuit1}");
 
         let block2 = BlockBuilder::new()
             .check_expiration_date(SystemTime::now() + Duration::from_secs(30))
@@ -1204,7 +1201,7 @@ mod tests {
         let keypair3 = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
         let biscuit3 = biscuit2.append_with_keypair(&keypair3, block3).unwrap();
         {
-            println!("biscuit3: {}", biscuit3);
+            println!("biscuit3: {biscuit3}");
 
             let mut authorizer = AuthorizerBuilder::new()
                 .fact("resource(\"file1\")")
@@ -1222,7 +1219,7 @@ mod tests {
                 max_time: Duration::from_secs(10),
                 ..Default::default()
             });
-            println!("authorization result: {:?}", authorization_res);
+            println!("authorization result: {authorization_res:?}");
 
             println!("world:\n{}", authorizer.print_world());
             let res2: Result<Vec<builder::Fact>, crate::error::Token> = authorizer
@@ -1234,7 +1231,7 @@ mod tests {
                     },
                 );
 
-            println!("res2: {:?}", res2);
+            println!("res2: {res2:?}");
             let mut res2 = res2
                 .unwrap()
                 .iter()
@@ -1252,7 +1249,7 @@ mod tests {
 
             let res1: Result<Vec<builder::Fact>, crate::error::Token> =
                 other_authorizer.query("key_verif($id) <- key($id)");
-            println!("res1: {:?}", res1);
+            println!("res1: {res1:?}");
             assert_eq!(
                 res1.unwrap()
                     .into_iter()
@@ -1277,7 +1274,7 @@ mod tests {
             .build_with_rng(&root, default_symbol_table(), &mut rng)
             .unwrap();
 
-        println!("biscuit1 (authority): {}", biscuit1);
+        println!("biscuit1 (authority): {biscuit1}");
 
         // new check: can only have read access1
         let block2 = BlockBuilder::new()
@@ -1287,7 +1284,7 @@ mod tests {
         let keypair2 = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
         let biscuit2 = biscuit1.append_with_keypair(&keypair2, block2).unwrap();
 
-        println!("biscuit2: {}", biscuit2);
+        println!("biscuit2: {biscuit2}");
 
         //println!("generated biscuit token 2: {} bytes\n{}", serialized2.len(), serialized2.to_hex(16));
         {
@@ -1307,7 +1304,7 @@ mod tests {
                 max_time: Duration::from_secs(10),
                 ..Default::default()
             });
-            println!("res1: {:?}", res);
+            println!("res1: {res:?}");
 
             assert_eq!(
                 res,
@@ -1378,7 +1375,7 @@ mod tests {
             .build_with_rng(&root, default_symbol_table(), &mut rng)
             .unwrap();
 
-        println!("biscuit1 (authority): {}", biscuit1);
+        println!("biscuit1 (authority): {biscuit1}");
 
         let block2 = BlockBuilder::new()
             .rule("has_bytes($0) <- bytes($0), { hex:00000000, hex:0102AB }.contains($0)")
@@ -1401,7 +1398,7 @@ mod tests {
             max_time: Duration::from_secs(10),
             ..Default::default()
         });
-        println!("res1: {:?}", res);
+        println!("res1: {res:?}");
         res.unwrap();
 
         let res: Vec<(Vec<u8>,)> = authorizer
@@ -1413,7 +1410,7 @@ mod tests {
                 },
             )
             .unwrap();
-        println!("query result: {:x?}", res);
+        println!("query result: {res:x?}");
         println!("query result: {:?}", res[0]);
     }
 
@@ -1435,7 +1432,7 @@ mod tests {
                 .build_with_rng(&root, default_symbol_table(), &mut rng)
                 .unwrap();
 
-            println!("biscuit1 (authority): {}", biscuit1);
+            println!("biscuit1 (authority): {biscuit1}");
 
             biscuit1.to_vec().unwrap()
         };
@@ -1467,7 +1464,7 @@ mod tests {
                 .append_with_keypair(&keypair2, block2)
                 .unwrap();
 
-            println!("biscuit2 (1 check): {}", biscuit2);
+            println!("biscuit2 (1 check): {biscuit2}");
 
             biscuit2.to_vec().unwrap()
         };
@@ -1476,7 +1473,7 @@ mod tests {
         println!("generated biscuit token 2: {} bytes", serialized2.len());
 
         let final_token = Biscuit::from(&serialized2, root.public()).unwrap();
-        println!("final token:\n{}", final_token);
+        println!("final token:\n{final_token}");
 
         let mut authorizer = AuthorizerBuilder::new()
             .fact("resource(\"/folder2/file1\")")
@@ -1493,7 +1490,7 @@ mod tests {
             max_time: Duration::from_secs(1),
             ..Default::default()
         });
-        println!("res1: {:?}", res);
+        println!("res1: {res:?}");
         println!("authorizer:\n{}", authorizer.print_world());
 
         assert!(res.is_err());
@@ -1510,7 +1507,7 @@ mod tests {
             .build_with_rng(&root, default_symbol_table(), &mut rng)
             .unwrap();
 
-        println!("biscuit1 (authority): {}", biscuit1);
+        println!("biscuit1 (authority): {biscuit1}");
 
         let biscuit2 = Biscuit::builder()
             .check("check all fact($v), $v < 1")
@@ -1518,7 +1515,7 @@ mod tests {
             .build_with_rng(&root, default_symbol_table(), &mut rng)
             .unwrap();
 
-        println!("biscuit2 (authority): {}", biscuit2);
+        println!("biscuit2 (authority): {biscuit2}");
 
         {
             let mut authorizer = AuthorizerBuilder::new()
@@ -1535,7 +1532,7 @@ mod tests {
                 max_time: Duration::from_secs(10),
                 ..Default::default()
             });
-            println!("res1: {:?}", res);
+            println!("res1: {res:?}");
             res.unwrap();
         }
 
@@ -1554,7 +1551,7 @@ mod tests {
                 max_time: Duration::from_secs(10),
                 ..Default::default()
             });
-            println!("res2: {:?}", res);
+            println!("res2: {res:?}");
 
             assert_eq!(
                 res,
@@ -1637,7 +1634,7 @@ mod tests {
             .build_with_rng(&root, default_symbol_table(), &mut rng)
             .unwrap();
 
-        println!("biscuit1 (authority): {}", biscuit1);
+        println!("biscuit1 (authority): {biscuit1}");
 
         let serialized = biscuit1.to_vec().unwrap();
 

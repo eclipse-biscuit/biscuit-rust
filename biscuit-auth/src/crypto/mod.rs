@@ -490,12 +490,11 @@ pub fn sign_authority_block(
     version: u32,
 ) -> Result<Signature, error::Token> {
     let to_sign = match version {
-        0 => generate_authority_block_signature_payload_v0(&message, &next_key.public()),
-        1 => generate_authority_block_signature_payload_v1(&message, &next_key.public(), version),
+        0 => generate_authority_block_signature_payload_v0(message, &next_key.public()),
+        1 => generate_authority_block_signature_payload_v1(message, &next_key.public(), version),
         _ => {
             return Err(error::Format::DeserializationError(format!(
-                "unsupported block version: {}",
-                version
+                "unsupported block version: {version}"
             ))
             .into())
         }
@@ -515,9 +514,9 @@ pub fn sign_block(
     version: u32,
 ) -> Result<Signature, error::Token> {
     let to_sign = match version {
-        0 => generate_block_signature_payload_v0(&message, &next_key.public(), external_signature),
+        0 => generate_block_signature_payload_v0(message, &next_key.public(), external_signature),
         1 => generate_block_signature_payload_v1(
-            &message,
+            message,
             &next_key.public(),
             external_signature,
             previous_signature,
@@ -525,8 +524,7 @@ pub fn sign_block(
         ),
         _ => {
             return Err(error::Format::DeserializationError(format!(
-                "unsupported block version: {}",
-                version
+                "unsupported block version: {version}"
             ))
             .into())
         }
@@ -645,7 +643,7 @@ pub(crate) fn generate_block_signature_payload_v0(
     let mut to_verify = payload.to_vec();
 
     if let Some(signature) = external_signature.as_ref() {
-        to_verify.extend_from_slice(&signature.signature.to_bytes());
+        to_verify.extend_from_slice(signature.signature.to_bytes());
     }
     to_verify.extend(&(next_key.algorithm() as i32).to_le_bytes());
     to_verify.extend(next_key.to_bytes());
@@ -696,7 +694,7 @@ pub(crate) fn generate_block_signature_payload_v1(
 
     if let Some(signature) = external_signature.as_ref() {
         to_verify.extend(b"\0EXTERNALSIG\0");
-        to_verify.extend_from_slice(&signature.signature.to_bytes());
+        to_verify.extend_from_slice(signature.signature.to_bytes());
     }
 
     to_verify

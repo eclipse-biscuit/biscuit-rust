@@ -93,7 +93,7 @@ impl fmt::Display for Expression {
         let mut syms = default_symbol_table();
         let expr = self.convert(&mut syms);
         let s = expr.print(&syms).unwrap();
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 

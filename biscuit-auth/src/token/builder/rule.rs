@@ -145,7 +145,7 @@ impl Rule {
                     "rule head contains variables that are not used in predicates of the rule's body: {}",
                     head_variables
                     .iter()
-                    .map(|s| format!("${}", s))
+                    .map(|s| format!("${s}"))
                     .collect::<Vec<_>>()
                     .join(", ")
                     ))

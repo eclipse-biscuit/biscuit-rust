@@ -268,17 +268,17 @@ mod tests {
         let mut syms = SymbolTable::new();
 
         let input = " -1 ";
-        println!("parsing: {}", input);
+        println!("parsing: {input}");
         let res = biscuit_parser::parser::expr(input).map(|(i, o)| (i, o.into()));
         assert_eq!(res, Ok((" ", Expr::Value(Term::Integer(-1)))));
 
         let ops = res.unwrap().1.opcodes();
-        println!("ops: {:#?}", ops);
+        println!("ops: {ops:#?}");
         let e = builder::Expression { ops }.convert(&mut syms);
         println!("print: {}", e.print(&syms).unwrap());
 
         let input = " $0 <= 2019-12-04T09:46:41+00:00";
-        println!("parsing: {}", input);
+        println!("parsing: {input}");
         let res = biscuit_parser::parser::expr(input).map(|(i, o)| (i, o.into()));
         assert_eq!(
             res,
@@ -295,12 +295,12 @@ mod tests {
         );
 
         let ops = res.unwrap().1.opcodes();
-        println!("ops: {:#?}", ops);
+        println!("ops: {ops:#?}");
         let e = builder::Expression { ops }.convert(&mut syms);
         println!("print: {}", e.print(&syms).unwrap());
 
         let input = " 1 < $test + 2 ";
-        println!("parsing: {}", input);
+        println!("parsing: {input}");
         let res: Result<(&str, Expr), _> =
             biscuit_parser::parser::expr(input).map(|(i, o)| (i, o.into()));
         assert_eq!(
@@ -320,12 +320,12 @@ mod tests {
         );
 
         let ops = res.unwrap().1.opcodes();
-        println!("ops: {:#?}", ops);
+        println!("ops: {ops:#?}");
         let e = builder::Expression { ops }.convert(&mut syms);
         println!("print: {}", e.print(&syms).unwrap());
 
         let input = " 2 < $test && $var2.starts_with(\"test\") && true ";
-        println!("parsing: {}", input);
+        println!("parsing: {input}");
         let res = biscuit_parser::parser::expr(input).map(|(i, o)| (i, o.into()));
         assert_eq!(
             res,
@@ -358,7 +358,7 @@ mod tests {
         );
 
         let ops = res.unwrap().1.opcodes();
-        println!("ops: {:#?}", ops);
+        println!("ops: {ops:#?}");
         let e = builder::Expression { ops }.convert(&mut syms);
         println!("print: {}", e.print(&syms).unwrap());
 
@@ -374,13 +374,13 @@ mod tests {
         let mut syms = SymbolTable::new();
 
         let input = " 1 + 2 * 3 ";
-        println!("parsing: {}", input);
+        println!("parsing: {input}");
         let (_, res): (_, Expr) = biscuit_parser::parser::expr(input)
             .map(|(i, o)| (i, o.into()))
             .unwrap();
 
         let ops = res.opcodes();
-        println!("ops: {:#?}", ops);
+        println!("ops: {ops:#?}");
         let e = builder::Expression { ops: ops.clone() }.convert(&mut syms);
 
         let printed = e.print(&syms).unwrap();
@@ -393,7 +393,7 @@ mod tests {
                 &Default::default(),
             )
             .unwrap();
-        println!("evaluates to: {:?}", result);
+        println!("evaluates to: {result:?}");
 
         assert_eq!(
             ops,
@@ -409,13 +409,13 @@ mod tests {
         assert_eq!(result, datalog::Term::Integer(7));
 
         let input = " (1 + 2) * 3 ";
-        println!("parsing: {}", input);
+        println!("parsing: {input}");
         let (_, res): (_, Expr) = biscuit_parser::parser::expr(input)
             .map(|(i, o)| (i, o.into()))
             .unwrap();
 
         let ops = res.opcodes();
-        println!("ops: {:#?}", ops);
+        println!("ops: {ops:#?}");
         let e = builder::Expression { ops: ops.clone() }.convert(&mut syms);
 
         let printed = e.print(&syms).unwrap();
@@ -428,7 +428,7 @@ mod tests {
                 &Default::default(),
             )
             .unwrap();
-        println!("evaluates to: {:?}", result);
+        println!("evaluates to: {result:?}");
 
         assert_eq!(
             ops,
@@ -477,7 +477,7 @@ mod tests {
         "#;
 
         let res = biscuit_parser::parser::parse_source(input);
-        println!("parse_source res:\n{:#?}", res);
+        println!("parse_source res:\n{res:#?}");
 
         let empty_terms: &[builder::Term] = &[];
         let empty_preds: &[builder::Predicate] = &[];
@@ -635,7 +635,7 @@ mod tests {
         "#;
 
         let res = biscuit_parser::parser::parse_block_source(input);
-        println!("parse_block_source res:\n{:#?}", res);
+        println!("parse_block_source res:\n{res:#?}");
 
         let empty_terms: &[builder::Term] = &[];
         let empty_preds: &[builder::Predicate] = &[];

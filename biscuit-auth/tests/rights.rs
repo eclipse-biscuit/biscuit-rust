@@ -33,7 +33,7 @@ fn main() {
         .unwrap()
         .build_with_rng(&root, SymbolTable::default(), &mut rng)
         .unwrap();
-    println!("{}", biscuit1);
+    println!("{biscuit1}");
 
     let mut v = AuthorizerBuilder::new()
         .check(rule(
@@ -52,6 +52,6 @@ fn main() {
     //v.add_operation("write");
 
     let res = v.authorize();
-    println!("{:#?}", res);
+    println!("{res:#?}");
     panic!()
 }

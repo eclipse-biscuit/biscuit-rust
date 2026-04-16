@@ -72,7 +72,7 @@ fn append_block_2(b: &mut Bencher) {
     b.bytes = (data.len() - base_data.len()) as u64;
     assert_eq!(b.bytes, 189);
     b.iter(|| {
-        let token = Biscuit::from(&base_data, &root.public()).unwrap();
+        let token = Biscuit::from(&base_data, root.public()).unwrap();
         let block_builder = BlockBuilder::new()
             .check_resource("file1")
             .check_operation("read");
@@ -111,7 +111,7 @@ fn append_block_5(b: &mut Bencher) {
     b.bytes = (data.len() - base_data.len()) as u64;
     assert_eq!(b.bytes, 189);
     b.iter(|| {
-        let token2 = Biscuit::from(&data, &root.public()).unwrap();
+        let token2 = Biscuit::from(&data, root.public()).unwrap();
         let block_builder = BlockBuilder::new()
             .check_resource("file1")
             .check_operation("read");
@@ -121,7 +121,7 @@ fn append_block_5(b: &mut Bencher) {
             .unwrap();
         let data = token3.to_vec().unwrap();
 
-        let token3 = Biscuit::from(&data, &root.public()).unwrap();
+        let token3 = Biscuit::from(&data, root.public()).unwrap();
         let block_builder = BlockBuilder::new()
             .check_resource("file1")
             .check_operation("read");
@@ -131,7 +131,7 @@ fn append_block_5(b: &mut Bencher) {
             .unwrap();
         let data = token4.to_vec().unwrap();
 
-        let token4 = Biscuit::from(&data, &root.public()).unwrap();
+        let token4 = Biscuit::from(&data, root.public()).unwrap();
         let block_builder = BlockBuilder::new()
             .check_resource("file1")
             .check_operation("read");
@@ -265,7 +265,7 @@ fn verify_block_2(b: &mut Bencher) {
         token2.to_vec().unwrap()
     };
 
-    let token = Biscuit::from(&data, &root.public()).unwrap();
+    let token = Biscuit::from(&data, root.public()).unwrap();
     let mut verifier = AuthorizerBuilder::new()
         .fact("resource(\"file1\")")
         .unwrap()
@@ -282,7 +282,7 @@ fn verify_block_2(b: &mut Bencher) {
         .unwrap();
     b.bytes = data.len() as u64;
     b.iter(|| {
-        let token = Biscuit::from(&data, &root.public()).unwrap();
+        let token = Biscuit::from(&data, root.public()).unwrap();
         let mut verifier = AuthorizerBuilder::new()
             .fact("resource(\"file1\")")
             .unwrap()
@@ -352,7 +352,7 @@ fn verify_block_5(b: &mut Bencher) {
         token5.to_vec().unwrap()
     };
 
-    let token = Biscuit::from(&data, &root.public()).unwrap();
+    let token = Biscuit::from(&data, root.public()).unwrap();
     let mut verifier = AuthorizerBuilder::new()
         .fact("resource(\"file1\")")
         .unwrap()
@@ -370,7 +370,7 @@ fn verify_block_5(b: &mut Bencher) {
 
     b.bytes = data.len() as u64;
     b.iter(|| {
-        let token = Biscuit::from(&data, &root.public()).unwrap();
+        let token = Biscuit::from(&data, root.public()).unwrap();
         let mut verifier = AuthorizerBuilder::new()
             .fact("resource(\"file1\")")
             .unwrap()
@@ -413,7 +413,7 @@ fn check_signature_2(b: &mut Bencher) {
         token2.to_vec().unwrap()
     };
 
-    let token = Biscuit::from(&data, &root.public()).unwrap();
+    let token = Biscuit::from(&data, root.public()).unwrap();
     let mut verifier = AuthorizerBuilder::new()
         .fact("resource(\"file1\")")
         .unwrap()
@@ -431,7 +431,7 @@ fn check_signature_2(b: &mut Bencher) {
 
     b.bytes = data.len() as u64;
     b.iter(|| {
-        let _token = Biscuit::from(&data, &root.public()).unwrap();
+        let _token = Biscuit::from(&data, root.public()).unwrap();
     });
 }
 
@@ -486,7 +486,7 @@ fn check_signature_5(b: &mut Bencher) {
         token5.to_vec().unwrap()
     };
 
-    let token = Biscuit::from(&data, &root.public()).unwrap();
+    let token = Biscuit::from(&data, root.public()).unwrap();
     let mut verifier = AuthorizerBuilder::new()
         .fact("resource(\"file1\")")
         .unwrap()
@@ -504,7 +504,7 @@ fn check_signature_5(b: &mut Bencher) {
 
     b.bytes = data.len() as u64;
     b.iter(|| {
-        let _token = Biscuit::from(&data, &root.public()).unwrap();
+        let _token = Biscuit::from(&data, root.public()).unwrap();
     });
 }
 
@@ -533,7 +533,7 @@ fn checks_block_2(b: &mut Bencher) {
         token2.to_vec().unwrap()
     };
 
-    let token = Biscuit::from(&data, &root.public()).unwrap();
+    let token = Biscuit::from(&data, root.public()).unwrap();
     let mut verifier = AuthorizerBuilder::new()
         .fact("resource(\"file1\")")
         .unwrap()
@@ -549,7 +549,7 @@ fn checks_block_2(b: &mut Bencher) {
         })
         .unwrap();
 
-    let token = Biscuit::from(&data, &root.public()).unwrap();
+    let token = Biscuit::from(&data, root.public()).unwrap();
     b.bytes = data.len() as u64;
     b.iter(|| {
         let mut verifier = AuthorizerBuilder::new()
@@ -594,7 +594,7 @@ fn checks_block_create_verifier2(b: &mut Bencher) {
         token2.to_vec().unwrap()
     };
 
-    let token = Biscuit::from(&data, &root.public()).unwrap();
+    let token = Biscuit::from(&data, root.public()).unwrap();
     let mut verifier = AuthorizerBuilder::new()
         .fact("resource(\"file1\")")
         .unwrap()
@@ -610,7 +610,7 @@ fn checks_block_create_verifier2(b: &mut Bencher) {
         })
         .unwrap();
 
-    let token = Biscuit::from(&data, &root.public()).unwrap();
+    let token = Biscuit::from(&data, root.public()).unwrap();
     b.bytes = data.len() as u64;
     b.iter(|| {
         let _verifier = token.authorizer().unwrap();
@@ -642,7 +642,7 @@ fn checks_block_verify_only2(b: &mut Bencher) {
         token2.to_vec().unwrap()
     };
 
-    let token = Biscuit::from(&data, &root.public()).unwrap();
+    let token = Biscuit::from(&data, root.public()).unwrap();
     let mut verifier = AuthorizerBuilder::new()
         .fact("resource(\"file1\")")
         .unwrap()
@@ -658,7 +658,7 @@ fn checks_block_verify_only2(b: &mut Bencher) {
         })
         .unwrap();
 
-    let token = Biscuit::from(&data, &root.public()).unwrap();
+    let token = Biscuit::from(&data, root.public()).unwrap();
     b.iter(|| {
         let mut verifier = AuthorizerBuilder::new()
             .fact("resource(\"file1\")")

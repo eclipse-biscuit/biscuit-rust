@@ -340,9 +340,9 @@ impl AsRef<Term> for Term {
 impl fmt::Display for Term {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Term::Variable(i) => write!(f, "${}", i),
-            Term::Integer(i) => write!(f, "{}", i),
-            Term::Str(s) => write!(f, "\"{}\"", s),
+            Term::Variable(i) => write!(f, "${i}"),
+            Term::Integer(i) => write!(f, "{i}"),
+            Term::Str(s) => write!(f, "\"{s}\""),
             Term::Date(d) => {
                 let date = time::OffsetDateTime::from_unix_timestamp(*d as i64)
                     .ok()
@@ -352,7 +352,7 @@ impl fmt::Display for Term {
                     })
                     .unwrap_or_else(|| "<invalid date>".to_string());
 
-                write!(f, "{}", date)
+                write!(f, "{date}")
             }
             Term::Bytes(s) => write!(f, "hex:{}", hex::encode(s)),
             Term::Bool(b) => {
@@ -371,7 +371,7 @@ impl fmt::Display for Term {
                 }
             }
             Term::Parameter(s) => {
-                write!(f, "{{{}}}", s)
+                write!(f, "{{{s}}}")
             }
             Term::Null => write!(f, "null"),
             Term::Array(a) => {
@@ -382,9 +382,9 @@ impl fmt::Display for Term {
                 let terms = m
                     .iter()
                     .map(|(key, term)| match key {
-                        MapKey::Integer(i) => format!("{i}: {}", term),
-                        MapKey::Str(s) => format!("\"{s}\": {}", term),
-                        MapKey::Parameter(s) => format!("{{{s}}}: {}", term),
+                        MapKey::Integer(i) => format!("{i}: {term}"),
+                        MapKey::Str(s) => format!("\"{s}\": {term}"),
+                        MapKey::Parameter(s) => format!("{{{s}}}: {term}"),
                     })
                     .collect::<Vec<_>>();
                 write!(f, "{{{}}}", terms.join(", "))
@@ -419,8 +419,7 @@ impl TryFrom<Term> for i64 {
         match value {
             Term::Integer(i) => Ok(i),
             _ => Err(error::Token::ConversionError(format!(
-                "expected integer, got {:?}",
-                value
+                "expected integer, got {value:?}"
             ))),
         }
     }
@@ -445,8 +444,7 @@ impl TryFrom<Term> for bool {
         match value {
             Term::Bool(b) => Ok(b),
             _ => Err(error::Token::ConversionError(format!(
-                "expected boolean, got {:?}",
-                value
+                "expected boolean, got {value:?}"
             ))),
         }
     }
@@ -484,8 +482,7 @@ impl TryFrom<Term> for String {
         match value {
             Term::Str(s) => Ok(s),
             _ => Err(error::Token::ConversionError(format!(
-                "expected string or symbol, got {:?}",
-                value
+                "expected string or symbol, got {value:?}"
             ))),
         }
     }
@@ -510,8 +507,7 @@ impl TryFrom<Term> for Vec<u8> {
         match value {
             Term::Bytes(b) => Ok(b),
             _ => Err(error::Token::ConversionError(format!(
-                "expected byte array, got {:?}",
-                value
+                "expected byte array, got {value:?}"
             ))),
         }
     }
@@ -557,8 +553,7 @@ impl TryFrom<Term> for SystemTime {
         match value {
             Term::Date(d) => Ok(UNIX_EPOCH + Duration::from_secs(d)),
             _ => Err(error::Token::ConversionError(format!(
-                "expected date, got {:?}",
-                value
+                "expected date, got {value:?}"
             ))),
         }
     }
@@ -583,8 +578,7 @@ impl<T: Ord + TryFrom<Term, Error = error::Token>> TryFrom<Term> for BTreeSet<T>
         match value {
             Term::Set(d) => d.iter().cloned().map(TryFrom::try_from).collect(),
             _ => Err(error::Token::ConversionError(format!(
-                "expected set, got {:?}",
-                value
+                "expected set, got {value:?}"
             ))),
         }
     }

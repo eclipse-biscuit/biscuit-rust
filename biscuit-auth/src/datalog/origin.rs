@@ -86,6 +86,7 @@ impl Display for Origin {
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TrustedOrigins(Origin);
 
+#[allow(clippy::should_implement_trait)]
 impl TrustedOrigins {
     pub fn default() -> TrustedOrigins {
         let mut origins = Origin::default();

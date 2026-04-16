@@ -59,7 +59,7 @@ impl fmt::Display for Scope {
             Scope::Previous => write!(f, "previous"),
             Scope::PublicKey(pk) => pk.write(f),
             Scope::Parameter(s) => {
-                write!(f, "{{{}}}", s)
+                write!(f, "{{{s}}}")
             }
         }
     }

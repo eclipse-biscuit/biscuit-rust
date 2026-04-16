@@ -739,7 +739,7 @@ impl std::fmt::Display for Authorizer {
             }
 
             for fact in facts {
-                writeln!(f, "{};", fact)?;
+                writeln!(f, "{fact};")?;
             }
         }
 
@@ -775,7 +775,7 @@ impl std::fmt::Display for Authorizer {
             let mut sorted_rule_list = rule_list.iter().collect::<Vec<_>>();
             sorted_rule_list.sort();
             for rule in sorted_rule_list {
-                writeln!(f, "{};", rule)?;
+                writeln!(f, "{rule};")?;
             }
         }
 
@@ -892,13 +892,13 @@ impl AuthorizerPolicies {
         proto
             .encode(&mut v)
             .map(|_| v)
-            .map_err(|e| error::Format::SerializationError(format!("serialization error: {:?}", e)))
+            .map_err(|e| error::Format::SerializationError(format!("serialization error: {e:?}")))
             .map_err(error::Token::Format)
     }
 
     pub fn deserialize(data: &[u8]) -> Result<Self, error::Token> {
         let data = crate::format::schema::AuthorizerPolicies::decode(data).map_err(|e| {
-            error::Format::DeserializationError(format!("deserialization error: {:?}", e))
+            error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
 
         Ok(crate::format::convert::proto_authorizer_to_authorizer(
@@ -1213,7 +1213,7 @@ mod tests {
             .build(&biscuit2)
             .unwrap();
 
-        println!("token:\n{}", biscuit2);
+        println!("token:\n{biscuit2}");
         println!("world:\n{}", authorizer.print_world());
 
         let res = authorizer.authorize_with_limits(AuthorizerLimits {
