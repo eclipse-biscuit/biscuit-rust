@@ -1,3 +1,7 @@
+# `7.0.0`
+
+- `TrustedOrigin`'s `Default` implementation changed to match its inherent `default` function (#327)
+
 # `6.0.0`
 
 - support for `pem` / `der` private and public keys (#212 and #265)
