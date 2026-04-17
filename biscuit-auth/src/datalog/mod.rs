@@ -175,7 +175,7 @@ impl Rule {
                             Term::Variable(i) => match h.get(i) {
                               Some(val) => p.terms[index] = val.clone(),
                               None => {
-                                //println!("error: variables that appear in the head should appear in the body and constraints as well");
+                                // head variables should be bound in the body predicates
                                 return None;
                               }
                             },
