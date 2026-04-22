@@ -11,8 +11,6 @@ use crate::{
     error,
 };
 
-#[cfg(feature = "datalog-macro")]
-use super::ToAnyParam;
 use super::{Convert, Predicate, Term};
 
 /// Builder for a Datalog fact
@@ -115,17 +113,12 @@ impl Fact {
     }
 
     #[cfg(feature = "datalog-macro")]
-    pub fn set_macro_param<T: ToAnyParam>(
+    pub fn set_macro_param<T: Into<Term>>(
         &mut self,
         name: &str,
         param: T,
     ) -> Result<(), error::Token> {
-        use super::AnyParam;
-
-        match param.to_any_param() {
-            AnyParam::Term(t) => self.set_lenient(name, t),
-            AnyParam::PublicKey(_) => Ok(()),
-        }
+        self.set_lenient(name, param.into())
     }
 
     pub(super) fn apply_parameters(&mut self) {
