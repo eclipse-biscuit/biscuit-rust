@@ -210,9 +210,9 @@ impl Binary {
 
             // set
             (Binary::All, Term::Set(set_values), [param]) => {
+                let e = Expression { ops: right.clone() };
                 for value in set_values.iter() {
                     values.insert(*param, value.clone());
-                    let e = Expression { ops: right.clone() };
                     let result = e.evaluate(values, symbols, extern_func);
                     values.remove(param);
                     match result? {
@@ -224,9 +224,9 @@ impl Binary {
                 Ok(Term::Bool(true))
             }
             (Binary::Any, Term::Set(set_values), [param]) => {
+                let e = Expression { ops: right.clone() };
                 for value in set_values.iter() {
                     values.insert(*param, value.clone());
-                    let e = Expression { ops: right.clone() };
                     let result = e.evaluate(values, symbols, extern_func);
                     values.remove(param);
                     match result? {
@@ -240,9 +240,9 @@ impl Binary {
 
             // array
             (Binary::All, Term::Array(array), [param]) => {
+                let e = Expression { ops: right.clone() };
                 for value in array.iter() {
                     values.insert(*param, value.clone());
-                    let e = Expression { ops: right.clone() };
                     let result = e.evaluate(values, symbols, extern_func);
                     values.remove(param);
                     match result? {
@@ -254,9 +254,9 @@ impl Binary {
                 Ok(Term::Bool(true))
             }
             (Binary::Any, Term::Array(array), [param]) => {
+                let e = Expression { ops: right.clone() };
                 for value in array.iter() {
                     values.insert(*param, value.clone());
-                    let e = Expression { ops: right.clone() };
                     let result = e.evaluate(values, symbols, extern_func);
                     values.remove(param);
                     match result? {
@@ -270,14 +270,13 @@ impl Binary {
 
             //map
             (Binary::All, Term::Map(map), [param]) => {
+                let e = Expression { ops: right.clone() };
                 for (key, value) in map.iter() {
                     let key = match key {
                         MapKey::Integer(i) => Term::Integer(*i),
                         MapKey::Str(i) => Term::Str(*i),
                     };
                     values.insert(*param, Term::Array(vec![key, value.clone()]));
-
-                    let e = Expression { ops: right.clone() };
                     let result = e.evaluate(values, symbols, extern_func);
                     values.remove(param);
                     match result? {
@@ -289,14 +288,13 @@ impl Binary {
                 Ok(Term::Bool(true))
             }
             (Binary::Any, Term::Map(map), [param]) => {
+                let e = Expression { ops: right.clone() };
                 for (key, value) in map.iter() {
                     let key = match key {
                         MapKey::Integer(i) => Term::Integer(*i),
                         MapKey::Str(i) => Term::Str(*i),
                     };
                     values.insert(*param, Term::Array(vec![key, value.clone()]));
-
-                    let e = Expression { ops: right.clone() };
                     let result = e.evaluate(values, symbols, extern_func);
                     values.remove(param);
                     match result? {
