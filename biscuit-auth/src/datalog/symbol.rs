@@ -163,7 +163,7 @@ impl SymbolTable {
     pub fn print_symbol_default(&self, i: SymbolIndex) -> String {
         self.get_symbol(i)
             .map(|s| s.to_string())
-            .unwrap_or_else(|| format!("<{}?>", i))
+            .unwrap_or_else(|| format!("<{i}?>"))
     }
 
     pub fn print_world(&self, w: &World) -> String {
@@ -181,7 +181,7 @@ impl SymbolTable {
             .flat_map(|rules| rules.1.iter())
             .map(|(_, r)| self.print_rule(r))
             .collect::<Vec<_>>();
-        format!("World {{\n  facts: {:#?}\n  rules: {:#?}\n}}", facts, rules)
+        format!("World {{\n  facts: {facts:#?}\n  rules: {rules:#?}\n}}")
     }
 
     pub fn print_term(&self, term: &Term) -> String {
@@ -230,7 +230,7 @@ impl SymbolTable {
                         crate::datalog::MapKey::Str(s) => {
                             format!(
                                 "\"{}\": {}",
-                                self.print_symbol_default(*s as u64),
+                                self.print_symbol_default(*s),
                                 self.print_term(term)
                             )
                         }

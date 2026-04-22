@@ -324,6 +324,7 @@ impl Rule {
 }
 
 /// recursive iterator for rule application
+#[allow(clippy::type_complexity)]
 pub struct CombineIt<'a, IT> {
     variables: MatchedVariables,
     predicates: &'a [Predicate],
@@ -1053,10 +1054,10 @@ mod tests {
             ],
         );
 
-        println!("symbols: {:?}", syms);
+        println!("symbols: {syms:?}");
         println!("testing r1: {}", syms.print_rule(&r1));
         let query_rule_result = w.query_rule(r1, 0, &[0].iter().collect(), &syms);
-        println!("grandparents query_rules: {:?}", query_rule_result);
+        println!("grandparents query_rules: {query_rule_result:?}");
         println!("current facts: {:?}", w.facts);
 
         let r2 = rule(
@@ -1153,7 +1154,7 @@ mod tests {
                 &syms,
             )
             .unwrap();
-        println!("grandparents after inserting parent(C, E): {:?}", res);
+        println!("grandparents after inserting parent(C, E): {res:?}");
 
         let res = res
             .iter_all()
@@ -1360,7 +1361,7 @@ mod tests {
                 ),
                 0,
                 &[0].iter().collect(),
-                &syms,
+                syms,
             )
             .unwrap()
             .iter_all()
@@ -1401,11 +1402,11 @@ mod tests {
         let mut syms = SymbolTable::new();
 
         let t1 = SystemTime::now();
-        println!("t1 = {:?}", t1);
+        println!("t1 = {t1:?}");
         let t2 = t1 + Duration::from_secs(10);
-        println!("t2 = {:?}", t2);
+        println!("t2 = {t2:?}");
         let t3 = t2 + Duration::from_secs(30);
-        println!("t3 = {:?}", t3);
+        println!("t3 = {t3:?}");
 
         let t2_timestamp = t2.duration_since(UNIX_EPOCH).unwrap().as_secs();
 
@@ -1758,7 +1759,7 @@ mod tests {
             .map(|(_, fact)| fact)
             .cloned()
             .collect::<HashSet<_>>();
-        println!("got res: {:?}", res2);
+        println!("got res: {res2:?}");
         let compared = (vec![fact(less_than, &[&int(0), &def])])
             .drain(..)
             .collect::<HashSet<_>>();
@@ -1794,7 +1795,7 @@ mod tests {
             println!("\t{}", syms.print_fact(fact));
         }
 
-        assert!(res.len() == 0);
+        assert!(res.is_empty());
 
         // operation($unbound, "read") should not have been generated
         // in case it is generated though, verify that rule application

@@ -47,7 +47,7 @@ impl KeyPair {
     pub fn sign(&self, data: &[u8]) -> Result<Signature, error::Format> {
         let signature: ecdsa::Signature<NistP256> = self
             .kp
-            .try_sign(&data)
+            .try_sign(data)
             .map_err(|s| s.to_string())
             .map_err(error::Signature::InvalidSignatureGeneration)
             .map_err(error::Format::Signature)?;
@@ -178,7 +178,7 @@ impl PrivateKey {
 
     /// returns the matching public key
     pub fn public(&self) -> PublicKey {
-        PublicKey(*(&self.0).verifying_key())
+        PublicKey(*self.0.verifying_key())
     }
 }
 
@@ -192,6 +192,7 @@ impl std::clone::Clone for PrivateKey {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PublicKey(VerifyingKey);
 
+#[allow(clippy::wrong_self_convention)]
 impl PublicKey {
     /// serializes to a byte array
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -209,7 +210,7 @@ impl PublicKey {
             .map_err(|s| s.to_string())
             .map_err(Format::InvalidKey)?;
 
-        Ok(Self(k.into()))
+        Ok(Self(k))
     }
 
     /// deserializes from an hex-encoded string
@@ -264,23 +265,22 @@ impl PublicKey {
     ) -> Result<(), error::Format> {
         let sig = p256::ecdsa::Signature::from_der(&signature.0).map_err(|e| {
             error::Format::BlockSignatureDeserializationError(format!(
-                "block signature deserialization error: {:?}",
-                e
+                "block signature deserialization error: {e:?}"
             ))
         })?;
 
         self.0
-            .verify(&data, &sig)
+            .verify(data, &sig)
             .map_err(|s| s.to_string())
             .map_err(error::Signature::InvalidSignature)
             .map_err(error::Format::Signature)
     }
 
     pub(crate) fn write(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "secp256r1/{}", hex::encode(&self.to_bytes()))
+        write!(f, "secp256r1/{}", hex::encode(self.to_bytes()))
     }
     pub fn print(&self) -> String {
-        format!("secp256r1/{}", hex::encode(&self.to_bytes()))
+        format!("secp256r1/{}", hex::encode(self.to_bytes()))
     }
 }
 

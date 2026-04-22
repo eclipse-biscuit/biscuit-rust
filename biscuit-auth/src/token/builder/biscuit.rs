@@ -113,13 +113,13 @@ impl BiscuitBuilder {
         let (facts, rules, checks) = self.dump();
         let mut f = String::new();
         for fact in facts {
-            let _ = writeln!(f, "{};", fact);
+            let _ = writeln!(f, "{fact};");
         }
         for rule in rules {
-            let _ = writeln!(f, "{};", rule);
+            let _ = writeln!(f, "{rule};");
         }
         for check in checks {
-            let _ = writeln!(f, "{};", check);
+            let _ = writeln!(f, "{check};");
         }
         f
     }
@@ -161,7 +161,7 @@ impl fmt::Display for BiscuitBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.root_key_id {
             None => writeln!(f, "// no root key id set")?,
-            Some(id) => writeln!(f, "// root key id: {}", id)?,
+            Some(id) => writeln!(f, "// root key id: {id}")?,
         }
         self.inner.fmt(f)
     }

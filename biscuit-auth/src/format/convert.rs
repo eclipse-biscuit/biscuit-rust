@@ -618,7 +618,7 @@ pub fn proto_id_to_token_term(input: &schema::Term) -> Result<Term, error::Forma
                     }
                 };
 
-                map.insert(key, proto_id_to_token_term(&value)?);
+                map.insert(key, proto_id_to_token_term(value)?);
             }
 
             Ok(Term::Map(map))
@@ -841,8 +841,7 @@ pub fn proto_scope_to_token_scope(input: &schema::Scope) -> Result<Scope, error:
                     Ok(Scope::Previous)
                 } else {
                     Err(error::Format::DeserializationError(format!(
-                        "deserialization error: unexpected value `{}` for scope type",
-                        i
+                        "deserialization error: unexpected value `{i}` for scope type"
                     )))
                 }
             }

@@ -55,7 +55,7 @@ impl KeyPair {
     pub fn sign(&self, data: &[u8]) -> Result<Signature, error::Format> {
         Ok(Signature(
             self.kp
-                .try_sign(&data)
+                .try_sign(data)
                 .map_err(|s| s.to_string())
                 .map_err(error::Signature::InvalidSignatureGeneration)
                 .map_err(error::Format::Signature)?
@@ -181,6 +181,7 @@ impl Drop for PrivateKey {
 #[derive(Debug, Clone, Copy, Eq)]
 pub struct PublicKey(ed25519_dalek::VerifyingKey);
 
+#[allow(clippy::wrong_self_convention)]
 impl PublicKey {
     /// serializes to a byte array
     pub fn to_bytes(&self) -> [u8; 32] {
@@ -206,14 +207,13 @@ impl PublicKey {
     ) -> Result<(), error::Format> {
         let signature_bytes: [u8; 64] = signature.0.clone().try_into().map_err(|e| {
             error::Format::BlockSignatureDeserializationError(format!(
-                "block signature deserialization error: {:?}",
-                e
+                "block signature deserialization error: {e:?}"
             ))
         })?;
         let sig = ed25519_dalek::Signature::from_bytes(&signature_bytes);
 
         self.0
-            .verify_strict(&data, &sig)
+            .verify_strict(data, &sig)
             .map_err(|s| s.to_string())
             .map_err(error::Signature::InvalidSignature)
             .map_err(error::Format::Signature)
@@ -259,11 +259,11 @@ impl PublicKey {
     }
 
     pub(crate) fn write(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ed25519/{}", hex::encode(&self.to_bytes()))
+        write!(f, "ed25519/{}", hex::encode(self.to_bytes()))
     }
 
     pub fn print(&self) -> String {
-        format!("ed25519/{}", hex::encode(&self.to_bytes()))
+        format!("ed25519/{}", hex::encode(self.to_bytes()))
     }
 }
 

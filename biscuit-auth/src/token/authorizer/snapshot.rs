@@ -174,7 +174,7 @@ impl super::Authorizer {
 
     pub fn from_raw_snapshot(input: &[u8]) -> Result<Self, error::Token> {
         let snapshot = schema::AuthorizerSnapshot::decode(input).map_err(|e| {
-            error::Format::DeserializationError(format!("deserialization error: {:?}", e))
+            error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
         Self::from_snapshot(snapshot)
     }
@@ -263,7 +263,7 @@ impl super::Authorizer {
         let snapshot = self.snapshot()?;
         let mut bytes = Vec::new();
         snapshot.encode(&mut bytes).map_err(|e| {
-            error::Format::SerializationError(format!("serialization error: {:?}", e))
+            error::Format::SerializationError(format!("serialization error: {e:?}"))
         })?;
         Ok(bytes)
     }

@@ -81,7 +81,7 @@ impl SerializedBiscuit {
         verification_mode: ThirdPartyVerificationMode,
     ) -> Result<Self, error::Format> {
         let data = schema::Biscuit::decode(slice).map_err(|e| {
-            error::Format::DeserializationError(format!("deserialization error: {:?}", e))
+            error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
 
         let next_key = PublicKey::from_proto(&data.authority.next_key)?;
@@ -179,8 +179,7 @@ impl SerializedBiscuit {
 
         let authority = schema::Block::decode(&self.authority.data[..]).map_err(|e| {
             error::Token::Format(error::Format::BlockDeserializationError(format!(
-                "error deserializing authority block: {:?}",
-                e
+                "error deserializing authority block: {e:?}"
             )))
         })?;
 
@@ -200,8 +199,7 @@ impl SerializedBiscuit {
         for block in self.blocks.iter() {
             let deser = schema::Block::decode(&block.data[..]).map_err(|e| {
                 error::Token::Format(error::Format::BlockDeserializationError(format!(
-                    "error deserializing block: {:?}",
-                    e
+                    "error deserializing block: {e:?}"
                 )))
             })?;
 
@@ -288,7 +286,7 @@ impl SerializedBiscuit {
 
         b.encode(&mut v)
             .map(|_| v)
-            .map_err(|e| error::Format::SerializationError(format!("serialization error: {:?}", e)))
+            .map_err(|e| error::Format::SerializationError(format!("serialization error: {e:?}")))
     }
 
     /// creates a new token
@@ -326,7 +324,7 @@ impl SerializedBiscuit {
         token_block_to_proto_block(authority)
             .encode(&mut v)
             .map_err(|e| {
-                error::Format::SerializationError(format!("serialization error: {:?}", e))
+                error::Format::SerializationError(format!("serialization error: {e:?}"))
             })?;
 
         let signature = crypto::sign_authority_block(
@@ -363,7 +361,7 @@ impl SerializedBiscuit {
         token_block_to_proto_block(block)
             .encode(&mut v)
             .map_err(|e| {
-                error::Format::SerializationError(format!("serialization error: {:?}", e))
+                error::Format::SerializationError(format!("serialization error: {e:?}"))
             })?;
 
         let signature_version = block_signature_version(
@@ -509,7 +507,7 @@ impl SerializedBiscuit {
 
                 let to_verify = crypto::generate_seal_signature_payload_v0(block);
 
-                current_pub.verify_signature(&to_verify, &signature)?;
+                current_pub.verify_signature(&to_verify, signature)?;
             }
         }
 
@@ -600,13 +598,13 @@ mod tests {
             Err(_) => return,
         };
         prost_build::compile_protos(&["src/format/schema.proto"], &["src/"]).unwrap();
-        let mut file = std::fs::File::open(&format!("{out_dir}/biscuit.format.schema.rs")).unwrap();
+        let mut file = std::fs::File::open(format!("{out_dir}/biscuit.format.schema.rs")).unwrap();
         let mut contents = String::new();
         file.read_to_string(&mut contents).unwrap();
 
         let commited_schema = include_str!("schema.rs");
 
-        if &contents != commited_schema {
+        if contents != commited_schema {
             println!(
                 "{}",
                 colored_diff::PrettyDifference {

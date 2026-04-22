@@ -98,11 +98,11 @@ impl std::fmt::Display for Base64Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
             Base64Error::InvalidByte(index, byte) => {
-                write!(f, "Invalid byte {}, offset {}.", byte, index)
+                write!(f, "Invalid byte {byte}, offset {index}.")
             }
             Base64Error::InvalidLength => write!(f, "Encoded text cannot have a 6-bit remainder."),
             Base64Error::InvalidLastSymbol(index, byte) => {
-                write!(f, "Invalid last symbol {}, offset {}.", byte, index)
+                write!(f, "Invalid last symbol {byte}, offset {index}.")
             }
         }
     }

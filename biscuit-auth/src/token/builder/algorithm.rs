@@ -22,6 +22,7 @@ impl Algorithm {
     }
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for Algorithm {
     fn default() -> Self {
         Self::Ed25519
@@ -51,8 +52,7 @@ impl TryFrom<&str> for Algorithm {
             "ed25519" => Ok(Algorithm::Ed25519),
             "secp256r1" => Ok(Algorithm::Secp256r1),
             _ => Err(error::Format::DeserializationError(format!(
-                "deserialization error: unexpected key algorithm {}",
-                value
+                "deserialization error: unexpected key algorithm {value}"
             ))),
         }
     }

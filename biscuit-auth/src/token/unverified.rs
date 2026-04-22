@@ -182,8 +182,7 @@ impl UnverifiedBiscuit {
         )
         .map_err(|e| {
             error::Token::Format(error::Format::BlockDeserializationError(format!(
-                "error deserializing block: {:?}",
-                e
+                "error deserializing block: {e:?}"
             )))
         })?;
         blocks.push(deser);
@@ -315,7 +314,7 @@ impl UnverifiedBiscuit {
             payload,
             external_signature,
         } = schema::ThirdPartyBlockContents::decode(slice).map_err(|e| {
-            error::Format::DeserializationError(format!("deserialization error: {:?}", e))
+            error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
 
         let algorithm =
@@ -328,8 +327,7 @@ impl UnverifiedBiscuit {
             PublicKey::from_bytes(&external_signature.public_key.key, algorithm.into()).map_err(
                 |e| {
                     error::Format::BlockSignatureDeserializationError(format!(
-                        "block external public key deserialization error: {:?}",
-                        e
+                        "block external public key deserialization error: {e:?}"
                     ))
                 },
             )?;
@@ -338,8 +336,7 @@ impl UnverifiedBiscuit {
 
         let block = schema::Block::decode(&payload[..]).map_err(|e| {
             error::Token::Format(error::Format::DeserializationError(format!(
-                "deserialization error: {:?}",
-                e
+                "deserialization error: {e:?}"
             )))
         })?;
 

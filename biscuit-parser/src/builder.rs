@@ -501,7 +501,7 @@ impl Rule {
                     "the rule contains variables that are not bound by predicates in the rule's body: {}",
                     free_variables
                     .iter()
-                    .map(|s| format!("${}", s))
+                    .map(|s| format!("${s}"))
                     .collect::<Vec<_>>()
                     .join(", ")
                     ))

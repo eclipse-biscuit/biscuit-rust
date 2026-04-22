@@ -22,7 +22,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::InvalidArgument => write!(f, "invalid argument"),
-            Error::Biscuit(e) => write!(f, "{}", e),
+            Error::Biscuit(e) => write!(f, "{e}"),
         }
     }
 }
@@ -313,6 +313,7 @@ pub enum SignatureAlgorithm {
     Secp256r1,
 }
 
+#[allow(clippy::extra_unused_lifetimes)]
 #[no_mangle]
 pub unsafe extern "C" fn key_pair_new<'a>(
     seed_ptr: *const u8,
@@ -346,7 +347,7 @@ pub unsafe extern "C" fn key_pair_public(kp: Option<&KeyPair>) -> Option<Box<Pub
     }
     let kp = kp?;
 
-    Some(Box::new(PublicKey((*kp).0.public())))
+    Some(Box::new(PublicKey(kp.0.public())))
 }
 
 /// expects a 32 byte buffer
@@ -712,7 +713,7 @@ pub unsafe extern "C" fn biscuit_builder_build(
     seed.copy_from_slice(slice);
 
     let mut rng: StdRng = SeedableRng::from_seed(seed);
-    (*builder)
+    builder
         .0
         .clone()
         .expect("builder is none")
@@ -722,14 +723,15 @@ pub unsafe extern "C" fn biscuit_builder_build(
         .ok()
 }
 
+#[allow(clippy::extra_unused_lifetimes)]
 #[no_mangle]
 pub unsafe extern "C" fn biscuit_builder_free<'a>(_builder: Option<Box<BiscuitBuilder>>) {}
 
 #[no_mangle]
-pub unsafe extern "C" fn biscuit_from<'a>(
+pub unsafe extern "C" fn biscuit_from(
     biscuit_ptr: *const u8,
     biscuit_len: usize,
-    root: Option<&'a PublicKey>,
+    root: Option<&PublicKey>,
 ) -> Option<Box<Biscuit>> {
     let biscuit = std::slice::from_raw_parts(biscuit_ptr, biscuit_len);
     if root.is_none() {
@@ -756,7 +758,7 @@ pub unsafe extern "C" fn biscuit_serialized_size(biscuit: Option<&Biscuit>) -> u
         Ok(sz) => sz,
         Err(e) => {
             update_last_error(Error::Biscuit(e));
-            return 0;
+            0
         }
     }
 }
@@ -774,7 +776,7 @@ pub unsafe extern "C" fn biscuit_sealed_size(biscuit: Option<&Biscuit>) -> usize
         Ok(sz) => sz,
         Err(e) => {
             update_last_error(Error::Biscuit(e));
-            return 0;
+            0
         }
     }
 }
@@ -791,7 +793,7 @@ pub unsafe extern "C" fn biscuit_serialize(
 
     let biscuit = biscuit.unwrap();
 
-    match (*biscuit).0.to_vec() {
+    match biscuit.0.to_vec() {
         Ok(v) => {
             let size = match biscuit.0.serialized_size() {
                 Ok(sz) => sz,
@@ -825,7 +827,7 @@ pub unsafe extern "C" fn biscuit_serialize_sealed(
 
     let biscuit = biscuit.unwrap();
 
-    match (*biscuit).0.seal() {
+    match biscuit.0.seal() {
         Ok(b) => match b.to_vec() {
             Ok(v) => {
                 let size = match biscuit.0.serialized_size() {
@@ -971,15 +973,13 @@ pub unsafe extern "C" fn biscuit_append_block(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn biscuit_authorizer<'a>(
-    biscuit: Option<&'a Biscuit>,
-) -> Option<Box<Authorizer>> {
+pub unsafe extern "C" fn biscuit_authorizer(biscuit: Option<&Biscuit>) -> Option<Box<Authorizer>> {
     if biscuit.is_none() {
         update_last_error(Error::InvalidArgument);
     }
     let biscuit = biscuit?;
 
-    (*biscuit).0.authorizer().map(Authorizer).map(Box::new).ok()
+    biscuit.0.authorizer().map(Authorizer).map(Box::new).ok()
 }
 
 #[no_mangle]
@@ -1247,7 +1247,6 @@ pub unsafe extern "C" fn authorizer_builder_build(
     builder
         .0
         .clone()
-        .take()
         .unwrap()
         .build(&token.0)
         .map(Authorizer)
@@ -1269,7 +1268,6 @@ pub unsafe extern "C" fn authorizer_builder_build_unauthenticated(
     builder
         .0
         .clone()
-        .take()
         .unwrap()
         .build_unauthenticated()
         .map(Authorizer)
@@ -1309,7 +1307,7 @@ pub unsafe extern "C" fn authorizer_print(authorizer: Option<&mut Authorizer>) -
         Ok(s) => s.into_raw(),
         Err(_) => {
             update_last_error(Error::InvalidArgument);
-            return std::ptr::null_mut();
+            std::ptr::null_mut()
         }
     }
 }
@@ -1319,7 +1317,7 @@ pub unsafe extern "C" fn authorizer_free(_authorizer: Option<Box<Authorizer>>) {
 
 #[no_mangle]
 pub unsafe extern "C" fn string_free(ptr: *mut c_char) {
-    if ptr != std::ptr::null_mut() {
+    if ptr.is_null() {
         drop(CString::from_raw(ptr));
     }
 }
@@ -1336,7 +1334,7 @@ pub unsafe extern "C" fn biscuit_print(biscuit: Option<&Biscuit>) -> *const c_ch
         Ok(s) => s.into_raw(),
         Err(_) => {
             update_last_error(Error::InvalidArgument);
-            return std::ptr::null();
+            std::ptr::null()
         }
     }
 }

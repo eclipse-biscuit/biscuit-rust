@@ -27,7 +27,7 @@ fn main() {
     for i in 0..token.block_count() {
         println!("block {}:\n{}\n", i, token.print_block_source(i).unwrap());
     }
-    println!("token:\n{}", token);
+    println!("token:\n{token}");
 
     let mut authorizer = AuthorizerBuilder::new().allow_all().build(&token).unwrap();
 

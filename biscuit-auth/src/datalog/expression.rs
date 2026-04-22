@@ -131,10 +131,10 @@ impl Unary {
 
     pub fn print(&self, value: String, symbols: &SymbolTable) -> String {
         match self {
-            Unary::Negate => format!("!{}", value),
-            Unary::Parens => format!("({})", value),
-            Unary::Length => format!("{}.length()", value),
-            Unary::TypeOf => format!("{}.type()", value),
+            Unary::Negate => format!("!{value}"),
+            Unary::Parens => format!("({value})"),
+            Unary::Length => format!("{value}.length()"),
+            Unary::TypeOf => format!("{value}.type()"),
             Unary::Ffi(name) => {
                 format!("{value}.extern::{}()", symbols.print_symbol_default(*name))
             }
@@ -383,7 +383,7 @@ impl Binary {
             (Binary::Add, Term::Str(s1), Term::Str(s2)) => {
                 match (symbols.get_symbol(s1), symbols.get_symbol(s2)) {
                     (Some(s1), Some(s2)) => {
-                        let s = format!("{}{}", s1, s2);
+                        let s = format!("{s1}{s2}");
                         let sym = symbols.insert(&s);
                         Ok(Term::Str(sym))
                     }
@@ -537,29 +537,29 @@ impl Binary {
 
     pub fn print(&self, left: String, right: String, symbols: &SymbolTable) -> String {
         match self {
-            Binary::LessThan => format!("{} < {}", left, right),
-            Binary::GreaterThan => format!("{} > {}", left, right),
-            Binary::LessOrEqual => format!("{} <= {}", left, right),
-            Binary::GreaterOrEqual => format!("{} >= {}", left, right),
-            Binary::Equal => format!("{} === {}", left, right),
-            Binary::HeterogeneousEqual => format!("{} == {}", left, right),
-            Binary::NotEqual => format!("{} !== {}", left, right),
-            Binary::HeterogeneousNotEqual => format!("{} != {}", left, right),
-            Binary::Contains => format!("{}.contains({})", left, right),
-            Binary::Prefix => format!("{}.starts_with({})", left, right),
-            Binary::Suffix => format!("{}.ends_with({})", left, right),
-            Binary::Regex => format!("{}.matches({})", left, right),
-            Binary::Add => format!("{} + {}", left, right),
-            Binary::Sub => format!("{} - {}", left, right),
-            Binary::Mul => format!("{} * {}", left, right),
-            Binary::Div => format!("{} / {}", left, right),
-            Binary::And => format!("{} &&! {}", left, right),
-            Binary::Or => format!("{} ||! {}", left, right),
-            Binary::Intersection => format!("{}.intersection({})", left, right),
-            Binary::Union => format!("{}.union({})", left, right),
-            Binary::BitwiseAnd => format!("{} & {}", left, right),
-            Binary::BitwiseOr => format!("{} | {}", left, right),
-            Binary::BitwiseXor => format!("{} ^ {}", left, right),
+            Binary::LessThan => format!("{left} < {right}"),
+            Binary::GreaterThan => format!("{left} > {right}"),
+            Binary::LessOrEqual => format!("{left} <= {right}"),
+            Binary::GreaterOrEqual => format!("{left} >= {right}"),
+            Binary::Equal => format!("{left} === {right}"),
+            Binary::HeterogeneousEqual => format!("{left} == {right}"),
+            Binary::NotEqual => format!("{left} !== {right}"),
+            Binary::HeterogeneousNotEqual => format!("{left} != {right}"),
+            Binary::Contains => format!("{left}.contains({right})"),
+            Binary::Prefix => format!("{left}.starts_with({right})"),
+            Binary::Suffix => format!("{left}.ends_with({right})"),
+            Binary::Regex => format!("{left}.matches({right})"),
+            Binary::Add => format!("{left} + {right}"),
+            Binary::Sub => format!("{left} - {right}"),
+            Binary::Mul => format!("{left} * {right}"),
+            Binary::Div => format!("{left} / {right}"),
+            Binary::And => format!("{left} &&! {right}"),
+            Binary::Or => format!("{left} ||! {right}"),
+            Binary::Intersection => format!("{left}.intersection({right})"),
+            Binary::Union => format!("{left}.union({right})"),
+            Binary::BitwiseAnd => format!("{left} & {right}"),
+            Binary::BitwiseOr => format!("{left} | {right}"),
+            Binary::BitwiseXor => format!("{left} ^ {right}"),
             Binary::LazyAnd => format!("{left} && {right}"),
             Binary::LazyOr => format!("{left} || {right}"),
             Binary::All => format!("{left}.all({right})"),
@@ -755,7 +755,7 @@ mod tests {
 
         let values: HashMap<u32, Term> = [(2, Term::Integer(0))].iter().cloned().collect();
 
-        println!("ops: {:?}", ops);
+        println!("ops: {ops:?}");
 
         let e = Expression { ops };
         println!("print: {}", e.print(&symbols).unwrap());
@@ -785,7 +785,7 @@ mod tests {
                 Op::Binary(op),
             ];
 
-            println!("ops: {:?}", ops);
+            println!("ops: {ops:?}");
 
             let e = Expression { ops };
             println!("print: {}", e.print(&symbols).unwrap());
@@ -873,9 +873,9 @@ mod tests {
             Op::Binary(Binary::LessThan),
         ];
 
-        println!("ops1: {:?}", ops1);
-        println!("ops2: {:?}", ops2);
-        println!("ops3: {:?}", ops3);
+        println!("ops1: {ops1:?}");
+        println!("ops2: {ops2:?}");
+        println!("ops3: {ops3:?}");
         let e1 = Expression { ops: ops1 };
         let e2 = Expression { ops: ops2 };
         let e3 = Expression { ops: ops3 };
@@ -902,7 +902,7 @@ mod tests {
         for op in operators {
             let mut ops = operands.clone();
             ops.push(op);
-            println!("ops: {:?}", ops);
+            println!("ops: {ops:?}");
 
             let e = Expression { ops };
             println!("print: {}", e.print(&symbols).unwrap());
@@ -926,7 +926,7 @@ mod tests {
         for op in operators {
             let mut ops = operands.clone();
             ops.push(op);
-            println!("ops: {:?}", ops);
+            println!("ops: {ops:?}");
 
             let e = Expression { ops };
             println!("print: {}", e.print(&symbols).unwrap());
@@ -950,7 +950,7 @@ mod tests {
         for (op, result) in operators {
             let mut ops = operands.clone();
             ops.push(op);
-            println!("ops: {:?}", ops);
+            println!("ops: {ops:?}");
 
             let e = Expression { ops };
             println!("print: {}", e.print(&symbols).unwrap());
@@ -994,7 +994,7 @@ mod tests {
                 for (op, result) in &operators {
                     let mut ops = operand.clone();
                     ops.push(op.clone());
-                    println!("ops: {:?}", ops);
+                    println!("ops: {ops:?}");
 
                     let e = Expression { ops };
                     println!("print: {}", e.print(&symbols).unwrap());
@@ -1033,7 +1033,7 @@ mod tests {
                 for op in &operators {
                     let mut ops = operand.clone();
                     ops.push(op.clone());
-                    println!("ops: {:?}", ops);
+                    println!("ops: {ops:?}");
 
                     let e = Expression { ops };
                     println!("print: {}", e.print(&symbols).unwrap());
