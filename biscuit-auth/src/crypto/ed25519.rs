@@ -11,7 +11,7 @@
 //!
 //! The implementation is based on [ed25519_dalek](https://github.com/dalek-cryptography/ed25519-dalek).
 #![allow(non_snake_case)]
-use crate::{error::Format, format::schema};
+use crate::error::Format;
 
 use super::error;
 use super::Signature;
@@ -30,10 +30,6 @@ pub struct KeyPair {
 }
 
 impl KeyPair {
-    pub fn new() -> Self {
-        Self::new_with_rng(&mut rand::rngs::OsRng)
-    }
-
     pub fn new_with_rng<T: RngCore + CryptoRng>(rng: &mut T) -> Self {
         let kp = ed25519_dalek::SigningKey::generate(rng);
         KeyPair { kp }
@@ -76,10 +72,6 @@ impl KeyPair {
         PublicKey(self.kp.verifying_key())
     }
 
-    pub fn algorithm(&self) -> crate::format::schema::public_key::Algorithm {
-        crate::format::schema::public_key::Algorithm::Ed25519
-    }
-
     #[cfg(feature = "pem")]
     pub fn from_private_key_der(bytes: &[u8]) -> Result<Self, error::Format> {
         let kp = SigningKey::from_pkcs8_der(bytes)
@@ -116,12 +108,6 @@ impl KeyPair {
     }
 }
 
-impl std::default::Default for KeyPair {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// the private part of a [KeyPair]
 #[derive(Debug, PartialEq)]
 pub struct PrivateKey(pub(crate) ed25519_dalek::SecretKey);
@@ -132,23 +118,12 @@ impl PrivateKey {
         self.0.to_vec()
     }
 
-    /// serializes to an hex-encoded string
-    pub fn to_bytes_hex(&self) -> String {
-        hex::encode(self.0)
-    }
-
     /// deserializes from a byte array
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, error::Format> {
         let bytes: [u8; 32] = bytes
             .try_into()
             .map_err(|_| Format::InvalidKeySize(bytes.len()))?;
         Ok(PrivateKey(bytes))
-    }
-
-    /// deserializes from an hex-encoded string
-    pub fn from_bytes_hex(str: &str) -> Result<Self, error::Format> {
-        let bytes = hex::decode(str).map_err(|e| error::Format::InvalidKey(e.to_string()))?;
-        Self::from_bytes(&bytes)
     }
 
     #[cfg(feature = "pem")]
@@ -188,10 +163,6 @@ impl PrivateKey {
     pub fn public(&self) -> PublicKey {
         PublicKey(SigningKey::from_bytes(&self.0).verifying_key())
     }
-
-    pub fn algorithm(&self) -> crate::format::schema::public_key::Algorithm {
-        crate::format::schema::public_key::Algorithm::Ed25519
-    }
 }
 
 impl std::clone::Clone for PrivateKey {
@@ -216,11 +187,6 @@ impl PublicKey {
         self.0.to_bytes()
     }
 
-    /// serializes to an hex-encoded string
-    pub fn to_bytes_hex(&self) -> String {
-        hex::encode(self.to_bytes())
-    }
-
     /// deserializes from a byte array
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, error::Format> {
         let bytes: [u8; 32] = bytes
@@ -231,30 +197,6 @@ impl PublicKey {
             .map(PublicKey)
             .map_err(|s| s.to_string())
             .map_err(Format::InvalidKey)
-    }
-
-    /// deserializes from an hex-encoded string
-    pub fn from_bytes_hex(str: &str) -> Result<Self, error::Format> {
-        let bytes = hex::decode(str).map_err(|e| error::Format::InvalidKey(e.to_string()))?;
-        Self::from_bytes(&bytes)
-    }
-
-    pub fn from_proto(key: &schema::PublicKey) -> Result<Self, error::Format> {
-        if key.algorithm != schema::public_key::Algorithm::Ed25519 as i32 {
-            return Err(error::Format::DeserializationError(format!(
-                "deserialization error: unexpected key algorithm {}",
-                key.algorithm
-            )));
-        }
-
-        PublicKey::from_bytes(&key.key)
-    }
-
-    pub fn to_proto(&self) -> schema::PublicKey {
-        schema::PublicKey {
-            algorithm: schema::public_key::Algorithm::Ed25519 as i32,
-            key: self.to_bytes().to_vec(),
-        }
     }
 
     pub fn verify_signature(
@@ -275,10 +217,6 @@ impl PublicKey {
             .map_err(|s| s.to_string())
             .map_err(error::Signature::InvalidSignature)
             .map_err(error::Format::Signature)
-    }
-
-    pub fn algorithm(&self) -> crate::format::schema::public_key::Algorithm {
-        crate::format::schema::public_key::Algorithm::Ed25519
     }
 
     #[cfg(feature = "pem")]

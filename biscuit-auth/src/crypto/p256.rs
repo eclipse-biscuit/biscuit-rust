@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #![allow(non_snake_case)]
-use crate::{error::Format, format::schema};
+use crate::error::Format;
 
 use super::error;
 use super::Signature;
 
 use p256::ecdsa::{signature::Signer, signature::Verifier, SigningKey, VerifyingKey};
-use p256::elliptic_curve::rand_core::{CryptoRng, OsRng, RngCore};
+use p256::elliptic_curve::rand_core::{CryptoRng, RngCore};
 use p256::NistP256;
 use std::hash::Hash;
 
@@ -20,10 +20,6 @@ pub struct KeyPair {
 }
 
 impl KeyPair {
-    pub fn new() -> Self {
-        Self::new_with_rng(&mut OsRng)
-    }
-
     pub fn new_with_rng<T: RngCore + CryptoRng>(rng: &mut T) -> Self {
         let kp = SigningKey::random(rng);
 
@@ -66,10 +62,6 @@ impl KeyPair {
         PublicKey(*self.kp.verifying_key())
     }
 
-    pub fn algorithm(&self) -> crate::format::schema::public_key::Algorithm {
-        crate::format::schema::public_key::Algorithm::Secp256r1
-    }
-
     #[cfg(feature = "pem")]
     pub fn from_private_key_der(bytes: &[u8]) -> Result<Self, error::Format> {
         use p256::pkcs8::DecodePrivateKey;
@@ -107,12 +99,6 @@ impl KeyPair {
             .to_pkcs8_pem(LineEnding::LF)
             .map_err(|e| error::Format::PKCS8(e.to_string()))?;
         Ok(kp)
-    }
-}
-
-impl std::default::Default for KeyPair {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -194,10 +180,6 @@ impl PrivateKey {
     pub fn public(&self) -> PublicKey {
         PublicKey(*(&self.0).verifying_key())
     }
-
-    pub fn algorithm(&self) -> crate::format::schema::public_key::Algorithm {
-        crate::format::schema::public_key::Algorithm::Ed25519
-    }
 }
 
 impl std::clone::Clone for PrivateKey {
@@ -275,24 +257,6 @@ impl PublicKey {
         Ok(kp)
     }
 
-    pub fn from_proto(key: &schema::PublicKey) -> Result<Self, error::Format> {
-        if key.algorithm != schema::public_key::Algorithm::Ed25519 as i32 {
-            return Err(error::Format::DeserializationError(format!(
-                "deserialization error: unexpected key algorithm {}",
-                key.algorithm
-            )));
-        }
-
-        PublicKey::from_bytes(&key.key)
-    }
-
-    pub fn to_proto(&self) -> schema::PublicKey {
-        schema::PublicKey {
-            algorithm: schema::public_key::Algorithm::Ed25519 as i32,
-            key: self.to_bytes().to_vec(),
-        }
-    }
-
     pub fn verify_signature(
         &self,
         data: &[u8],
@@ -312,10 +276,6 @@ impl PublicKey {
             .map_err(error::Format::Signature)
     }
 
-    pub fn algorithm(&self) -> crate::format::schema::public_key::Algorithm {
-        crate::format::schema::public_key::Algorithm::Ed25519
-    }
-
     pub(crate) fn write(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "secp256r1/{}", hex::encode(&self.to_bytes()))
     }
@@ -326,18 +286,20 @@ impl PublicKey {
 
 impl Hash for PublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        (crate::format::schema::public_key::Algorithm::Ed25519 as i32).hash(state);
+        (crate::format::schema::public_key::Algorithm::Secp256r1 as i32).hash(state);
         self.to_bytes().hash(state);
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use p256::elliptic_curve::rand_core::OsRng;
+
     use super::*;
 
     #[test]
     fn serialization() {
-        let kp = KeyPair::new();
+        let kp = KeyPair::new_with_rng(&mut OsRng);
         let private = kp.private();
         let public = kp.public();
         let private_hex = private.to_bytes_hex();
