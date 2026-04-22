@@ -9,7 +9,7 @@ use super::{SymbolTable, TemporarySymbolTable};
 use regex::Regex;
 use std::sync::Arc;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     convert::TryFrom,
 };
 
@@ -623,13 +623,7 @@ impl Expression {
                         Some(StackElem::Closure(params, right_ops)),
                         Some(StackElem::Term(left_term)),
                     ) => {
-                        if values
-                            .keys()
-                            .collect::<HashSet<_>>()
-                            .intersection(&params.iter().collect())
-                            .next()
-                            .is_some()
-                        {
+                        if params.iter().any(|p| values.contains_key(p)) {
                             return Err(error::Expression::ShadowedVariable);
                         }
                         let mut values = values.clone();
@@ -646,13 +640,7 @@ impl Expression {
                         Some(StackElem::Term(right_term)),
                         Some(StackElem::Closure(params, left_ops)),
                     ) => {
-                        if values
-                            .keys()
-                            .collect::<HashSet<_>>()
-                            .intersection(&params.iter().collect())
-                            .next()
-                            .is_some()
-                        {
+                        if params.iter().any(|p| values.contains_key(p)) {
                             return Err(error::Expression::ShadowedVariable);
                         }
                         let mut values = values.clone();
