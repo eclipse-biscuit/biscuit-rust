@@ -6,6 +6,7 @@
 use std::fmt::Display;
 use std::iter::once;
 
+use base64::prelude::*;
 use builder::{BiscuitBuilder, BlockBuilder};
 use prost::Message;
 use rand_core::{CryptoRng, RngCore};
@@ -142,7 +143,7 @@ impl Biscuit {
         self.container
             .to_vec()
             .map_err(error::Token::Format)
-            .map(|v| base64::encode_config(v, base64::URL_SAFE))
+            .map(|v| BASE64_URL_SAFE.encode(v))
     }
 
     /// serializes the token
@@ -346,7 +347,7 @@ impl Biscuit {
         T: AsRef<[u8]>,
         KP: RootKeyProvider,
     {
-        let decoded = base64::decode_config(slice, base64::URL_SAFE)?;
+        let decoded = BASE64_URL_SAFE.decode(slice)?;
         Biscuit::from_with_symbols(&decoded, key_provider, symbols)
     }
 

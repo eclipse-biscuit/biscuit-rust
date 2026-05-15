@@ -37,7 +37,7 @@ zeroize = { version = "1.5", default-features = false }
 thiserror = "1"
 rand = { version = "0.8" }
 wasm-bindgen = { version = "0.2", optional = true }
-base64 = "0.13.0"
+base64 = "0.22.1"
 ed25519-dalek = { version = "2.0.0", features = ["rand_core", "zeroize"] }
 serde = { version = "1.0.132", optional = true, features = ["derive"] }
 getrandom = { version = "0.2.15" }
