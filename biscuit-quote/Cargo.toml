@@ -13,7 +13,7 @@ proc-macro = true
 biscuit-parser = { path = "../biscuit-parser", features = ["datalog-macro"], version = "0.2.0" }
 proc-macro2 = "1"
 quote = "1.0.14"
-syn = { version = "1.0.85", features = ["full", "extra-traits"] }
+syn = { version = "2.0.117", default-features = false }
 proc-macro-error2 = "2.0"
 
 [dev-dependencies]
