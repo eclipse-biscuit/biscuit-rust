@@ -4,6 +4,8 @@
  */
 //! helper functions for conversion between internal structures and Protobuf
 
+use prost::UnknownEnumValue;
+
 use super::schema;
 use crate::builder::Convert;
 use crate::crypto::PublicKey;
@@ -18,6 +20,7 @@ use crate::token::{DATALOG_3_1, DATALOG_3_2, DATALOG_3_3, MAX_SCHEMA_VERSION, MI
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::convert::TryFrom;
 
 pub fn token_block_to_proto_block(input: &Block) -> schema::Block {
     schema::Block {
@@ -380,12 +383,13 @@ pub fn proto_policy_to_policy(
         queries.push(c);
     }
 
-    let kind = if let Some(i) = Kind::from_i32(input.kind) {
-        i
-    } else {
-        return Err(error::Format::DeserializationError(
-            "deserialization error: invalid policy kind".to_string(),
-        ));
+    let kind = match Kind::try_from(input.kind) {
+        Ok(i) => i,
+        Err(UnknownEnumValue(i)) => {
+            return Err(error::Format::DeserializationError(format!(
+                "deserialization error: invalid policy kind `{i}`"
+            )));
+        }
     };
 
     let kind = match kind {
@@ -710,24 +714,24 @@ fn proto_op_to_token_op(op: &schema::Op) -> Result<Op, error::Format> {
     Ok(match op.content.as_ref() {
         Some(op::Content::Value(id)) => Op::Value(proto_id_to_token_term(id)?),
         Some(op::Content::Unary(u)) => {
-            match (op_unary::Kind::from_i32(u.kind), u.ffi_name.as_ref()) {
-                (Some(op_unary::Kind::Negate), None) => Op::Unary(Unary::Negate),
-                (Some(op_unary::Kind::Parens), None) => Op::Unary(Unary::Parens),
-                (Some(op_unary::Kind::Length), None) => Op::Unary(Unary::Length),
-                (Some(op_unary::Kind::TypeOf), None) => Op::Unary(Unary::TypeOf),
-                (Some(op_unary::Kind::Ffi), Some(n)) => Op::Unary(Unary::Ffi(*n)),
-                (Some(op_unary::Kind::Ffi), None) => {
+            match (op_unary::Kind::try_from(u.kind), u.ffi_name.as_ref()) {
+                (Ok(op_unary::Kind::Negate), None) => Op::Unary(Unary::Negate),
+                (Ok(op_unary::Kind::Parens), None) => Op::Unary(Unary::Parens),
+                (Ok(op_unary::Kind::Length), None) => Op::Unary(Unary::Length),
+                (Ok(op_unary::Kind::TypeOf), None) => Op::Unary(Unary::TypeOf),
+                (Ok(op_unary::Kind::Ffi), Some(n)) => Op::Unary(Unary::Ffi(*n)),
+                (Ok(op_unary::Kind::Ffi), None) => {
                     return Err(error::Format::DeserializationError(
                         "deserialization error: missing ffi name".to_string(),
                     ))
                 }
-                (Some(_), Some(_)) => {
+                (Ok(_), Some(_)) => {
                     return Err(error::Format::DeserializationError(
                         "deserialization error: ffi name set on a regular unary operation"
                             .to_string(),
                     ))
                 }
-                (None, _) => {
+                (Err(_), _) => {
                     return Err(error::Format::DeserializationError(
                         "deserialization error: unary operation is empty".to_string(),
                     ))
@@ -735,53 +739,53 @@ fn proto_op_to_token_op(op: &schema::Op) -> Result<Op, error::Format> {
             }
         }
         Some(op::Content::Binary(b)) => {
-            match (op_binary::Kind::from_i32(b.kind), b.ffi_name.as_ref()) {
-                (Some(op_binary::Kind::LessThan), None) => Op::Binary(Binary::LessThan),
-                (Some(op_binary::Kind::GreaterThan), None) => Op::Binary(Binary::GreaterThan),
-                (Some(op_binary::Kind::LessOrEqual), None) => Op::Binary(Binary::LessOrEqual),
-                (Some(op_binary::Kind::GreaterOrEqual), None) => Op::Binary(Binary::GreaterOrEqual),
-                (Some(op_binary::Kind::Equal), None) => Op::Binary(Binary::Equal),
-                (Some(op_binary::Kind::Contains), None) => Op::Binary(Binary::Contains),
-                (Some(op_binary::Kind::Prefix), None) => Op::Binary(Binary::Prefix),
-                (Some(op_binary::Kind::Suffix), None) => Op::Binary(Binary::Suffix),
-                (Some(op_binary::Kind::Regex), None) => Op::Binary(Binary::Regex),
-                (Some(op_binary::Kind::Add), None) => Op::Binary(Binary::Add),
-                (Some(op_binary::Kind::Sub), None) => Op::Binary(Binary::Sub),
-                (Some(op_binary::Kind::Mul), None) => Op::Binary(Binary::Mul),
-                (Some(op_binary::Kind::Div), None) => Op::Binary(Binary::Div),
-                (Some(op_binary::Kind::And), None) => Op::Binary(Binary::And),
-                (Some(op_binary::Kind::Or), None) => Op::Binary(Binary::Or),
-                (Some(op_binary::Kind::Intersection), None) => Op::Binary(Binary::Intersection),
-                (Some(op_binary::Kind::Union), None) => Op::Binary(Binary::Union),
-                (Some(op_binary::Kind::BitwiseAnd), None) => Op::Binary(Binary::BitwiseAnd),
-                (Some(op_binary::Kind::BitwiseOr), None) => Op::Binary(Binary::BitwiseOr),
-                (Some(op_binary::Kind::BitwiseXor), None) => Op::Binary(Binary::BitwiseXor),
-                (Some(op_binary::Kind::NotEqual), None) => Op::Binary(Binary::NotEqual),
-                (Some(op_binary::Kind::HeterogeneousEqual), None) => {
+            match (op_binary::Kind::try_from(b.kind), b.ffi_name.as_ref()) {
+                (Ok(op_binary::Kind::LessThan), None) => Op::Binary(Binary::LessThan),
+                (Ok(op_binary::Kind::GreaterThan), None) => Op::Binary(Binary::GreaterThan),
+                (Ok(op_binary::Kind::LessOrEqual), None) => Op::Binary(Binary::LessOrEqual),
+                (Ok(op_binary::Kind::GreaterOrEqual), None) => Op::Binary(Binary::GreaterOrEqual),
+                (Ok(op_binary::Kind::Equal), None) => Op::Binary(Binary::Equal),
+                (Ok(op_binary::Kind::Contains), None) => Op::Binary(Binary::Contains),
+                (Ok(op_binary::Kind::Prefix), None) => Op::Binary(Binary::Prefix),
+                (Ok(op_binary::Kind::Suffix), None) => Op::Binary(Binary::Suffix),
+                (Ok(op_binary::Kind::Regex), None) => Op::Binary(Binary::Regex),
+                (Ok(op_binary::Kind::Add), None) => Op::Binary(Binary::Add),
+                (Ok(op_binary::Kind::Sub), None) => Op::Binary(Binary::Sub),
+                (Ok(op_binary::Kind::Mul), None) => Op::Binary(Binary::Mul),
+                (Ok(op_binary::Kind::Div), None) => Op::Binary(Binary::Div),
+                (Ok(op_binary::Kind::And), None) => Op::Binary(Binary::And),
+                (Ok(op_binary::Kind::Or), None) => Op::Binary(Binary::Or),
+                (Ok(op_binary::Kind::Intersection), None) => Op::Binary(Binary::Intersection),
+                (Ok(op_binary::Kind::Union), None) => Op::Binary(Binary::Union),
+                (Ok(op_binary::Kind::BitwiseAnd), None) => Op::Binary(Binary::BitwiseAnd),
+                (Ok(op_binary::Kind::BitwiseOr), None) => Op::Binary(Binary::BitwiseOr),
+                (Ok(op_binary::Kind::BitwiseXor), None) => Op::Binary(Binary::BitwiseXor),
+                (Ok(op_binary::Kind::NotEqual), None) => Op::Binary(Binary::NotEqual),
+                (Ok(op_binary::Kind::HeterogeneousEqual), None) => {
                     Op::Binary(Binary::HeterogeneousEqual)
                 }
-                (Some(op_binary::Kind::HeterogeneousNotEqual), None) => {
+                (Ok(op_binary::Kind::HeterogeneousNotEqual), None) => {
                     Op::Binary(Binary::HeterogeneousNotEqual)
                 }
-                (Some(op_binary::Kind::LazyAnd), None) => Op::Binary(Binary::LazyAnd),
-                (Some(op_binary::Kind::LazyOr), None) => Op::Binary(Binary::LazyOr),
-                (Some(op_binary::Kind::All), None) => Op::Binary(Binary::All),
-                (Some(op_binary::Kind::Any), None) => Op::Binary(Binary::Any),
-                (Some(op_binary::Kind::Get), None) => Op::Binary(Binary::Get),
-                (Some(op_binary::Kind::Ffi), Some(n)) => Op::Binary(Binary::Ffi(*n)),
-                (Some(op_binary::Kind::Ffi), None) => {
+                (Ok(op_binary::Kind::LazyAnd), None) => Op::Binary(Binary::LazyAnd),
+                (Ok(op_binary::Kind::LazyOr), None) => Op::Binary(Binary::LazyOr),
+                (Ok(op_binary::Kind::All), None) => Op::Binary(Binary::All),
+                (Ok(op_binary::Kind::Any), None) => Op::Binary(Binary::Any),
+                (Ok(op_binary::Kind::Get), None) => Op::Binary(Binary::Get),
+                (Ok(op_binary::Kind::Ffi), Some(n)) => Op::Binary(Binary::Ffi(*n)),
+                (Ok(op_binary::Kind::Ffi), None) => {
                     return Err(error::Format::DeserializationError(
                         "deserialization error: missing ffi name".to_string(),
                     ))
                 }
-                (Some(_), Some(_)) => {
+                (Ok(_), Some(_)) => {
                     return Err(error::Format::DeserializationError(
                         "deserialization error: ffi name set on a regular binary operation"
                             .to_string(),
                     ))
                 }
-                (Some(op_binary::Kind::TryOr), None) => Op::Binary(Binary::TryOr),
-                (None, _) => {
+                (Ok(op_binary::Kind::TryOr), None) => Op::Binary(Binary::TryOr),
+                (Err(_), _) => {
                     return Err(error::Format::DeserializationError(
                         "deserialization error: binary operation is empty".to_string(),
                     ))

@@ -2,8 +2,10 @@
  * Copyright (c) 2019 Geoffroy Couprie <contact@geoffroycouprie.com> and Contributors to the Eclipse Foundation.
  * SPDX-License-Identifier: Apache-2.0
  */
+use std::convert::TryFrom as _;
+
 use base64::prelude::*;
-use prost::Message;
+use prost::{Message, UnknownEnumValue};
 
 use super::{default_symbol_table, Biscuit, Block};
 use crate::{
@@ -318,12 +320,13 @@ impl UnverifiedBiscuit {
             error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
 
-        let algorithm =
-            Algorithm::from_i32(external_signature.public_key.algorithm).ok_or_else(|| {
-                error::Format::DeserializationError(
-                    "deserialization error: invalid external key algorithm".to_string(),
-                )
-            })?;
+        let algorithm = Algorithm::try_from(external_signature.public_key.algorithm).map_err(
+            |UnknownEnumValue(v)| {
+                error::Format::DeserializationError(format!(
+                    "deserialization error: invalid external key algorithm `{v}`"
+                ))
+            },
+        )?;
         let external_key =
             PublicKey::from_bytes(&external_signature.public_key.key, algorithm.into()).map_err(
                 |e| {
