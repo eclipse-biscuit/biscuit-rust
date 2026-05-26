@@ -87,7 +87,7 @@ impl Authorizer {
         }
     }
 
-    /// creates an `Authorizer` from a serialized [crate::format::schema::AuthorizerPolicies]
+    /// creates an `Authorizer` from a serialized authorizer
     pub fn from(data: &[u8]) -> Result<Self, error::Token> {
         AuthorizerPolicies::deserialize(data)?.try_into()
     }
@@ -640,12 +640,12 @@ impl Authorizer {
         }
     }
 
-    /// prints the content of the authorizer
+    /// Prints the content of the authorizer.
     pub fn print_world(&self) -> String {
         self.to_string()
     }
 
-    /// returns all of the data loaded in the authorizer
+    /// Returns all of the data loaded in the authorizer.
     pub fn dump(&self) -> (Vec<Fact>, Vec<Rule>, Vec<Check>, Vec<Policy>) {
         let mut checks = self.authorizer_block_builder.checks.clone();
         if let Some(blocks) = &self.blocks {
@@ -676,6 +676,79 @@ impl Authorizer {
             .unwrap();
 
         (facts, rules, checks, self.policies.clone())
+    }
+
+    /// Returns all facts loaded in the authorizer, grouped by origin.
+    pub fn dump_facts_with_origins(&self) -> Vec<(Vec<Option<usize>>, Vec<Fact>)> {
+        self.world
+            .facts
+            .inner
+            .iter()
+            .filter_map(|(origin, facts)| {
+                if facts.is_empty() {
+                    return None;
+                }
+                let origin_set: Vec<Option<usize>> = origin
+                    .inner
+                    .iter()
+                    .map(|o| if *o == usize::MAX { None } else { Some(*o) })
+                    .collect();
+                let converted: Vec<Fact> = facts
+                    .iter()
+                    .map(|f| Fact::convert_from(f, &self.symbols).unwrap())
+                    .collect();
+                Some((origin_set, converted))
+            })
+            .collect()
+    }
+
+    /// Returns all rules loaded in the authorizer, grouped by origin block index
+    pub fn dump_rules_with_origins(&self) -> Vec<(Option<usize>, Vec<Rule>)> {
+        let mut rules = Vec::new();
+        if let Some(blocks) = &self.blocks {
+            for (i, block) in blocks.iter().enumerate() {
+                let block_rules: Vec<Rule> = block
+                    .rules
+                    .iter()
+                    .map(|r| Rule::convert_from(r, &self.symbols).unwrap())
+                    .collect();
+                if !block_rules.is_empty() {
+                    rules.push((Some(i), block_rules));
+                }
+            }
+        }
+        let authorizer_rules = self.authorizer_block_builder.rules.clone();
+        if !authorizer_rules.is_empty() {
+            rules.push((None, authorizer_rules));
+        }
+        rules
+    }
+
+    /// Returns all checks loaded in the authorizer, grouped by origin block index
+    pub fn dump_checks_with_origins(&self) -> Vec<(Option<usize>, Vec<Check>)> {
+        let mut checks = Vec::new();
+        if let Some(blocks) = &self.blocks {
+            for (i, block) in blocks.iter().enumerate() {
+                let block_checks: Vec<Check> = block
+                    .checks
+                    .iter()
+                    .map(|c| Check::convert_from(c, &self.symbols).unwrap())
+                    .collect();
+                if !block_checks.is_empty() {
+                    checks.push((Some(i), block_checks));
+                }
+            }
+        }
+        let authorizer_checks = self.authorizer_block_builder.checks.clone();
+        if !authorizer_checks.is_empty() {
+            checks.push((None, authorizer_checks));
+        }
+        checks
+    }
+
+    /// Returns all policies loaded in the authorizer.
+    pub fn dump_policies(&self) -> Vec<Policy> {
+        self.policies.clone()
     }
 
     pub fn dump_code(&self) -> String {
@@ -897,7 +970,7 @@ impl AuthorizerPolicies {
     }
 
     pub fn deserialize(data: &[u8]) -> Result<Self, error::Token> {
-        let data = crate::format::schema::AuthorizerPolicies::decode(data).map_err(|e| {
+        let data = biscuit_proto::AuthorizerPolicies::decode(data).map_err(|e| {
             error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
 

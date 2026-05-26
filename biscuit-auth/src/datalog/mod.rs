@@ -151,46 +151,48 @@ impl Rule {
         let variables = MatchedVariables::new(self.variables_set());
 
         CombineIt::new(variables, &self.body, facts, symbols)
-        .map(move |(origin, variables)| {
-                    let mut temporary_symbols = TemporarySymbolTable::new(symbols);
-                    for e in self.expressions.iter() {
-                        match e.evaluate(&variables, &mut temporary_symbols, extern_funcs) {
-                            Ok(Term::Bool(true)) => {}
-                            Ok(Term::Bool(false)) => return Ok((origin, variables, false)),
-                            Ok(_) => return Err(error::Expression::InvalidType),
-                            Err(e) => {
-                                //println!("expr returned {:?}", res);
-                                return Err(e);
-                            }
+            .map(move |(origin, variables)| {
+                let mut temporary_symbols = TemporarySymbolTable::new(symbols);
+                for e in self.expressions.iter() {
+                    match e.evaluate(&variables, &mut temporary_symbols, extern_funcs) {
+                        Ok(Term::Bool(true)) => {}
+                        Ok(Term::Bool(false)) => return Ok((origin, variables, false)),
+                        Ok(_) => return Err(error::Expression::InvalidType),
+                        Err(e) => {
+                            //println!("expr returned {:?}", res);
+                            return Err(e);
                         }
                     }
-            Ok((origin, variables, true))
-        }).filter_map(move |res/*(mut origin,h, expression_res)*/| {
-            match res {
-                Ok((mut origin,h , expression_res)) => {
-                    if expression_res {
-                    let mut p = head.clone();
-                    for index in 0..p.terms.len() {
-                        match &p.terms[index] {
-                            Term::Variable(i) => match h.get(i) {
-                              Some(val) => p.terms[index] = val.clone(),
-                              None => {
-                                // head variables should be bound in the body predicates
-                                return None;
-                              }
-                            },
-                            _ => continue,
-                        };
+                }
+                Ok((origin, variables, true))
+            })
+            .filter_map(move |res /*(mut origin,h, expression_res)*/| {
+                match res {
+                    Ok((mut origin, h, expression_res)) => {
+                        if expression_res {
+                            let mut p = head.clone();
+                            for index in 0..p.terms.len() {
+                                match &p.terms[index] {
+                                    Term::Variable(i) => match h.get(i) {
+                                        Some(val) => p.terms[index] = val.clone(),
+                                        None => {
+                                            // head variables should be bound in the body predicates
+                                            return None;
+                                        }
+                                    },
+                                    _ => continue,
+                                };
+                            }
+
+                            origin.insert(rule_origin);
+                            Some(Ok((origin, Fact { predicate: p })))
+                        } else {
+                            None
+                        }
                     }
-
-                    origin.insert(rule_origin);
-                    Some(Ok((origin, Fact { predicate: p })))
-                } else {None}
-                },
-                Err(e) => Some(Err(e))
-            }
-
-        })
+                    Err(e) => Some(Err(e)),
+                }
+            })
     }
 
     pub fn find_match(

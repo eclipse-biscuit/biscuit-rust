@@ -6,6 +6,7 @@
 use std::fmt::Display;
 use std::iter::once;
 
+use biscuit_proto::ThirdPartyBlockContents;
 use builder::{BiscuitBuilder, BlockBuilder};
 use prost::Message;
 use rand_core::{CryptoRng, RngCore};
@@ -17,7 +18,6 @@ use super::error;
 use super::format::SerializedBiscuit;
 use crate::crypto::{self};
 use crate::format::convert::proto_block_to_token_block;
-use crate::format::schema::{self, ThirdPartyBlockContents};
 use crate::format::{ThirdPartyVerificationMode, THIRD_PARTY_SIGNATURE_VERSION};
 use authorizer::Authorizer;
 
@@ -83,8 +83,8 @@ pub fn default_symbol_table() -> SymbolTable {
 #[derive(Clone, Debug)]
 pub struct Biscuit {
     pub(crate) root_key_id: Option<u32>,
-    pub(crate) authority: schema::Block,
-    pub(crate) blocks: Vec<schema::Block>,
+    pub(crate) authority: biscuit_proto::Block,
+    pub(crate) blocks: Vec<biscuit_proto::Block>,
     pub(crate) symbols: SymbolTable,
     pub(crate) container: SerializedBiscuit,
 }
@@ -289,11 +289,12 @@ impl Biscuit {
 
         symbols.public_keys.extend(&authority.public_keys)?;
 
-        let authority = schema::Block::decode(&container.authority.data[..]).map_err(|e| {
-            error::Token::Format(error::Format::BlockDeserializationError(format!(
-                "error deserializing block: {e:?}"
-            )))
-        })?;
+        let authority =
+            biscuit_proto::Block::decode(&container.authority.data[..]).map_err(|e| {
+                error::Token::Format(error::Format::BlockDeserializationError(format!(
+                    "error deserializing block: {e:?}"
+                )))
+            })?;
 
         Ok(Biscuit {
             root_key_id,
@@ -379,7 +380,7 @@ impl Biscuit {
         symbols.extend(&block.symbols)?;
         symbols.public_keys.extend(&block.public_keys)?;
 
-        let deser = schema::Block::decode(
+        let deser = biscuit_proto::Block::decode(
             &container
                 .blocks
                 .last()
@@ -464,7 +465,7 @@ impl Biscuit {
             ThirdPartyVerificationMode::PreviousSignatureHashing,
         )?;
 
-        let block = schema::Block::decode(&payload[..]).map_err(|e| {
+        let block = biscuit_proto::Block::decode(&payload[..]).map_err(|e| {
             error::Token::Format(error::Format::DeserializationError(format!(
                 "deserialization error: {e:?}"
             )))

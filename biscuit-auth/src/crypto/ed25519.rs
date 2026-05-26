@@ -275,7 +275,7 @@ impl PartialEq for PublicKey {
 
 impl Hash for PublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        (crate::format::schema::public_key::Algorithm::Ed25519 as i32).hash(state);
+        (biscuit_proto::public_key::Algorithm::Ed25519 as i32).hash(state);
         self.0.to_bytes().hash(state);
     }
 }

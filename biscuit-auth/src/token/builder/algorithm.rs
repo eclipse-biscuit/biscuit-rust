@@ -76,20 +76,20 @@ impl From<Algorithm> for biscuit_parser::builder::Algorithm {
     }
 }
 
-impl From<crate::format::schema::public_key::Algorithm> for Algorithm {
-    fn from(value: crate::format::schema::public_key::Algorithm) -> Algorithm {
+impl From<biscuit_proto::public_key::Algorithm> for Algorithm {
+    fn from(value: biscuit_proto::public_key::Algorithm) -> Algorithm {
         match value {
-            crate::format::schema::public_key::Algorithm::Ed25519 => Algorithm::Ed25519,
-            crate::format::schema::public_key::Algorithm::Secp256r1 => Algorithm::Secp256r1,
+            biscuit_proto::public_key::Algorithm::Ed25519 => Algorithm::Ed25519,
+            biscuit_proto::public_key::Algorithm::Secp256r1 => Algorithm::Secp256r1,
         }
     }
 }
 
-impl From<Algorithm> for crate::format::schema::public_key::Algorithm {
-    fn from(value: Algorithm) -> crate::format::schema::public_key::Algorithm {
+impl From<Algorithm> for biscuit_proto::public_key::Algorithm {
+    fn from(value: Algorithm) -> biscuit_proto::public_key::Algorithm {
         match value {
-            Algorithm::Ed25519 => crate::format::schema::public_key::Algorithm::Ed25519,
-            Algorithm::Secp256r1 => crate::format::schema::public_key::Algorithm::Secp256r1,
+            Algorithm::Ed25519 => biscuit_proto::public_key::Algorithm::Ed25519,
+            Algorithm::Secp256r1 => biscuit_proto::public_key::Algorithm::Secp256r1,
         }
     }
 }
