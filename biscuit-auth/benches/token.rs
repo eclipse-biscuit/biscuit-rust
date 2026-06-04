@@ -1,4 +1,4 @@
-/*
+/g
  * Copyright (c) 2019 Geoffroy Couprie <contact@geoffroycouprie.com> and Contributors to the Eclipse Foundation.
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -10,14 +10,14 @@ use biscuit::{
     builder::*,
     builder_ext::{AuthorizerExt, BuilderExt},
     datalog::SymbolTable,
-    AuthorizerLimits, Biscuit, KeyPair, UnverifiedBiscuit,
+    AuthorizerLimits, Biscuit, PrivateKey, UnverifiedBiscuit,
 };
 use codspeed_bencher_compat::{benchmark_group, benchmark_main, Bencher};
 use rand::rngs::OsRng;
 
 fn create_block_1(b: &mut Bencher) {
     let mut rng = OsRng;
-    let root = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
     let token = Biscuit::builder()
         .fact(fact("right", &[string("file1"), string("read")]))
@@ -48,8 +48,8 @@ fn create_block_1(b: &mut Bencher) {
 
 fn append_block_2(b: &mut Bencher) {
     let mut rng: OsRng = OsRng;
-    let root = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair2 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
     let token = Biscuit::builder()
         .fact(fact("right", &[string("file1"), string("read")]))
@@ -66,7 +66,7 @@ fn append_block_2(b: &mut Bencher) {
         .check_resource("file1")
         .check_operation("read");
 
-    let token2 = token.append_with_keypair(&keypair2, block_builder).unwrap();
+    let token2 = token.append_with_key(&keypair2, block_builder).unwrap();
     let data = token2.to_vec().unwrap();
 
     b.bytes = (data.len() - base_data.len()) as u64;
@@ -77,18 +77,18 @@ fn append_block_2(b: &mut Bencher) {
             .check_resource("file1")
             .check_operation("read");
 
-        let token2 = token.append_with_keypair(&keypair2, block_builder).unwrap();
+        let token2 = token.append_with_key(&keypair2, block_builder).unwrap();
         let _data = token2.to_vec().unwrap();
     });
 }
 
 fn append_block_5(b: &mut Bencher) {
     let mut rng: OsRng = OsRng;
-    let root = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair2 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair3 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair4 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair5 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair3 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair4 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair5 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
     let token = Biscuit::builder()
         .fact(fact("right", &[string("file1"), string("read")]))
@@ -105,7 +105,7 @@ fn append_block_5(b: &mut Bencher) {
         .check_resource("file1")
         .check_operation("read");
 
-    let token2 = token.append_with_keypair(&keypair2, block_builder).unwrap();
+    let token2 = token.append_with_key(&keypair2, block_builder).unwrap();
     let data = token2.to_vec().unwrap();
 
     b.bytes = (data.len() - base_data.len()) as u64;
@@ -117,7 +117,7 @@ fn append_block_5(b: &mut Bencher) {
             .check_operation("read");
 
         let token3 = token2
-            .append_with_keypair(&keypair3, block_builder)
+            .append_with_key(&keypair3, block_builder)
             .unwrap();
         let data = token3.to_vec().unwrap();
 
@@ -127,7 +127,7 @@ fn append_block_5(b: &mut Bencher) {
             .check_operation("read");
 
         let token4 = token3
-            .append_with_keypair(&keypair4, block_builder)
+            .append_with_key(&keypair4, block_builder)
             .unwrap();
         let data = token4.to_vec().unwrap();
 
@@ -137,7 +137,7 @@ fn append_block_5(b: &mut Bencher) {
             .check_operation("read");
 
         let token5 = token4
-            .append_with_keypair(&keypair5, block_builder)
+            .append_with_key(&keypair5, block_builder)
             .unwrap();
         let _data = token5.to_vec().unwrap();
     });
@@ -145,8 +145,8 @@ fn append_block_5(b: &mut Bencher) {
 
 fn unverified_append_block_2(b: &mut Bencher) {
     let mut rng: OsRng = OsRng;
-    let root = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair2 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
     let token = Biscuit::builder()
         .fact(fact("right", &[string("file1"), string("read")]))
@@ -163,7 +163,7 @@ fn unverified_append_block_2(b: &mut Bencher) {
         .check_resource("file1")
         .check_operation("read");
 
-    let token2 = token.append_with_keypair(&keypair2, block_builder).unwrap();
+    let token2 = token.append_with_key(&keypair2, block_builder).unwrap();
     let data = token2.to_vec().unwrap();
 
     b.bytes = (data.len() - base_data.len()) as u64;
@@ -174,18 +174,18 @@ fn unverified_append_block_2(b: &mut Bencher) {
             .check_resource("file1")
             .check_operation("read");
 
-        let token2 = token.append_with_keypair(&keypair2, block_builder).unwrap();
+        let token2 = token.append_with_key(&keypair2, block_builder).unwrap();
         let _data = token2.to_vec().unwrap();
     });
 }
 
 fn unverified_append_block_5(b: &mut Bencher) {
     let mut rng: OsRng = OsRng;
-    let root = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair2 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair3 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair4 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair5 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair3 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair4 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair5 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
     let token = Biscuit::builder()
         .fact(fact("right", &[string("file1"), string("read")]))
@@ -202,7 +202,7 @@ fn unverified_append_block_5(b: &mut Bencher) {
         .check_resource("file1")
         .check_operation("read");
 
-    let token2 = token.append_with_keypair(&keypair2, block_builder).unwrap();
+    let token2 = token.append_with_key(&keypair2, block_builder).unwrap();
     let data = token2.to_vec().unwrap();
 
     b.bytes = (data.len() - base_data.len()) as u64;
@@ -214,7 +214,7 @@ fn unverified_append_block_5(b: &mut Bencher) {
             .check_operation("read");
 
         let token3 = token2
-            .append_with_keypair(&keypair3, block_builder)
+            .append_with_key(&keypair3, block_builder)
             .unwrap();
         let data = token3.to_vec().unwrap();
 
@@ -224,7 +224,7 @@ fn unverified_append_block_5(b: &mut Bencher) {
             .check_operation("read");
 
         let token4 = token3
-            .append_with_keypair(&keypair4, block_builder)
+            .append_with_key(&keypair4, block_builder)
             .unwrap();
         let data = token4.to_vec().unwrap();
 
@@ -234,7 +234,7 @@ fn unverified_append_block_5(b: &mut Bencher) {
             .check_operation("read");
 
         let token5 = token4
-            .append_with_keypair(&keypair5, block_builder)
+            .append_with_key(&keypair5, block_builder)
             .unwrap();
         let _data = token5.to_vec().unwrap();
     });
@@ -242,8 +242,8 @@ fn unverified_append_block_5(b: &mut Bencher) {
 
 fn verify_block_2(b: &mut Bencher) {
     let mut rng: OsRng = OsRng;
-    let root = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair2 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
     let data = {
         let token = Biscuit::builder()
@@ -261,7 +261,7 @@ fn verify_block_2(b: &mut Bencher) {
             .check_resource("file1")
             .check_operation("read");
 
-        let token2 = token.append_with_keypair(&keypair2, block_builder).unwrap();
+        let token2 = token.append_with_key(&keypair2, block_builder).unwrap();
         token2.to_vec().unwrap()
     };
 
@@ -302,11 +302,11 @@ fn verify_block_2(b: &mut Bencher) {
 
 fn verify_block_5(b: &mut Bencher) {
     let mut rng: OsRng = OsRng;
-    let root = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair2 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair3 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair4 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair5 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair3 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair4 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair5 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
     let data = {
         let token = Biscuit::builder()
@@ -324,14 +324,14 @@ fn verify_block_5(b: &mut Bencher) {
             .check_resource("file1")
             .check_operation("read");
 
-        let token2 = token.append_with_keypair(&keypair2, block_builder).unwrap();
+        let token2 = token.append_with_key(&keypair2, block_builder).unwrap();
 
         let block_builder = BlockBuilder::new()
             .check_resource("file1")
             .check_operation("read");
 
         let token3 = token2
-            .append_with_keypair(&keypair3, block_builder)
+            .append_with_key(&keypair3, block_builder)
             .unwrap();
 
         let block_builder = BlockBuilder::new()
@@ -339,7 +339,7 @@ fn verify_block_5(b: &mut Bencher) {
             .check_operation("read");
 
         let token4 = token3
-            .append_with_keypair(&keypair4, block_builder)
+            .append_with_key(&keypair4, block_builder)
             .unwrap();
 
         let block_builder = BlockBuilder::new()
@@ -347,7 +347,7 @@ fn verify_block_5(b: &mut Bencher) {
             .check_operation("read");
 
         let token5 = token4
-            .append_with_keypair(&keypair5, block_builder)
+            .append_with_key(&keypair5, block_builder)
             .unwrap();
         token5.to_vec().unwrap()
     };
@@ -390,8 +390,8 @@ fn verify_block_5(b: &mut Bencher) {
 
 fn check_signature_2(b: &mut Bencher) {
     let mut rng: OsRng = OsRng;
-    let root = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair2 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
     let data = {
         let token = Biscuit::builder()
@@ -409,7 +409,7 @@ fn check_signature_2(b: &mut Bencher) {
             .check_resource("file1")
             .check_operation("read");
 
-        let token2 = token.append_with_keypair(&keypair2, block_builder).unwrap();
+        let token2 = token.append_with_key(&keypair2, block_builder).unwrap();
         token2.to_vec().unwrap()
     };
 
@@ -437,11 +437,11 @@ fn check_signature_2(b: &mut Bencher) {
 
 fn check_signature_5(b: &mut Bencher) {
     let mut rng: OsRng = OsRng;
-    let root = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair2 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair3 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair4 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair5 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair3 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair4 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair5 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
     let data = {
         let token = Biscuit::builder()
@@ -459,13 +459,13 @@ fn check_signature_5(b: &mut Bencher) {
             .check_resource("file1")
             .check_operation("read");
 
-        let token2 = token.append_with_keypair(&keypair2, block_builder).unwrap();
+        let token2 = token.append_with_key(&keypair2, block_builder).unwrap();
         let block_builder = BlockBuilder::new()
             .check_resource("file1")
             .check_operation("read");
 
         let token3 = token2
-            .append_with_keypair(&keypair3, block_builder)
+            .append_with_key(&keypair3, block_builder)
             .unwrap();
 
         let block_builder = BlockBuilder::new()
@@ -473,7 +473,7 @@ fn check_signature_5(b: &mut Bencher) {
             .check_operation("read");
 
         let token4 = token3
-            .append_with_keypair(&keypair4, block_builder)
+            .append_with_key(&keypair4, block_builder)
             .unwrap();
 
         let block_builder = BlockBuilder::new()
@@ -481,7 +481,7 @@ fn check_signature_5(b: &mut Bencher) {
             .check_operation("read");
 
         let token5 = token4
-            .append_with_keypair(&keypair5, block_builder)
+            .append_with_key(&keypair5, block_builder)
             .unwrap();
         token5.to_vec().unwrap()
     };
@@ -510,8 +510,8 @@ fn check_signature_5(b: &mut Bencher) {
 
 fn checks_block_2(b: &mut Bencher) {
     let mut rng: OsRng = OsRng;
-    let root = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair2 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
     let data = {
         let token = Biscuit::builder()
@@ -529,7 +529,7 @@ fn checks_block_2(b: &mut Bencher) {
             .check_resource("file1")
             .check_operation("read");
 
-        let token2 = token.append_with_keypair(&keypair2, block_builder).unwrap();
+        let token2 = token.append_with_key(&keypair2, block_builder).unwrap();
         token2.to_vec().unwrap()
     };
 
@@ -571,8 +571,8 @@ fn checks_block_2(b: &mut Bencher) {
 
 fn checks_block_create_verifier2(b: &mut Bencher) {
     let mut rng: OsRng = OsRng;
-    let root = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair2 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
     let data = {
         let token = Biscuit::builder()
@@ -590,7 +590,7 @@ fn checks_block_create_verifier2(b: &mut Bencher) {
             .check_resource("file1")
             .check_operation("read");
 
-        let token2 = token.append_with_keypair(&keypair2, block_builder).unwrap();
+        let token2 = token.append_with_key(&keypair2, block_builder).unwrap();
         token2.to_vec().unwrap()
     };
 
@@ -619,8 +619,8 @@ fn checks_block_create_verifier2(b: &mut Bencher) {
 
 fn checks_block_verify_only2(b: &mut Bencher) {
     let mut rng: OsRng = OsRng;
-    let root = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let keypair2 = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
     let data = {
         let token = Biscuit::builder()
@@ -638,7 +638,7 @@ fn checks_block_verify_only2(b: &mut Bencher) {
             .check_resource("file1")
             .check_operation("read");
 
-        let token2 = token.append_with_keypair(&keypair2, block_builder).unwrap();
+        let token2 = token.append_with_key(&keypair2, block_builder).unwrap();
         token2.to_vec().unwrap()
     };
 

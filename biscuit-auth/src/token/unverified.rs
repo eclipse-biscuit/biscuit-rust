@@ -7,7 +7,7 @@ use prost::Message;
 use super::{default_symbol_table, Biscuit, Block};
 use crate::{
     builder::BlockBuilder,
-    crypto::{self, PublicKey, Signature},
+    crypto::{self, PrivateKey, PublicKey, Signature},
     datalog::SymbolTable,
     error,
     format::{
@@ -16,7 +16,7 @@ use crate::{
         SerializedBiscuit,
     },
     token::{ThirdPartyBlockContents, ThirdPartyRequest},
-    KeyPair, RootKeyProvider,
+    RootKeyProvider,
 };
 
 /// A token that was parsed without cryptographic signature verification
@@ -102,12 +102,12 @@ impl UnverifiedBiscuit {
 
     /// adds a new block to the token
     ///
-    /// since the public key is integrated into the token, the keypair can be
-    /// discarded right after calling this function
+    /// since the public key is integrated into the token, the key can be discarded right after
+    /// calling this function
     pub fn append(&self, block_builder: BlockBuilder) -> Result<Self, error::Token> {
-        let keypair =
-            KeyPair::new_with_rng(super::builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
-        self.append_with_keypair(&keypair, block_builder)
+        let private =
+            PrivateKey::new_with_rng(super::builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
+        self.append_with_key(&private, block_builder)
     }
 
     /// serializes the token
@@ -151,11 +151,11 @@ impl UnverifiedBiscuit {
 
     /// adds a new block to the token
     ///
-    /// since the public key is integrated into the token, the keypair can be
-    /// discarded right after calling this function
-    pub fn append_with_keypair(
+    /// since the public key is integrated into the token, the key can be discarded right after
+    /// calling this function
+    pub fn append_with_key(
         &self,
-        keypair: &KeyPair,
+        key: &PrivateKey,
         block_builder: BlockBuilder,
     ) -> Result<Self, error::Token> {
         let block = block_builder.build(self.symbols.clone());
@@ -168,7 +168,7 @@ impl UnverifiedBiscuit {
         let mut blocks = self.blocks.clone();
         let mut symbols = self.symbols.clone();
 
-        let container = self.container.append(keypair, &block, None)?;
+        let container = self.container.append(key, &block, None)?;
 
         symbols.extend(&block.symbols)?;
         symbols.public_keys.extend(&block.public_keys)?;
@@ -300,15 +300,15 @@ impl UnverifiedBiscuit {
     }
 
     pub fn append_third_party(&self, slice: &[u8]) -> Result<Self, error::Token> {
-        let next_keypair =
-            KeyPair::new_with_rng(super::builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
-        self.append_third_party_with_keypair(slice, next_keypair)
+        let next_private_key =
+            PrivateKey::new_with_rng(super::builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
+        self.append_third_party_with_key(slice, next_private_key)
     }
 
-    pub fn append_third_party_with_keypair(
+    pub fn append_third_party_with_key(
         &self,
         slice: &[u8],
-        next_keypair: KeyPair,
+        next_key: PrivateKey,
     ) -> Result<Self, error::Token> {
         let ThirdPartyBlockContents {
             payload,
@@ -350,7 +350,7 @@ impl UnverifiedBiscuit {
 
         let container =
             self.container
-                .append_serialized(&next_keypair, payload, Some(external_signature))?;
+                .append_serialized(&next_key, payload, Some(external_signature))?;
 
         let token_block = proto_block_to_token_block(&block, Some(external_key)).unwrap();
         for key in &token_block.public_keys.keys {
@@ -378,14 +378,14 @@ impl UnverifiedBiscuit {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BiscuitBuilder, BlockBuilder, KeyPair};
+    use crate::{BiscuitBuilder, BlockBuilder, PrivateKey};
 
     use super::UnverifiedBiscuit;
 
     #[test]
     fn consistent_with_biscuit() {
-        let root_key = KeyPair::new();
-        let external_key = KeyPair::new();
+        let root_key = PrivateKey::new();
+        let external_key = PrivateKey::new();
         let biscuit = BiscuitBuilder::new()
             .fact("test(true)")
             .unwrap()

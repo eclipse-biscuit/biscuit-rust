@@ -320,12 +320,12 @@ mod tests {
     use std::time::Duration;
 
     use crate::{datalog::RunLimits, Algorithm, AuthorizerBuilder};
-    use crate::{Authorizer, BiscuitBuilder, KeyPair};
+    use crate::{Authorizer, BiscuitBuilder, PrivateKey};
 
     #[test]
     fn roundtrip_builder() {
-        let secp_pubkey = KeyPair::new_with_algorithm(Algorithm::Secp256r1).public();
-        let ed_pubkey = KeyPair::new_with_algorithm(Algorithm::Ed25519).public();
+        let secp_pubkey = PrivateKey::new_with_algorithm(Algorithm::Secp256r1).public();
+        let ed_pubkey = PrivateKey::new_with_algorithm(Algorithm::Ed25519).public();
         let builder = AuthorizerBuilder::new()
             .set_limits(RunLimits {
                 max_facts: 42,
@@ -356,8 +356,8 @@ mod tests {
 
     #[test]
     fn roundtrip_with_token() {
-        let secp_pubkey = KeyPair::new_with_algorithm(Algorithm::Secp256r1).public();
-        let ed_pubkey = KeyPair::new_with_algorithm(Algorithm::Ed25519).public();
+        let secp_pubkey = PrivateKey::new_with_algorithm(Algorithm::Secp256r1).public();
+        let ed_pubkey = PrivateKey::new_with_algorithm(Algorithm::Ed25519).public();
         let builder = AuthorizerBuilder::new()
             .set_limits(RunLimits {
                 max_facts: 42,
@@ -393,7 +393,7 @@ mod tests {
                 ]),
             )
             .unwrap()
-            .build(&KeyPair::new())
+            .build(&PrivateKey::new())
             .unwrap();
 
         let authorizer_pre_run = builder.build(&biscuit).unwrap();

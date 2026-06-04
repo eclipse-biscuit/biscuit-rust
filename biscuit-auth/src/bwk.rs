@@ -59,14 +59,14 @@ impl TryFrom<BiscuitWebKeyRepr> for BiscuitWebKey {
 
 #[cfg(test)]
 mod tests {
-    use crate::KeyPair;
+    use crate::PrivateKey;
     use chrono::Utc;
 
     use super::*;
 
     #[test]
     fn roundtrips() {
-        let keypair = KeyPair::new();
+        let keypair = PrivateKey::new();
         let bwk = BiscuitWebKey {
             public_key: keypair.public(),
             key_id: 12,
@@ -78,7 +78,7 @@ mod tests {
         let parsed: BiscuitWebKey = serde_json::from_str(&serialized).unwrap();
         assert_eq!(parsed, bwk);
 
-        let keypair = KeyPair::new_with_algorithm(Algorithm::Secp256r1);
+        let keypair = PrivateKey::new_with_algorithm(Algorithm::Secp256r1);
         let bwk = BiscuitWebKey {
             public_key: keypair.public(),
             key_id: 0,
@@ -90,7 +90,7 @@ mod tests {
         let parsed: BiscuitWebKey = serde_json::from_str(&serialized).unwrap();
         assert_eq!(parsed, bwk);
 
-        let keypair = KeyPair::new();
+        let keypair = PrivateKey::new();
         let bwk = BiscuitWebKey {
             public_key: keypair.public(),
             key_id: 0,

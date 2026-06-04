@@ -300,7 +300,7 @@ pub extern "C" fn error_check_is_authorizer(check_index: u64) -> bool {
 }
 
 pub struct Biscuit(biscuit_auth::Biscuit);
-pub struct KeyPair(biscuit_auth::KeyPair);
+pub struct PrivateKey(biscuit_auth::PrivateKey);
 pub struct PublicKey(biscuit_auth::PublicKey);
 pub struct BiscuitBuilder(Option<biscuit_auth::builder::BiscuitBuilder>);
 pub struct BlockBuilder(Option<biscuit_auth::builder::BlockBuilder>);
@@ -319,7 +319,7 @@ pub unsafe extern "C" fn key_pair_new<'a>(
     seed_ptr: *const u8,
     seed_len: usize,
     algorithm: SignatureAlgorithm,
-) -> Option<Box<KeyPair>> {
+) -> Option<Box<PrivateKey>> {
     let slice = std::slice::from_raw_parts(seed_ptr, seed_len);
     if slice.len() != 32 {
         update_last_error(Error::InvalidArgument);
@@ -335,13 +335,13 @@ pub unsafe extern "C" fn key_pair_new<'a>(
         SignatureAlgorithm::Secp256r1 => biscuit_auth::builder::Algorithm::Secp256r1,
     };
 
-    Some(Box::new(KeyPair(biscuit_auth::KeyPair::new_with_rng(
+    Some(Box::new(PrivateKey(biscuit_auth::PrivateKey::new_with_rng(
         algorithm, &mut rng,
     ))))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn key_pair_public(kp: Option<&KeyPair>) -> Option<Box<PublicKey>> {
+pub unsafe extern "C" fn key_pair_public(kp: Option<&PrivateKey>) -> Option<Box<PublicKey>> {
     if kp.is_none() {
         update_last_error(Error::InvalidArgument);
     }
@@ -352,7 +352,7 @@ pub unsafe extern "C" fn key_pair_public(kp: Option<&KeyPair>) -> Option<Box<Pub
 
 /// expects a 32 byte buffer
 #[no_mangle]
-pub unsafe extern "C" fn key_pair_serialize(kp: Option<&KeyPair>, buffer_ptr: *mut u8) -> usize {
+pub unsafe extern "C" fn key_pair_serialize(kp: Option<&PrivateKey>, buffer_ptr: *mut u8) -> usize {
     if kp.is_none() {
         update_last_error(Error::InvalidArgument);
         return 0;
@@ -361,7 +361,7 @@ pub unsafe extern "C" fn key_pair_serialize(kp: Option<&KeyPair>, buffer_ptr: *m
 
     let output_slice = std::slice::from_raw_parts_mut(buffer_ptr, 32);
 
-    output_slice.copy_from_slice(&kp.0.private().to_bytes()[..]);
+    output_slice.copy_from_slice(&kp.0.to_bytes()[..]);
     32
 }
 
@@ -370,7 +370,7 @@ pub unsafe extern "C" fn key_pair_serialize(kp: Option<&KeyPair>, buffer_ptr: *m
 pub unsafe extern "C" fn key_pair_deserialize(
     buffer_ptr: *mut u8,
     algorithm: SignatureAlgorithm,
-) -> Option<Box<KeyPair>> {
+) -> Option<Box<PrivateKey>> {
     let input_slice = std::slice::from_raw_parts_mut(buffer_ptr, 32);
 
     let algorithm = match algorithm {
@@ -385,12 +385,12 @@ pub unsafe extern "C" fn key_pair_deserialize(
             update_last_error(Error::InvalidArgument);
             None
         }
-        Some(privkey) => Some(Box::new(KeyPair(biscuit_auth::KeyPair::from(&privkey)))),
+        Some(privkey) => Some(Box::new(PrivateKey(biscuit_auth::PrivateKey::from(&privkey)))),
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn key_pair_to_pem(kp: Option<&KeyPair>) -> *const c_char {
+pub unsafe extern "C" fn key_pair_to_pem(kp: Option<&PrivateKey>) -> *const c_char {
     let kp = match kp {
         Some(kp) => kp,
         None => {
@@ -415,10 +415,10 @@ pub unsafe extern "C" fn key_pair_to_pem(kp: Option<&KeyPair>) -> *const c_char 
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn key_pair_from_pem(pem: *const c_char) -> Option<Box<KeyPair>> {
+pub unsafe extern "C" fn key_pair_from_pem(pem: *const c_char) -> Option<Box<PrivateKey>> {
     match CStr::from_ptr(pem).to_str() {
-        Ok(pem_str) => match biscuit_auth::KeyPair::from_private_key_pem(pem_str) {
-            Ok(kp) => Some(Box::new(KeyPair(kp))),
+        Ok(pem_str) => match biscuit_auth::PrivateKey::from_private_key_pem(pem_str) {
+            Ok(kp) => Some(Box::new(PrivateKey(kp))),
             Err(_) => {
                 update_last_error(Error::InvalidArgument);
                 None
@@ -432,7 +432,7 @@ pub unsafe extern "C" fn key_pair_from_pem(pem: *const c_char) -> Option<Box<Key
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn key_pair_free(_kp: Option<Box<KeyPair>>) {}
+pub unsafe extern "C" fn key_pair_free(_kp: Option<Box<PrivateKey>>) {}
 
 /// expects a 32 byte buffer
 #[no_mangle]
@@ -690,7 +690,7 @@ pub unsafe extern "C" fn biscuit_builder_add_check(
 #[no_mangle]
 pub unsafe extern "C" fn biscuit_builder_build(
     builder: Option<&BiscuitBuilder>,
-    key_pair: Option<&KeyPair>,
+    key_pair: Option<&PrivateKey>,
     seed_ptr: *const u8,
     seed_len: usize,
 ) -> Option<Box<Biscuit>> {
@@ -943,7 +943,7 @@ pub unsafe extern "C" fn create_block() -> Box<BlockBuilder> {
 pub unsafe extern "C" fn biscuit_append_block(
     biscuit: Option<&Biscuit>,
     block_builder: Option<&BlockBuilder>,
-    key_pair: Option<&KeyPair>,
+    key_pair: Option<&PrivateKey>,
 ) -> Option<Box<Biscuit>> {
     if biscuit.is_none() {
         update_last_error(Error::InvalidArgument);
@@ -962,7 +962,7 @@ pub unsafe extern "C" fn biscuit_append_block(
 
     match biscuit
         .0
-        .append_with_keypair(&key_pair.0, builder.0.clone().expect("builder is none"))
+        .append_with_key(&key_pair.0, builder.0.clone().expect("builder is none"))
     {
         Ok(token) => Some(Box::new(Biscuit(token))),
         Err(e) => {

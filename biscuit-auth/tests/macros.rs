@@ -2,7 +2,7 @@
  * Copyright (c) 2019 Geoffroy Couprie <contact@geoffroycouprie.com> and Contributors to the Eclipse Foundation.
  * SPDX-License-Identifier: Apache-2.0
  */
-use biscuit_auth::{builder, datalog::RunLimits, KeyPair, PublicKey};
+use biscuit_auth::{builder, datalog::RunLimits, PrivateKey, PublicKey};
 use biscuit_quote::{
     authorizer, authorizer_merge, biscuit, biscuit_merge, block, block_merge, check, fact, policy,
     rule,
@@ -256,7 +256,7 @@ fn policy_macro() {
 
 #[test]
 fn json() {
-    let key_pair = KeyPair::new();
+    let key_pair = PrivateKey::new();
     let biscuit = biscuit!(r#"user(123)"#).build(&key_pair).unwrap();
 
     let value: serde_json::Value = json!(

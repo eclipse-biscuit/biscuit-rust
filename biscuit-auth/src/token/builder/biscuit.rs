@@ -7,7 +7,7 @@ use crate::builder_ext::BuilderExt;
 use crate::crypto::PublicKey;
 use crate::datalog::SymbolTable;
 use crate::token::default_symbol_table;
-use crate::{error, Biscuit, KeyPair};
+use crate::{error, Biscuit, PrivateKey};
 use rand::{CryptoRng, RngCore};
 
 use std::fmt;
@@ -124,13 +124,13 @@ impl BiscuitBuilder {
         f
     }
 
-    pub fn build(self, root_key: &KeyPair) -> Result<Biscuit, error::Token> {
+    pub fn build(self, root_key: &PrivateKey) -> Result<Biscuit, error::Token> {
         self.build_with_symbols(root_key, default_symbol_table())
     }
 
     pub fn build_with_symbols(
         self,
-        root_key: &KeyPair,
+        root_key: &PrivateKey,
         symbols: SymbolTable,
     ) -> Result<Biscuit, error::Token> {
         self.build_with_rng(root_key, symbols, &mut rand::rngs::OsRng)
@@ -138,7 +138,7 @@ impl BiscuitBuilder {
 
     pub fn build_with_rng<R: RngCore + CryptoRng>(
         self,
-        root: &KeyPair,
+        root: &PrivateKey,
         symbols: SymbolTable,
         rng: &mut R,
     ) -> Result<Biscuit, error::Token> {
@@ -148,9 +148,9 @@ impl BiscuitBuilder {
 
     pub fn build_with_key_pair(
         self,
-        root: &KeyPair,
+        root: &PrivateKey,
         symbols: SymbolTable,
-        next: &KeyPair,
+        next: &PrivateKey,
     ) -> Result<Biscuit, error::Token> {
         let authority_block = self.inner.build(symbols.clone());
         Biscuit::new_with_key_pair(self.root_key_id, root, next, symbols, authority_block)

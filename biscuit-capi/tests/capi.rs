@@ -15,7 +15,7 @@ fn build() {
             int main() {
                 char *seed = "abcdefghabcdefghabcdefghabcdefgh";
 
-                KeyPair * root_kp = key_pair_new((const uint8_t *) seed, strlen(seed), 0);
+                PrivateKey * root_kp = key_pair_new((const uint8_t *) seed, strlen(seed), 0);
                 printf("key_pair creation error? %s\n", error_message());
                 PublicKey* root = key_pair_public(root_kp);
 
@@ -35,7 +35,7 @@ fn build() {
 
                 char *seed2 = "ijklmnopijklmnopijklmnopijklmnop";
 
-                KeyPair * kp2 = key_pair_new((const uint8_t *) seed2, strlen(seed2), 0);
+                PrivateKey * kp2 = key_pair_new((const uint8_t *) seed2, strlen(seed2), 0);
 
                 Biscuit* b2 = biscuit_append_block(biscuit, bb, kp2);
                 printf("biscuit append error? %s\n", error_message());
@@ -163,7 +163,7 @@ fn serialize_keys() {
             uint8_t * pub_buf = malloc(32);
 
 
-            KeyPair * kp = key_pair_new((const uint8_t *) seed, strlen(seed), 0);
+            PrivateKey * kp = key_pair_new((const uint8_t *) seed, strlen(seed), 0);
             printf("key_pair creation error? %s\n", error_message());
             PublicKey * pubkey = key_pair_public(kp);
 
@@ -183,7 +183,7 @@ fn serialize_keys() {
             const char * kp_pem = key_pair_to_pem(kp);
             printf("key pair pem: %s\n", kp_pem);
 
-            KeyPair * kp2 = key_pair_from_pem(kp_pem);
+            PrivateKey * kp2 = key_pair_from_pem(kp_pem);
 
             if (kp2 == NULL) {
                 printf("key pair from pem error %s\n", error_message());
