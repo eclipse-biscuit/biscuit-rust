@@ -34,7 +34,7 @@ fn main() {
     let builder = BlockBuilder::new()
         .fact("external_fact(\"hello\")")
         .unwrap();
-    let res = req.create_block(&external.private(), builder).unwrap();
+    let res = req.create_block(&external, builder).unwrap();
 
     let biscuit2 = biscuit1.append_third_party(external.public(), res).unwrap();
 

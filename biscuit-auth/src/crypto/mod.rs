@@ -11,19 +11,25 @@
 //!
 //! The implementation is based on [ed25519_dalek](https://github.com/dalek-cryptography/ed25519-dalek).
 #![allow(non_snake_case)]
+mod ed25519;
+mod p256;
+mod traits;
+
+use std::fmt;
+use std::hash::Hash;
+use std::str::FromStr;
+
+use nom::Finish;
+use rand_core::{CryptoRng, RngCore};
+use zeroize::Zeroizing;
+
 use crate::builder::Algorithm;
 use crate::format::schema;
 use crate::format::ThirdPartyVerificationMode;
 
 use super::error;
-mod ed25519;
-mod p256;
 
-use nom::Finish;
-use rand_core::{CryptoRng, RngCore};
-use std::fmt;
-use std::hash::Hash;
-use std::str::FromStr;
+pub use self::traits::{Verify, Sign, SerializePublicKey, SerializePrivateKey};
 
 /// the private part of a signing key pair
 #[derive(Debug, Clone, PartialEq)]
@@ -116,13 +122,6 @@ impl PrivateKey {
         }
     }
 
-    pub fn private(&self) -> PrivateKey {
-        match self {
-            PrivateKey::Ed25519(key) => PrivateKey::Ed25519(key.clone()),
-            PrivateKey::P256(key) => PrivateKey::P256(key.clone()),
-        }
-    }
-
     pub fn public(&self) -> PublicKey {
         match self {
             PrivateKey::Ed25519(key) => PublicKey::Ed25519(key.public()),
@@ -130,10 +129,10 @@ impl PrivateKey {
         }
     }
 
-    pub fn algorithm(&self) -> crate::format::schema::public_key::Algorithm {
+    pub fn algorithm(&self) -> Algorithm {
         match self {
-            PrivateKey::Ed25519(_) => crate::format::schema::public_key::Algorithm::Ed25519,
-            PrivateKey::P256(_) => crate::format::schema::public_key::Algorithm::Secp256r1,
+            PrivateKey::Ed25519(_) => Algorithm::Ed25519,
+            PrivateKey::P256(_) => Algorithm::Secp256r1,
         }
     }
 
@@ -153,8 +152,8 @@ impl PrivateKey {
     /// serializes to an hex-encoded string, prefixed with the key algorithm
     pub fn to_prefixed_string(&self) -> String {
         let algorithm = match self.algorithm() {
-            schema::public_key::Algorithm::Ed25519 => "ed25519-private",
-            schema::public_key::Algorithm::Secp256r1 => "secp256r1-private",
+            Algorithm::Ed25519 => "ed25519-private",
+            Algorithm::Secp256r1 => "secp256r1-private",
         };
         format!("{algorithm}/{}", self.to_bytes_hex())
     }
@@ -219,7 +218,6 @@ impl PrivateKey {
     }
 }
 
-
 impl Default for PrivateKey {
     fn default() -> Self {
         Self::new()
@@ -239,6 +237,39 @@ impl FromStr for PrivateKey {
                 "Missing key algorithm".to_string(),
             )),
         }
+    }
+}
+
+impl Sign for PrivateKey {
+    type PublicKey = PublicKey;
+
+    fn sign(&self, data: &[u8]) -> Result<Signature, error::Format> {
+        self.sign(data)
+    }
+
+    fn public(&self) -> Self::PublicKey {
+        self.public()
+    }
+
+    fn algorithm(&self) -> Algorithm {
+        match self {
+            PrivateKey::Ed25519(_) => Algorithm::Ed25519,
+            PrivateKey::P256(_) => Algorithm::Secp256r1,
+        }
+    }
+}
+
+impl SerializePrivateKey for PrivateKey {
+    fn new_with_rng<R: RngCore + CryptoRng>(algorithm: Algorithm, rng: &mut R) -> Self {
+        Self::new_with_rng(algorithm, rng)
+    }
+
+    fn from_bytes_and_algorithm(algorithm: Algorithm, bytes: &[u8]) -> Result<Self, error::Format> {
+        Self::from_bytes(bytes, algorithm)
+    }
+
+    fn to_bytes(&self) -> Zeroizing<Vec<u8>> {
+        self.to_bytes()
     }
 }
 
@@ -355,10 +386,10 @@ impl PublicKey {
         }
     }
 
-    pub fn algorithm(&self) -> crate::format::schema::public_key::Algorithm {
+    pub fn algorithm(&self) -> Algorithm {
         match self {
-            PublicKey::Ed25519(_) => crate::format::schema::public_key::Algorithm::Ed25519,
-            PublicKey::P256(_) => crate::format::schema::public_key::Algorithm::Secp256r1,
+            PublicKey::Ed25519(_) => Algorithm::Ed25519,
+            PublicKey::P256(_) => Algorithm::Secp256r1,
         }
     }
 
@@ -384,9 +415,44 @@ impl PublicKey {
     }
 }
 
+pub fn print<K: SerializePublicKey>(k: &K) -> String {
+    let bytes = hex::encode(k.to_bytes());
+    match k.algorithm() {
+        Algorithm::Ed25519 => format!("ed25519/{bytes}"),
+        Algorithm::Secp256r1 => format!("secp256r1/{bytes}"),
+    }
+}
+
 impl fmt::Display for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.write(f)
+    }
+}
+
+impl Verify for PublicKey {
+    fn verify_signature(
+        &self,
+        data: &[u8],
+        signature: &Signature,
+    ) -> Result<(), error::Format> {
+        self.verify_signature(data, signature)
+    }
+
+    fn algorithm(&self) -> Algorithm {
+        match self {
+            PublicKey::Ed25519(_) => Algorithm::Ed25519,
+            PublicKey::P256(_) => Algorithm::Secp256r1,
+        }
+    }
+}
+
+impl SerializePublicKey for PublicKey {
+    fn from_bytes_and_algorithm(algorithm: Algorithm, bytes: &[u8]) -> Result<Self, error::Format> {
+        Self::from_bytes(bytes, algorithm)
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        self.to_bytes()
     }
 }
 
@@ -425,35 +491,35 @@ impl FromStr for PublicKey {
 }
 
 #[derive(Clone, Debug)]
-pub struct Block {
+pub struct Block<NK = PublicKey, EK = PublicKey> {
     pub(crate) data: Vec<u8>,
-    pub(crate) next_key: PublicKey,
+    pub(crate) next_key: NK,
     pub signature: Signature,
-    pub external_signature: Option<ExternalSignature>,
+    pub external_signature: Option<ExternalSignature<EK>>,
     pub version: u32,
 }
 
 #[derive(Clone, Debug)]
-pub struct ExternalSignature {
-    pub(crate) public_key: PublicKey,
+pub struct ExternalSignature<EK = PublicKey> {
+    pub(crate) public_key: EK,
     pub(crate) signature: Signature,
 }
 
 #[derive(Clone, Debug)]
-pub enum TokenNext {
-    Secret(PrivateKey),
+pub enum Proof<PK = PrivateKey> {
+    Secret(PK),
     Seal(Signature),
 }
 
-pub fn sign_authority_block(
-    key: &PrivateKey,
-    next_key: &PrivateKey,
+pub fn sign_authority_block<IK: Sign, NK: Verify + SerializePublicKey>(
+    key: &IK,
+    next_key: &NK,
     message: &[u8],
     version: u32,
 ) -> Result<Signature, error::Token> {
     let to_sign = match version {
-        0 => generate_authority_block_signature_payload_v0(message, &next_key.public()),
-        1 => generate_authority_block_signature_payload_v1(message, &next_key.public(), version),
+        0 => generate_authority_block_signature_payload_v0(message, next_key),
+        1 => generate_authority_block_signature_payload_v1(message, next_key, version),
         _ => {
             return Err(error::Format::DeserializationError(format!(
                 "unsupported block version: {version}"
@@ -467,19 +533,19 @@ pub fn sign_authority_block(
     Ok(Signature(signature.to_bytes().to_vec()))
 }
 
-pub fn sign_block(
-    key: &PrivateKey,
-    next_key: &PrivateKey,
+pub fn sign_block<AK: Sign, NK: Verify + SerializePublicKey, EK: SerializePublicKey>(
+    key: &AK,
+    next_key: &NK,
     message: &[u8],
-    external_signature: Option<&ExternalSignature>,
+    external_signature: Option<&ExternalSignature<EK>>,
     previous_signature: &Signature,
     version: u32,
 ) -> Result<Signature, error::Token> {
     let to_sign = match version {
-        0 => generate_block_signature_payload_v0(message, &next_key.public(), external_signature),
+        0 => generate_block_signature_payload_v0(message, next_key, external_signature),
         1 => generate_block_signature_payload_v1(
             message,
-            &next_key.public(),
+            next_key,
             external_signature,
             previous_signature,
             version,
@@ -495,9 +561,9 @@ pub fn sign_block(
     Ok(key.sign(&to_sign)?)
 }
 
-pub fn verify_authority_block_signature(
-    block: &Block,
-    public_key: &PublicKey,
+pub fn verify_authority_block_signature<IK: Verify, NK: Verify + SerializePublicKey, EK: Verify + SerializePublicKey>(
+    block: &Block<NK, EK>,
+    public_key: &IK,
 ) -> Result<(), error::Format> {
     let to_verify = match block.version {
         0 => generate_block_signature_payload_v0(
@@ -521,9 +587,9 @@ pub fn verify_authority_block_signature(
     public_key.verify_signature(&to_verify, &block.signature)
 }
 
-pub fn verify_block_signature(
-    block: &Block,
-    public_key: &PublicKey,
+pub fn verify_block_signature<AK: Verify + SerializePublicKey, NK: Verify + SerializePublicKey, EK: Verify + SerializePublicKey>(
+    block: &Block<NK, EK>,
+    public_key: &AK,
     previous_signature: &Signature,
     verification_mode: ThirdPartyVerificationMode,
 ) -> Result<(), error::Format> {
@@ -564,11 +630,11 @@ pub fn verify_block_signature(
     Ok(())
 }
 
-pub fn verify_external_signature(
+pub fn verify_external_signature<AK: Verify + SerializePublicKey, EK: Verify>(
     payload: &[u8],
-    public_key: &PublicKey,
+    public_key: &AK,
     previous_signature: &Signature,
-    external_signature: &ExternalSignature,
+    external_signature: &ExternalSignature<EK>,
     version: u32,
     verification_mode: ThirdPartyVerificationMode,
 ) -> Result<(), error::Format> {
@@ -586,9 +652,9 @@ pub fn verify_external_signature(
         .verify_signature(&to_verify, &external_signature.signature)
 }
 
-pub(crate) fn generate_authority_block_signature_payload_v0(
+pub(crate) fn generate_authority_block_signature_payload_v0<NK: Verify + SerializePublicKey>(
     payload: &[u8],
-    next_key: &PublicKey,
+    next_key: &NK,
 ) -> Vec<u8> {
     let mut to_verify = payload.to_vec();
 
@@ -597,10 +663,10 @@ pub(crate) fn generate_authority_block_signature_payload_v0(
     to_verify
 }
 
-pub(crate) fn generate_block_signature_payload_v0(
+pub(crate) fn generate_block_signature_payload_v0<NK: Verify + SerializePublicKey, EK: SerializePublicKey>(
     payload: &[u8],
-    next_key: &PublicKey,
-    external_signature: Option<&ExternalSignature>,
+    next_key: &NK,
+    external_signature: Option<&ExternalSignature<EK>>,
 ) -> Vec<u8> {
     let mut to_verify = payload.to_vec();
 
@@ -612,9 +678,9 @@ pub(crate) fn generate_block_signature_payload_v0(
     to_verify
 }
 
-pub(crate) fn generate_authority_block_signature_payload_v1(
+pub(crate) fn generate_authority_block_signature_payload_v1<NK: Verify + SerializePublicKey>(
     payload: &[u8],
-    next_key: &PublicKey,
+    next_key: &NK,
     version: u32,
 ) -> Vec<u8> {
     let mut to_verify = b"\0BLOCK\0\0VERSION\0".to_vec();
@@ -632,10 +698,10 @@ pub(crate) fn generate_authority_block_signature_payload_v1(
     to_verify
 }
 
-pub(crate) fn generate_block_signature_payload_v1(
+pub(crate) fn generate_block_signature_payload_v1<NK: Verify + SerializePublicKey, EK: SerializePublicKey>(
     payload: &[u8],
-    next_key: &PublicKey,
-    external_signature: Option<&ExternalSignature>,
+    next_key: &NK,
+    external_signature: Option<&ExternalSignature<EK>>,
     previous_signature: &Signature,
     version: u32,
 ) -> Vec<u8> {
@@ -662,7 +728,7 @@ pub(crate) fn generate_block_signature_payload_v1(
     to_verify
 }
 
-fn generate_external_signature_payload_v0(payload: &[u8], previous_key: &PublicKey) -> Vec<u8> {
+fn generate_external_signature_payload_v0<AK: Verify + SerializePublicKey>(payload: &[u8], previous_key: &AK) -> Vec<u8> {
     let mut to_verify = payload.to_vec();
     to_verify.extend(&(previous_key.algorithm() as i32).to_le_bytes());
     to_verify.extend(&previous_key.to_bytes());
@@ -686,7 +752,7 @@ pub(crate) fn generate_external_signature_payload_v1(
     to_verify
 }
 
-pub(crate) fn generate_seal_signature_payload_v0(block: &Block) -> Vec<u8> {
+pub(crate) fn generate_seal_signature_payload_v0<NK: Verify + SerializePublicKey, EK>(block: &Block<NK, EK>) -> Vec<u8> {
     let mut to_verify = block.data.to_vec();
     to_verify.extend(&(block.next_key.algorithm() as i32).to_le_bytes());
     to_verify.extend(&block.next_key.to_bytes());
@@ -694,18 +760,18 @@ pub(crate) fn generate_seal_signature_payload_v0(block: &Block) -> Vec<u8> {
     to_verify
 }
 
-impl TokenNext {
-    pub fn private_key(&self) -> Result<PrivateKey, error::Token> {
+impl<PK: Clone> Proof<PK> {
+    pub fn private_key(&self) -> Result<PK, error::Token> {
         match &self {
-            TokenNext::Seal(_) => Err(error::Token::AlreadySealed),
-            TokenNext::Secret(private) => Ok(private.clone()),
+            Proof::Seal(_) => Err(error::Token::AlreadySealed),
+            Proof::Secret(private) => Ok(private.clone()),
         }
     }
 
     pub fn is_sealed(&self) -> bool {
         match &self {
-            TokenNext::Seal(_) => true,
-            TokenNext::Secret(_) => false,
+            Proof::Seal(_) => true,
+            Proof::Secret(_) => false,
         }
     }
 }
@@ -738,9 +804,8 @@ mod tests {
             ed_root.public().to_string().parse().unwrap()
         );
         assert_eq!(
-            ed_root.private().to_bytes(),
+            ed_root.to_bytes(),
             ed_root
-                .private()
                 .to_prefixed_string()
                 .parse::<PrivateKey>()
                 .unwrap()
@@ -752,9 +817,8 @@ mod tests {
             p256_root.public().to_string().parse().unwrap()
         );
         assert_eq!(
-            p256_root.private().to_bytes(),
+            p256_root.to_bytes(),
             p256_root
-                .private()
                 .to_prefixed_string()
                 .parse::<PrivateKey>()
                 .unwrap()
@@ -841,16 +905,15 @@ mod tests {
     #[cfg(feature = "pem")]
     #[test]
     fn ed25519_der() {
-        let ed25519_kp = PrivateKey::new_with_algorithm(Algorithm::Ed25519);
-        let der_kp = ed25519_kp.to_private_key_der().unwrap();
+        let ed25519_priv = PrivateKey::new_with_algorithm(Algorithm::Ed25519);
+        let der_kp = ed25519_priv.to_private_key_der().unwrap();
 
         let deser =
             PrivateKey::from_private_key_der_with_algorithm(&der_kp, Algorithm::Ed25519).unwrap();
-        assert_eq!(ed25519_kp, deser);
+        assert_eq!(ed25519_priv, deser);
         let deser = PrivateKey::from_private_key_der(&der_kp).unwrap();
-        assert_eq!(ed25519_kp, deser);
+        assert_eq!(ed25519_priv, deser);
 
-        let ed25519_priv = ed25519_kp.private();
         let der_priv = ed25519_priv.to_der().unwrap();
         let deser_priv =
             PrivateKey::from_der_with_algorithm(&der_priv, Algorithm::Ed25519).unwrap();
@@ -858,7 +921,7 @@ mod tests {
         let deser_priv = PrivateKey::from_der(&der_priv).unwrap();
         assert_eq!(ed25519_priv, deser_priv);
 
-        let ed25519_pub = ed25519_kp.public();
+        let ed25519_pub = ed25519_priv.public();
         let der_pub = ed25519_pub.to_der().unwrap();
         let deser_pub = PublicKey::from_der_with_algorithm(&der_pub, Algorithm::Ed25519).unwrap();
         assert_eq!(ed25519_pub, deser_pub);
@@ -869,15 +932,14 @@ mod tests {
     #[cfg(feature = "pem")]
     #[test]
     fn ed25519_pem() {
-        let ed25519_kp = PrivateKey::new_with_algorithm(Algorithm::Ed25519);
-        let pem_kp = ed25519_kp.to_private_key_pem().unwrap();
+        let ed25519_priv = PrivateKey::new_with_algorithm(Algorithm::Ed25519);
+        let pem_kp = ed25519_priv.to_private_key_pem().unwrap();
         let deser =
             PrivateKey::from_private_key_pem_with_algorithm(&pem_kp, Algorithm::Ed25519).unwrap();
-        assert_eq!(ed25519_kp, deser);
+        assert_eq!(ed25519_priv, deser);
         let deser = PrivateKey::from_private_key_pem(&pem_kp).unwrap();
-        assert_eq!(ed25519_kp, deser);
+        assert_eq!(ed25519_priv, deser);
 
-        let ed25519_priv = ed25519_kp.private();
         let pem_priv = ed25519_priv.to_pem().unwrap();
         let deser_priv =
             PrivateKey::from_pem_with_algorithm(&pem_priv, Algorithm::Ed25519).unwrap();
@@ -885,7 +947,7 @@ mod tests {
         let deser_priv = PrivateKey::from_pem(&pem_priv).unwrap();
         assert_eq!(ed25519_priv, deser_priv);
 
-        let ed25519_pub = ed25519_kp.public();
+        let ed25519_pub = ed25519_priv.public();
         let pem_pub = ed25519_pub.to_pem().unwrap();
         let deser_pub = PublicKey::from_pem_with_algorithm(&pem_pub, Algorithm::Ed25519).unwrap();
         assert_eq!(ed25519_pub, deser_pub);
@@ -896,15 +958,14 @@ mod tests {
     #[cfg(feature = "pem")]
     #[test]
     fn p256_der() {
-        let p256_kp = PrivateKey::new_with_algorithm(Algorithm::Secp256r1);
-        let der_kp = p256_kp.to_private_key_der().unwrap();
+        let p256_priv = PrivateKey::new_with_algorithm(Algorithm::Secp256r1);
+        let der_kp = p256_priv.to_private_key_der().unwrap();
         let deser =
             PrivateKey::from_private_key_der_with_algorithm(&der_kp, Algorithm::Secp256r1).unwrap();
-        assert_eq!(p256_kp, deser);
+        assert_eq!(p256_priv, deser);
         let deser = PrivateKey::from_private_key_der(&der_kp).unwrap();
-        assert_eq!(p256_kp, deser);
+        assert_eq!(p256_priv, deser);
 
-        let p256_priv = p256_kp.private();
         let der_priv = p256_priv.to_der().unwrap();
         let deser_priv =
             PrivateKey::from_der_with_algorithm(&der_priv, Algorithm::Secp256r1).unwrap();
@@ -912,7 +973,7 @@ mod tests {
         let deser_priv = PrivateKey::from_der(&der_priv).unwrap();
         assert_eq!(p256_priv, deser_priv);
 
-        let p256_pub = p256_kp.public();
+        let p256_pub = p256_priv.public();
         let der_pub = p256_pub.to_der().unwrap();
         let deser_pub = PublicKey::from_der_with_algorithm(&der_pub, Algorithm::Secp256r1).unwrap();
         assert_eq!(p256_pub, deser_pub);
@@ -923,15 +984,14 @@ mod tests {
     #[cfg(feature = "pem")]
     #[test]
     fn p256_pem() {
-        let p256_kp = PrivateKey::new_with_algorithm(Algorithm::Secp256r1);
-        let pem_kp = p256_kp.to_private_key_pem().unwrap();
+        let p256_priv = PrivateKey::new_with_algorithm(Algorithm::Secp256r1);
+        let pem_kp = p256_priv.to_private_key_pem().unwrap();
         let deser =
             PrivateKey::from_private_key_pem_with_algorithm(&pem_kp, Algorithm::Secp256r1).unwrap();
-        assert_eq!(p256_kp, deser);
+        assert_eq!(p256_priv, deser);
         let deser = PrivateKey::from_private_key_pem(&pem_kp).unwrap();
-        assert_eq!(p256_kp, deser);
+        assert_eq!(p256_priv, deser);
 
-        let p256_priv = p256_kp.private();
         let pem_priv = p256_priv.to_pem().unwrap();
         let deser_priv =
             PrivateKey::from_pem_with_algorithm(&pem_priv, Algorithm::Secp256r1).unwrap();
@@ -939,7 +999,7 @@ mod tests {
         let deser_priv = PrivateKey::from_pem(&pem_priv).unwrap();
         assert_eq!(p256_priv, deser_priv);
 
-        let p256_pub = p256_kp.public();
+        let p256_pub = p256_priv.public();
         let pem_pub = p256_pub.to_pem().unwrap();
         let deser_pub = PublicKey::from_pem_with_algorithm(&pem_pub, Algorithm::Secp256r1).unwrap();
         assert_eq!(p256_pub, deser_pub);

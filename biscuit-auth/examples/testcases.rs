@@ -177,7 +177,7 @@ fn run(target: String, root_key: Option<String>, test: bool, json: bool) {
 
     if json {
         let s = serde_json::to_string_pretty(&TestCases {
-            root_private_key: hex::encode(root.private().to_bytes()),
+            root_private_key: hex::encode(root.to_bytes()),
             root_public_key: hex::encode(root.public().to_bytes()),
             testcases: results,
         })
@@ -188,7 +188,7 @@ fn run(target: String, root_key: Option<String>, test: bool, json: bool) {
         println!("# Biscuit samples and expected results\n");
         println!(
             "root secret key: {}",
-            hex::encode(root.private().to_bytes())
+            hex::encode(root.to_bytes())
         );
         println!("root public key: {}", hex::encode(root.public().to_bytes()));
 
@@ -1660,7 +1660,7 @@ fn third_party(target: &str, root: &PrivateKey, test: bool) -> TestResult {
 
     let res = req
         .create_block(
-            &external.private(),
+            &external,
             block!(
                 r#"
                 group("admin");
@@ -1802,7 +1802,7 @@ fn public_keys_interning(target: &str, root: &PrivateKey, test: bool) -> TestRes
 
     let res1 = req1
         .create_block(
-            &external1.private(),
+            &external1,
             block!(
                 r#"
         query(1);
@@ -1827,7 +1827,7 @@ fn public_keys_interning(target: &str, root: &PrivateKey, test: bool) -> TestRes
     let req2 = biscuit2.third_party_request().unwrap();
     let res2 = req2
         .create_block(
-            &external2.private(),
+            &external2,
             block!(
                 r#"
         query(2);
@@ -1851,7 +1851,7 @@ fn public_keys_interning(target: &str, root: &PrivateKey, test: bool) -> TestRes
     let req3 = biscuit3.third_party_request().unwrap();
     let res3 = req3
         .create_block(
-            &external2.private(),
+            &external2,
             block!(
                 r#"
         query(3);
@@ -2421,7 +2421,7 @@ fn secp256r1_third_party(target: &str, root: &PrivateKey, test: bool) -> TestRes
     let req = biscuit1.third_party_request().unwrap();
     let block = req
         .create_block(
-            &external_keypair.private(),
+            &external_keypair,
             block!(
                 r#" check if resource($0), operation("read"), right($0, "read"); from_third(true);"#
             ),

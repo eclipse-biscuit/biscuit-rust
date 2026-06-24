@@ -12,6 +12,9 @@ use std::{
 use biscuit_parser::parser::parse_source;
 use prost::Message;
 
+use crate::PrivateKey;
+use crate::crypto::SerializePrivateKey;
+use crate::token::public_keys::PublicKey;
 use crate::{
     builder::Convert,
     builder_ext::{AuthorizerExt, BuilderExt},
@@ -25,7 +28,7 @@ use crate::{
         schema,
     },
     token::{self, default_symbol_table, Block, MAX_SCHEMA_VERSION, MIN_SCHEMA_VERSION},
-    Authorizer, AuthorizerLimits, Biscuit, PublicKey,
+    Authorizer, AuthorizerLimits, Biscuit,
 };
 
 use super::{date, fact, BlockBuilder, Check, Fact, Policy, Rule, Scope, Term};
@@ -158,7 +161,7 @@ impl AuthorizerBuilder {
                 res?;
             }
             for (name, value) in &scope_params {
-                let res = match rule.set_scope(name, *value) {
+                let res = match rule.set_scope(name, value.clone()) {
                     Ok(_) => Ok(()),
                     Err(error::Token::Language(
                         biscuit_parser::error::LanguageError::Parameters {
@@ -188,7 +191,7 @@ impl AuthorizerBuilder {
                 res?;
             }
             for (name, value) in &scope_params {
-                let res = match check.set_scope(name, *value) {
+                let res = match check.set_scope(name, value.clone()) {
                     Ok(_) => Ok(()),
                     Err(error::Token::Language(
                         biscuit_parser::error::LanguageError::Parameters {
@@ -217,7 +220,7 @@ impl AuthorizerBuilder {
                 res?;
             }
             for (name, value) in &scope_params {
-                let res = match policy.set_scope(name, *value) {
+                let res = match policy.set_scope(name, value.clone()) {
                     Ok(_) => Ok(()),
                     Err(error::Token::Language(
                         biscuit_parser::error::LanguageError::Parameters {
@@ -318,16 +321,16 @@ impl AuthorizerBuilder {
     }
 
     /// builds the authorizer from a token
-    pub fn build(self, token: &Biscuit) -> Result<Authorizer, error::Token> {
+    pub fn build<K: SerializePrivateKey>(self, token: &Biscuit<K>) -> Result<Authorizer, error::Token> {
         self.build_inner(Some(token))
     }
 
     /// builds the authorizer without a token
     pub fn build_unauthenticated(self) -> Result<Authorizer, error::Token> {
-        self.build_inner(None)
+        self.build_inner::<PrivateKey>(None)
     }
 
-    fn build_inner(self, token: Option<&Biscuit>) -> Result<Authorizer, error::Token> {
+    fn build_inner<K: SerializePrivateKey>(self, token: Option<&Biscuit<K>>) -> Result<Authorizer, error::Token> {
         let mut world = World::new();
         world.extern_funcs = self.extern_funcs;
 
@@ -340,7 +343,7 @@ impl AuthorizerBuilder {
         if let Some(token) = token {
             for (i, block) in token.container.blocks.iter().enumerate() {
                 if let Some(sig) = block.external_signature.as_ref() {
-                    let new_key_id = symbols.public_keys.insert(&sig.public_key);
+                    let new_key_id = symbols.public_keys.insert_serialize(&sig.public_key);
 
                     public_key_to_block_id
                         .entry(new_key_id as usize)
@@ -607,7 +610,7 @@ impl AuthorizerBuilder {
         for public_key in world.public_keys {
             symbols
                 .public_keys
-                .insert(&PublicKey::from_proto(&public_key)?);
+                .insert_proto(&public_key);
         }
 
         let authorizer_block = proto_snapshot_block_to_token_block(&world.authorizer_block)?;
@@ -648,7 +651,10 @@ impl AuthorizerBuilder {
             .map(|policy| policy_to_proto_policy(policy, &mut symbols))
             .collect();
 
-        let authorizer_block = self.authorizer_block_builder.clone().build(symbols.clone());
+        let authorizer_block = self
+            .authorizer_block_builder
+            .clone()
+            .build(symbols.clone());
         symbols.extend(&authorizer_block.symbols)?;
         symbols.public_keys.extend(&authorizer_block.public_keys)?;
 

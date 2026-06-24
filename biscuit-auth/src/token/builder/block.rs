@@ -7,7 +7,7 @@ use super::{
     Convert, Expression, Fact, Op, Rule, Scope, Term,
 };
 use crate::builder_ext::BuilderExt;
-use crate::crypto::PublicKey;
+use crate::token::public_keys::PublicKey;
 use crate::datalog::{get_schema_version, SymbolTable};
 use crate::error;
 use biscuit_parser::parser::parse_block_source;
@@ -124,7 +124,7 @@ impl BlockBuilder {
                 res?;
             }
             for (name, value) in &scope_params {
-                let res = match rule.set_scope(name, *value) {
+                let res = match rule.set_scope(name, value.clone()) {
                     Ok(_) => Ok(()),
                     Err(error::Token::Language(
                         biscuit_parser::error::LanguageError::Parameters {
@@ -154,7 +154,7 @@ impl BlockBuilder {
                 res?;
             }
             for (name, value) in &scope_params {
-                let res = match check.set_scope(name, *value) {
+                let res = match check.set_scope(name, value.clone()) {
                     Ok(_) => Ok(()),
                     Err(error::Token::Language(
                         biscuit_parser::error::LanguageError::Parameters {

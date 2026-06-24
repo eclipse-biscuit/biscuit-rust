@@ -3,8 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 //! main structures to interact with Biscuit tokens
-use std::fmt::Display;
+use std::fmt::{self, Debug, Display, Formatter};
 use std::iter::once;
+use std::rc::Rc;
+use std::sync::Arc;
 
 use builder::{BiscuitBuilder, BlockBuilder};
 use prost::Message;
@@ -15,8 +17,8 @@ use super::crypto::{PrivateKey, PublicKey, Signature};
 use super::datalog::SymbolTable;
 use super::error;
 use super::format::SerializedBiscuit;
-use crate::crypto::{self};
-use crate::format::convert::proto_block_to_token_block;
+use crate::crypto::{self, SerializePrivateKey, Verify};
+use crate::format::convert::{proto_block_to_token_block, public_key_from_proto};
 use crate::format::schema::{self, ThirdPartyBlockContents};
 use crate::format::{ThirdPartyVerificationMode, THIRD_PARTY_SIGNATURE_VERSION};
 use authorizer::Authorizer;
@@ -25,7 +27,7 @@ pub mod authorizer;
 pub(crate) mod block;
 pub mod builder;
 pub mod builder_ext;
-pub(crate) mod public_keys;
+pub mod public_keys;
 pub(crate) mod third_party;
 pub mod unverified;
 pub use block::Block;
@@ -80,13 +82,13 @@ pub fn default_symbol_table() -> SymbolTable {
 ///   Ok(())
 /// }
 /// ```
-#[derive(Clone, Debug)]
-pub struct Biscuit {
+#[derive(Clone)]
+pub struct Biscuit<K: SerializePrivateKey = PrivateKey> {
     pub(crate) root_key_id: Option<u32>,
     pub(crate) authority: schema::Block,
     pub(crate) blocks: Vec<schema::Block>,
     pub(crate) symbols: SymbolTable,
-    pub(crate) container: SerializedBiscuit,
+    pub(crate) container: SerializedBiscuit<K>,
 }
 
 impl Biscuit {
@@ -101,7 +103,7 @@ impl Biscuit {
     pub fn from<T, KP>(slice: T, key_provider: KP) -> Result<Self, error::Token>
     where
         T: AsRef<[u8]>,
-        KP: RootKeyProvider,
+        KP: RootKeyProvider<Key = PublicKey>,
     {
         Biscuit::from_with_symbols(slice.as_ref(), key_provider, default_symbol_table())
     }
@@ -110,7 +112,7 @@ impl Biscuit {
     pub fn from_base64<T, KP>(slice: T, key_provider: KP) -> Result<Self, error::Token>
     where
         T: AsRef<[u8]>,
-        KP: RootKeyProvider,
+        KP: RootKeyProvider<Key = PublicKey>,
     {
         Biscuit::from_base64_with_symbols(slice, key_provider, default_symbol_table())
     }
@@ -124,7 +126,7 @@ impl Biscuit {
     ) -> Result<Self, error::Token>
     where
         T: AsRef<[u8]>,
-        KP: RootKeyProvider,
+        KP: RootKeyProvider<Key = PublicKey>,
     {
         let container = SerializedBiscuit::unsafe_from_slice(slice.as_ref(), key_provider)
             .map_err(error::Token::Format)?;
@@ -168,13 +170,16 @@ impl Biscuit {
     pub fn authorizer(&self) -> Result<Authorizer, error::Token> {
         Authorizer::from_token(self)
     }
+}
+
+impl<K: SerializePrivateKey> Biscuit<K> {
 
     /// adds a new block to the token
     ///
     /// since the public key is integrated into the token, the private key can be
     /// discarded right after calling this function
     pub fn append(&self, block_builder: BlockBuilder) -> Result<Self, error::Token> {
-        let key = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
+        let key = K::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
         self.append_with_key(&key, block_builder)
     }
 
@@ -216,11 +221,11 @@ impl Biscuit {
     /// Blocks carrying an external public key are _third-party blocks_
     /// and their contents can be trusted as coming from the holder of
     /// the corresponding private key
-    pub fn external_public_keys(&self) -> Vec<Option<PublicKey>> {
+    pub fn external_public_keys(&self) -> Vec<Option<K::PublicKey>> {
         let mut res = vec![None];
 
         for block in self.container.blocks.iter() {
-            res.push(block.external_signature.as_ref().map(|sig| sig.public_key));
+            res.push(block.external_signature.as_ref().map(|sig| sig.public_key.clone()));
         }
 
         res
@@ -254,14 +259,14 @@ impl Biscuit {
     pub(crate) fn new_with_rng<T: RngCore + CryptoRng>(
         rng: &mut T,
         root_key_id: Option<u32>,
-        root: &PrivateKey,
+        root: &K,
         symbols: SymbolTable,
         authority: Block,
-    ) -> Result<Biscuit, error::Token> {
+    ) -> Result<Biscuit<K>, error::Token> {
         Self::new_with_key_pair(
             root_key_id,
             root,
-            &PrivateKey::new_with_rng(builder::Algorithm::Ed25519, rng),
+            &K::new_with_rng(root.algorithm(), rng),
             symbols,
             authority,
         )
@@ -273,11 +278,11 @@ impl Biscuit {
     /// the public part of the root keypair must be used for verification
     pub(crate) fn new_with_key_pair(
         root_key_id: Option<u32>,
-        root_key: &PrivateKey,
-        next_key: &PrivateKey,
+        root_key: &K,
+        next_key: &K,
         mut symbols: SymbolTable,
         authority: Block,
-    ) -> Result<Biscuit, error::Token> {
+    ) -> Result<Biscuit<K>, error::Token> {
         if !symbols.is_disjoint(&authority.symbols) {
             return Err(error::Token::Format(error::Format::SymbolTableOverlap));
         }
@@ -312,7 +317,7 @@ impl Biscuit {
         symbols: SymbolTable,
     ) -> Result<Self, error::Token>
     where
-        KP: RootKeyProvider,
+        KP: RootKeyProvider<Key = K::PublicKey>,
     {
         let container =
             SerializedBiscuit::from_slice(slice, key_provider).map_err(error::Token::Format)?;
@@ -321,7 +326,7 @@ impl Biscuit {
     }
 
     fn from_serialized_container(
-        container: SerializedBiscuit,
+        container: SerializedBiscuit<K>,
         mut symbols: SymbolTable,
     ) -> Result<Self, error::Token> {
         let (authority, blocks) = container.extract_blocks(&mut symbols)?;
@@ -346,14 +351,14 @@ impl Biscuit {
     ) -> Result<Self, error::Token>
     where
         T: AsRef<[u8]>,
-        KP: RootKeyProvider,
+        KP: RootKeyProvider<Key = K::PublicKey>,
     {
         let decoded = base64::decode_config(slice, base64::URL_SAFE)?;
         Biscuit::from_with_symbols(&decoded, key_provider, symbols)
     }
 
     /// returns the internal representation of the token
-    pub fn container(&self) -> &SerializedBiscuit {
+    pub fn container(&self) -> &SerializedBiscuit<K> {
         &self.container
     }
 
@@ -363,7 +368,7 @@ impl Biscuit {
     /// discarded right after calling this function
     pub fn append_with_key(
         &self,
-        key: &PrivateKey,
+        key: &K,
         block_builder: BlockBuilder,
     ) -> Result<Self, error::Token> {
         let block = block_builder.build(self.symbols.clone());
@@ -410,31 +415,30 @@ impl Biscuit {
 
     pub fn append_third_party(
         &self,
-        external_key: PublicKey,
+        external_key: K::PublicKey,
         response: ThirdPartyBlock,
     ) -> Result<Self, error::Token> {
-        let next_key =
-            PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
-
+        let next_key = K::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
         self.append_third_party_with_key(external_key, response, next_key)
     }
+
     pub fn append_third_party_with_key(
         &self,
-        external_key: PublicKey,
+        external_key: K::PublicKey,
         response: ThirdPartyBlock,
-        next_key: PrivateKey,
+        next_key: K,
     ) -> Result<Self, error::Token> {
         let ThirdPartyBlockContents {
             payload,
             external_signature,
         } = response.0;
 
-        let provided_key = PublicKey::from_proto(&external_signature.public_key)?;
+        let provided_key = public_key_from_proto(&external_signature.public_key)?;
         if external_key != provided_key {
             return Err(error::Token::Format(error::Format::DeserializationError(
                 format!(
                     "deserialization error: unexpected key {}",
-                    provided_key.print()
+                    crypto::print(&provided_key),
                 ),
             )));
         }
@@ -446,7 +450,7 @@ impl Biscuit {
             .blocks
             .last()
             .unwrap_or(&self.container.authority)
-            .next_key;
+            .next_key.clone();
 
         let external_signature = crypto::ExternalSignature {
             public_key: external_key,
@@ -518,13 +522,13 @@ impl Biscuit {
         let mut public_keys = PublicKeys::new();
 
         for pk in &block.public_keys {
-            public_keys.insert(&PublicKey::from_proto(pk)?);
+            public_keys.insert_proto(pk);
         }
         Ok(public_keys)
     }
 
     /// gets the list of public keys from a block
-    pub fn block_external_key(&self, index: usize) -> Result<Option<PublicKey>, error::Token> {
+    pub fn block_external_key(&self, index: usize) -> Result<Option<K::PublicKey>, error::Token> {
         let block = if index == 0 {
             &self.container.authority
         } else {
@@ -537,7 +541,7 @@ impl Biscuit {
         Ok(block
             .external_signature
             .as_ref()
-            .map(|signature| signature.public_key))
+            .map(|signature| signature.public_key.clone()))
     }
 
     /// returns the number of blocks (at least 1)
@@ -553,7 +557,7 @@ impl Biscuit {
                     .authority
                     .external_signature
                     .as_ref()
-                    .map(|ex| ex.public_key),
+                    .map(|ex| &ex.public_key),
             )
             .map_err(error::Token::Format)?
         } else {
@@ -568,7 +572,7 @@ impl Biscuit {
                 self.container.blocks[index - 1]
                     .external_signature
                     .as_ref()
-                    .map(|ex| ex.public_key),
+                    .map(|ex| &ex.public_key),
             )
             .map_err(error::Token::Format)?
         };
@@ -576,7 +580,7 @@ impl Biscuit {
         Ok(block)
     }
 
-    pub(crate) fn blocks(&self) -> impl Iterator<Item = Result<Block, error::Token>> + use<'_> {
+    pub(crate) fn blocks(&self) -> impl Iterator<Item = Result<Block, error::Token>> + use<'_, K> {
         once(
             proto_block_to_token_block(
                 &self.authority,
@@ -584,7 +588,7 @@ impl Biscuit {
                     .authority
                     .external_signature
                     .as_ref()
-                    .map(|ex| ex.public_key),
+                    .map(|ex| &ex.public_key),
             )
             .map_err(error::Token::Format),
         )
@@ -595,7 +599,7 @@ impl Biscuit {
                     container
                         .external_signature
                         .as_ref()
-                        .map(|ex| ex.public_key),
+                        .map(|ex| &ex.public_key),
                 )
                 .map_err(error::Token::Format)
             },
@@ -603,8 +607,25 @@ impl Biscuit {
     }
 }
 
-impl Display for Biscuit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<K> Debug for Biscuit<K>
+where
+    K: SerializePrivateKey + Debug,
+    K::PublicKey: Debug,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Biscuit")
+            .field("root_key_id", &self.root_key_id)
+            .field("authority", &self.authority)
+            .field("blocks", &self.blocks)
+            .field("symbols", &self.symbols)
+            .field("container", &self.container)
+            .finish()
+    }
+}
+
+
+impl<K: SerializePrivateKey> Display for Biscuit<K> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let authority = self
             .block(0)
             .as_ref()
@@ -621,12 +642,13 @@ impl Display for Biscuit {
 
         write!(f, "Biscuit {{\n    symbols: {:?}\n    public keys: {:?}\n    authority: {}\n    blocks: [\n        {}\n    ]\n}}",
         self.symbols.strings(),
-        self.symbols.public_keys.keys.iter().map(|pk| hex::encode(pk.to_bytes())).collect::<Vec<_>>(),
+        self.symbols.public_keys.keys.iter().map(|pk| format!("{}", pk)).collect::<Vec<_>>(),
         authority,
         blocks.join(",\n\t")
     )
     }
 }
+
 fn print_block(symbols: &SymbolTable, block: &Block) -> String {
     let facts: Vec<_> = block.facts.iter().map(|f| symbols.print_fact(f)).collect();
     let rules: Vec<_> = block.rules.iter().map(|r| symbols.print_rule(r)).collect();
@@ -667,7 +689,7 @@ fn print_block(symbols: &SymbolTable, block: &Block) -> String {
         block.version,
         block.context.as_deref().unwrap_or(""),
         block.external_key.as_ref().map(|k| hex::encode(k.to_bytes())).unwrap_or_default(),
-        block.public_keys.keys.iter().map(|k | hex::encode(k.to_bytes())).collect::<Vec<_>>(),
+        block.public_keys.keys.iter().map(|k| format!("{}", k)).collect::<Vec<_>>(),
         block.scopes,
         facts,
         rules,
@@ -690,41 +712,55 @@ pub enum Scope {
 /// value will be passed to the implementor of `RootKeyProvider`
 /// to choose which key will be used.
 pub trait RootKeyProvider {
-    fn choose(&self, key_id: Option<u32>) -> Result<PublicKey, error::Format>;
+    type Key: Verify;
+
+    fn choose(&self, key_id: Option<u32>) -> Result<Self::Key, error::Format>;
 }
 
-impl RootKeyProvider for Box<dyn RootKeyProvider> {
-    fn choose(&self, key_id: Option<u32>) -> Result<PublicKey, error::Format> {
+impl<K: Verify> RootKeyProvider for Box<dyn RootKeyProvider<Key = K>> {
+    type Key = K;
+
+    fn choose(&self, key_id: Option<u32>) -> Result<K, error::Format> {
         self.as_ref().choose(key_id)
     }
 }
 
-impl RootKeyProvider for std::rc::Rc<dyn RootKeyProvider> {
-    fn choose(&self, key_id: Option<u32>) -> Result<PublicKey, error::Format> {
+impl<K: Verify> RootKeyProvider for Rc<dyn RootKeyProvider<Key = K>> {
+    type Key = K;
+
+    fn choose(&self, key_id: Option<u32>) -> Result<K, error::Format> {
         self.as_ref().choose(key_id)
     }
 }
 
-impl RootKeyProvider for std::sync::Arc<dyn RootKeyProvider> {
-    fn choose(&self, key_id: Option<u32>) -> Result<PublicKey, error::Format> {
+impl<K: Verify> RootKeyProvider for Arc<dyn RootKeyProvider<Key = K>> {
+    type Key = K;
+
+    fn choose(&self, key_id: Option<u32>) -> Result<K, error::Format> {
         self.as_ref().choose(key_id)
     }
 }
 
 impl RootKeyProvider for PublicKey {
+    type Key = PublicKey;
+
     fn choose(&self, _: Option<u32>) -> Result<PublicKey, error::Format> {
         Ok(*self)
     }
 }
 
 impl RootKeyProvider for &PublicKey {
+    type Key = PublicKey;
+
     fn choose(&self, _: Option<u32>) -> Result<PublicKey, error::Format> {
         Ok(**self)
     }
 }
 
-impl<F: Fn(Option<u32>) -> Result<PublicKey, error::Format>> RootKeyProvider for F {
-    fn choose(&self, root_key_id: Option<u32>) -> Result<PublicKey, error::Format> {
+impl<F: Fn(Option<u32>) -> Result<K, error::Format>, K: Verify> RootKeyProvider for F {
+    type Key = K;
+
+    fn choose(&self, root_key_id: Option<u32>) -> Result<K, error::Format> {
         self(root_key_id)
     }
 }

@@ -2,9 +2,12 @@
  * Copyright (c) 2019 Geoffroy Couprie <contact@geoffroycouprie.com> and Contributors to the Eclipse Foundation.
  * SPDX-License-Identifier: Apache-2.0
  */
+use std::fmt::{self, Debug, Formatter};
+
 use prost::Message;
 
 use super::{default_symbol_table, Biscuit, Block};
+use crate::crypto::SerializePrivateKey;
 use crate::{
     builder::BlockBuilder,
     crypto::{self, PrivateKey, PublicKey, Signature},
@@ -26,12 +29,27 @@ use crate::{
 ///
 /// It can be converted to a [Biscuit] using [UnverifiedBiscuit::verify],
 /// and then used for authorization
-#[derive(Clone, Debug)]
-pub struct UnverifiedBiscuit {
+#[derive(Clone)]
+pub struct UnverifiedBiscuit<K: SerializePrivateKey = PrivateKey> {
     pub(crate) authority: schema::Block,
     pub(crate) blocks: Vec<schema::Block>,
     pub(crate) symbols: SymbolTable,
-    container: SerializedBiscuit,
+    container: SerializedBiscuit<K>,
+}
+
+impl<K> Debug for UnverifiedBiscuit<K>
+where
+    K: SerializePrivateKey + Debug,
+    K::PublicKey: Debug,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("UnverifiedBiscuit")
+            .field("authority", &self.authority)
+            .field("blocks", &self.blocks)
+            .field("symbols", &self.symbols)
+            .field("container", &self.container)
+            .finish()
+    }
 }
 
 impl UnverifiedBiscuit {
@@ -86,7 +104,7 @@ impl UnverifiedBiscuit {
     /// checks the signature of the token and convert it to a [Biscuit] for authorization
     pub fn verify<KP>(self, key_provider: KP) -> Result<Biscuit, error::Format>
     where
-        KP: RootKeyProvider,
+        KP: RootKeyProvider<Key = PublicKey>,
     {
         let key = key_provider.choose(self.root_key_id())?;
         self.container.verify(&key)?;
@@ -259,7 +277,7 @@ impl UnverifiedBiscuit {
                     .authority
                     .external_signature
                     .as_ref()
-                    .map(|ex| ex.public_key),
+                    .map(|ex| &ex.public_key),
             )
             .map_err(error::Token::Format)?
         } else {
@@ -274,7 +292,7 @@ impl UnverifiedBiscuit {
                 self.container.blocks[index - 1]
                     .external_signature
                     .as_ref()
-                    .map(|ex| ex.public_key),
+                    .map(|ex| &ex.public_key),
             )
             .map_err(error::Token::Format)?
         };
@@ -352,9 +370,8 @@ impl UnverifiedBiscuit {
             self.container
                 .append_serialized(&next_key, payload, Some(external_signature))?;
 
-        let token_block = proto_block_to_token_block(&block, Some(external_key)).unwrap();
-        for key in &token_block.public_keys.keys {
-            symbols.public_keys.insert_fallible(key)?;
+        for key in &block.public_keys[..] {
+            symbols.public_keys.insert_proto_fallible(key)?;
         }
 
         blocks.push(block);
@@ -396,7 +413,7 @@ mod tests {
         let req = biscuit.third_party_request().unwrap();
         let res = req
             .create_block(
-                &external_key.private(),
+                &external_key,
                 BlockBuilder::new().fact("third_party(true)").unwrap(),
             )
             .unwrap();

@@ -252,6 +252,7 @@ pub mod parser;
 mod token;
 
 pub use crypto::{PrivateKey, PublicKey};
+pub use token::public_keys;
 pub use token::authorizer::{Authorizer, AuthorizerLimits};
 pub use token::builder;
 pub use token::builder::{Algorithm, AuthorizerBuilder, BiscuitBuilder, BlockBuilder};

@@ -7,8 +7,9 @@ use std::{collections::HashMap, convert::TryFrom, fmt, str::FromStr};
 use nom::Finish;
 
 use crate::{
+    token::public_keys::PublicKey,
     datalog::{self, SymbolTable},
-    error, PublicKey,
+    error,
 };
 
 #[cfg(feature = "datalog-macro")]
@@ -315,7 +316,7 @@ impl Rule {
                 .map(|scope| {
                     if let Scope::Parameter(name) = &scope {
                         if let Some(Some(pubkey)) = parameters.get(name) {
-                            return Scope::PublicKey(*pubkey);
+                            return Scope::PublicKey(pubkey.clone());
                         }
                     }
                     scope
@@ -455,8 +456,7 @@ impl From<biscuit_parser::builder::Rule> for Rule {
                         (
                             k,
                             v.map(|pk| {
-                                PublicKey::from_bytes(&pk.key, pk.algorithm.into())
-                                    .expect("invalid public key")
+                                PublicKey::from_bytes(pk.algorithm.into(), pk.key)
                             }),
                         )
                     })

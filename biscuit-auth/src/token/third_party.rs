@@ -6,6 +6,7 @@ use std::cmp::max;
 
 use prost::Message;
 
+use crate::crypto::SerializePrivateKey;
 use crate::{
     builder::BlockBuilder,
     crypto::generate_external_signature_payload_v1,
@@ -24,8 +25,8 @@ pub struct ThirdPartyRequest {
 }
 
 impl ThirdPartyRequest {
-    pub(crate) fn from_container(
-        container: &SerializedBiscuit,
+    pub(crate) fn from_container<K: SerializePrivateKey>(
+        container: &SerializedBiscuit<K>,
     ) -> Result<ThirdPartyRequest, error::Token> {
         if container.proof.is_sealed() {
             return Err(error::Token::AppendOnSealed);
