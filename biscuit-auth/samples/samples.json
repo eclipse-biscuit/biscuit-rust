@@ -2968,7 +2968,7 @@
           ],
           "public_keys": [],
           "external_key": null,
-          "code": "check if [1, 2, 1].length() == 3;\ncheck if [\"a\", \"b\"] != true;\ncheck if [\"a\", \"b\"] != [1, 2, 3];\ncheck if [\"a\", \"b\"] == [\"a\", \"b\"];\ncheck if [\"a\", \"b\"] === [\"a\", \"b\"];\ncheck if [\"a\", \"b\"] !== [\"a\", \"c\"];\ncheck if [\"a\", \"b\", \"c\"].contains(\"c\");\ncheck if [1, 2, 3].starts_with([1, 2]);\ncheck if [4, 5, 6].ends_with([6]);\ncheck if [1, 2, \"a\"].get(2) == \"a\";\ncheck if [1, 2].get(3) == null;\ncheck if [1, 2, 3].all($p -> $p > 0);\ncheck if [1, 2, 3].any($p -> $p > 2);\ncheck if {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}.length() == 4;\ncheck if {1: \"a\", 2: \"b\"} != true;\ncheck if {1: \"a\", 2: \"b\"} != {\"a\": 1, \"b\": 2};\ncheck if {1: \"a\", 2: \"b\"} == {1: \"a\", 2: \"b\"};\ncheck if {1: \"a\", 2: \"b\"} !== {\"a\": 1, \"b\": 2};\ncheck if {1: \"a\", 2: \"b\"} === {1: \"a\", 2: \"b\"};\ncheck if {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}.contains(\"d\");\ncheck if {1: \"A\", \"a\": 1, \"b\": 2}.get(\"a\") == 1;\ncheck if {1: \"A\", \"a\": 1, \"b\": 2}.get(1) == \"A\";\ncheck if {1: \"A\", \"a\": 1, \"b\": 2}.get(\"c\") == null;\ncheck if {1: \"A\", \"a\": 1, \"b\": 2}.get(2) == null;\ncheck if {\"a\": 1, \"b\": 2}.all($kv -> $kv.get(0) != \"c\" && $kv.get(1) < 3);\ncheck if {1: \"A\", \"a\": 1, \"b\": 2}.any($kv -> $kv.get(0) == 1 && $kv.get(1) == \"A\");\ncheck if {\"user\": {\"id\": 1, \"roles\": [\"admin\"]}}.get(\"user\").get(\"roles\").contains(\"admin\");\n",
+          "code": "check if [1, 2, 1].length() == 3;\ncheck if [\"a\", \"b\"] != true;\ncheck if [\"a\", \"b\"] != [1, 2, 3];\ncheck if [\"a\", \"b\"] == [\"a\", \"b\"];\ncheck if [\"a\", \"b\"] === [\"a\", \"b\"];\ncheck if [\"a\", \"b\"] !== [\"a\", \"c\"];\ncheck if [\"a\", \"b\", \"c\"].contains(\"c\");\ncheck if [1, 2, 3].starts_with([1, 2]);\ncheck if [4, 5, 6].ends_with([6]);\ncheck if [1, 2, \"a\"].get(2) == \"a\";\ncheck if [1, 2].get(3) == null;\ncheck if [1, 2].get(-1) == null;\ncheck if [1, 2, 3].all($p -> $p > 0);\ncheck if [1, 2, 3].any($p -> $p > 2);\ncheck if {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}.length() == 4;\ncheck if {1: \"a\", 2: \"b\"} != true;\ncheck if {1: \"a\", 2: \"b\"} != {\"a\": 1, \"b\": 2};\ncheck if {1: \"a\", 2: \"b\"} == {1: \"a\", 2: \"b\"};\ncheck if {1: \"a\", 2: \"b\"} !== {\"a\": 1, \"b\": 2};\ncheck if {1: \"a\", 2: \"b\"} === {1: \"a\", 2: \"b\"};\ncheck if {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}.contains(\"d\");\ncheck if {1: \"A\", \"a\": 1, \"b\": 2}.get(\"a\") == 1;\ncheck if {1: \"A\", \"a\": 1, \"b\": 2}.get(1) == \"A\";\ncheck if {1: \"A\", \"a\": 1, \"b\": 2}.get(\"c\") == null;\ncheck if {1: \"A\", \"a\": 1, \"b\": 2}.get(2) == null;\ncheck if {\"a\": 1, \"b\": 2}.all($kv -> $kv.get(0) != \"c\" && $kv.get(1) < 3);\ncheck if {1: \"A\", \"a\": 1, \"b\": 2}.any($kv -> $kv.get(0) == 1 && $kv.get(1) == \"A\");\ncheck if {\"user\": {\"id\": 1, \"roles\": [\"admin\"]}}.get(\"user\").get(\"roles\").contains(\"admin\");\n",
           "version": 6
         }
       ],
@@ -2992,6 +2992,7 @@
                   "check if [1, 2, 3].all($p -> $p > 0)",
                   "check if [1, 2, 3].any($p -> $p > 2)",
                   "check if [1, 2, 3].starts_with([1, 2])",
+                  "check if [1, 2].get(-1) == null",
                   "check if [1, 2].get(3) == null",
                   "check if [4, 5, 6].ends_with([6])",
                   "check if {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}.contains(\"d\")",
@@ -3020,7 +3021,7 @@
           },
           "authorizer_code": "allow if true;\n",
           "revocation_ids": [
-            "b22238a06ca9c015d3c49d4ebaa7e8ab6e0d69119b3264033618e726d62fc6f4757a7bebc25f255444aba39994554a62a53ecc13b68802efab8da85ace62390d"
+            "0227fc29d6bf85cc52503f497b0b232235ffe5192c68933388136eae3fc3419229e9489b85d1bb57525554edac7cda87c984c96639bfb4171acc499312ffe30e"
           ]
         }
       }

@@ -3227,6 +3227,7 @@ check if [1, 2, 3].starts_with([1, 2]);
 check if [4, 5, 6].ends_with([6]);
 check if [1, 2, "a"].get(2) == "a";
 check if [1, 2].get(3) == null;
+check if [1, 2].get(-1) == null;
 check if [1, 2, 3].all($p -> $p > 0);
 check if [1, 2, 3].any($p -> $p > 2);
 check if {"a": 1, "b": 2, "c": 3, "d": 4}.length() == 4;
@@ -3253,7 +3254,7 @@ allow if true;
 ```
 
 revocation ids:
-- `b22238a06ca9c015d3c49d4ebaa7e8ab6e0d69119b3264033618e726d62fc6f4757a7bebc25f255444aba39994554a62a53ecc13b68802efab8da85ace62390d`
+- `0227fc29d6bf85cc52503f497b0b232235ffe5192c68933388136eae3fc3419229e9489b85d1bb57525554edac7cda87c984c96639bfb4171acc499312ffe30e`
 
 authorizer world:
 ```
@@ -3278,6 +3279,7 @@ World {
             "check if [1, 2, 3].any($p -> $p > 2)",
             "check if [1, 2, 3].starts_with([1, 2])",
             "check if [1, 2].get(3) == null",
+            "check if [1, 2].get(-1) == null",
             "check if [4, 5, 6].ends_with([6])",
             "check if {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}.contains(\"d\")",
             "check if {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}.length() == 4",

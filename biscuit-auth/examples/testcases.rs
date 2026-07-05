@@ -2258,6 +2258,7 @@ fn array_map(target: &str, root: &KeyPair, test: bool) -> TestResult {
         check if [4, 5, 6 ].ends_with([6]);
         check if [1,2, "a"].get(2) == "a";
         check if [1, 2].get(3) == null;
+        check if [1, 2].get(-1) == null;
         check if [1,2,3].all($p -> $p > 0);
         check if [1,2,3].any($p -> $p > 2);
         // map
