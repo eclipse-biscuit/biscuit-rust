@@ -16,7 +16,7 @@ use std::hash::Hash;
 /// pair of cryptographic keys used to sign a token's block
 #[derive(Debug, PartialEq)]
 pub struct KeyPair {
-    kp: SigningKey,
+    pub(super) kp: SigningKey,
 }
 
 impl KeyPair {
