@@ -3,14 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 //! helper functions for conversion between internal structures and Protobuf
+use biscuit_proto::{Empty, MapEntry};
 
-use super::schema;
 use crate::builder::Convert;
 use crate::crypto::PublicKey;
 use crate::datalog::*;
 use crate::error;
-use crate::format::schema::Empty;
-use crate::format::schema::MapEntry;
 use crate::token::public_keys::PublicKeys;
 use crate::token::Scope;
 use crate::token::{authorizer::AuthorizerPolicies, Block};
@@ -19,8 +17,8 @@ use crate::token::{DATALOG_3_1, DATALOG_3_2, DATALOG_3_3, MAX_SCHEMA_VERSION, MI
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
-pub fn token_block_to_proto_block(input: &Block) -> schema::Block {
-    schema::Block {
+pub fn token_block_to_proto_block(input: &Block) -> biscuit_proto::Block {
+    biscuit_proto::Block {
         symbols: input.symbols.strings(),
         context: input.context.clone(),
         version: Some(input.version),
@@ -46,7 +44,7 @@ pub fn token_block_to_proto_block(input: &Block) -> schema::Block {
 }
 
 pub fn proto_block_to_token_block(
-    input: &schema::Block,
+    input: &biscuit_proto::Block,
     external_key: Option<PublicKey>,
 ) -> Result<Block, error::Format> {
     let version = input.version.unwrap_or(0);
@@ -77,7 +75,9 @@ pub fn proto_block_to_token_block(
                     "deserialization error: check kinds are only supported on datalog v3.1+ blocks"
                         .to_string(),
                 ));
-            } else if version < DATALOG_3_3 && c.kind == Some(schema::check::Kind::Reject as i32) {
+            } else if version < DATALOG_3_3
+                && c.kind == Some(biscuit_proto::check::Kind::Reject as i32)
+            {
                 return Err(error::Format::DeserializationError(
                     "deserialization error: reject if is only supported in datalog v3.3+"
                         .to_string(),
@@ -126,8 +126,8 @@ pub fn proto_block_to_token_block(
     })
 }
 
-pub fn token_block_to_proto_snapshot_block(input: &Block) -> schema::SnapshotBlock {
-    schema::SnapshotBlock {
+pub fn token_block_to_proto_snapshot_block(input: &Block) -> biscuit_proto::SnapshotBlock {
+    biscuit_proto::SnapshotBlock {
         context: input.context.clone(),
         version: Some(input.version),
         facts: input.facts.iter().map(token_fact_to_proto_fact).collect(),
@@ -147,7 +147,7 @@ pub fn token_block_to_proto_snapshot_block(input: &Block) -> schema::SnapshotBlo
 }
 
 pub fn proto_snapshot_block_to_token_block(
-    input: &schema::SnapshotBlock,
+    input: &biscuit_proto::SnapshotBlock,
 ) -> Result<Block, error::Format> {
     let version = input.version.unwrap_or(0);
     if !(MIN_SCHEMA_VERSION..=MAX_SCHEMA_VERSION).contains(&version) {
@@ -206,7 +206,9 @@ pub fn proto_snapshot_block_to_token_block(
         scopes,
     })
 }
-pub fn authorizer_to_proto_authorizer(input: &AuthorizerPolicies) -> schema::AuthorizerPolicies {
+pub fn authorizer_to_proto_authorizer(
+    input: &AuthorizerPolicies,
+) -> biscuit_proto::AuthorizerPolicies {
     let mut symbols = SymbolTable::default();
 
     let facts = input
@@ -236,7 +238,7 @@ pub fn authorizer_to_proto_authorizer(input: &AuthorizerPolicies) -> schema::Aut
         .map(|p| policy_to_proto_policy(p, &mut symbols))
         .collect();
 
-    schema::AuthorizerPolicies {
+    biscuit_proto::AuthorizerPolicies {
         symbols: symbols.strings(),
         version: Some(input.version),
         facts,
@@ -247,7 +249,7 @@ pub fn authorizer_to_proto_authorizer(input: &AuthorizerPolicies) -> schema::Aut
 }
 
 pub fn proto_authorizer_to_authorizer(
-    input: &schema::AuthorizerPolicies,
+    input: &biscuit_proto::AuthorizerPolicies,
 ) -> Result<AuthorizerPolicies, error::Format> {
     let version = input.version.unwrap_or(0);
     if !(MIN_SCHEMA_VERSION..=MAX_SCHEMA_VERSION).contains(&version) {
@@ -299,22 +301,22 @@ pub fn proto_authorizer_to_authorizer(
     })
 }
 
-pub fn token_fact_to_proto_fact(input: &Fact) -> schema::Fact {
-    schema::Fact {
+pub fn token_fact_to_proto_fact(input: &Fact) -> biscuit_proto::Fact {
+    biscuit_proto::Fact {
         predicate: token_predicate_to_proto_predicate(&input.predicate),
     }
 }
 
-pub fn proto_fact_to_token_fact(input: &schema::Fact) -> Result<Fact, error::Format> {
+pub fn proto_fact_to_token_fact(input: &biscuit_proto::Fact) -> Result<Fact, error::Format> {
     Ok(Fact {
         predicate: proto_predicate_to_token_predicate(&input.predicate)?,
     })
 }
 
-pub fn token_check_to_proto_check(input: &Check) -> schema::Check {
-    use schema::check::Kind;
+pub fn token_check_to_proto_check(input: &Check) -> biscuit_proto::Check {
+    use biscuit_proto::check::Kind;
 
-    schema::Check {
+    biscuit_proto::Check {
         queries: input.queries.iter().map(token_rule_to_proto_rule).collect(),
         kind: match input.kind {
             crate::token::builder::CheckKind::One => None,
@@ -325,7 +327,7 @@ pub fn token_check_to_proto_check(input: &Check) -> schema::Check {
 }
 
 pub fn proto_check_to_token_check(
-    input: &schema::Check,
+    input: &biscuit_proto::Check,
     version: u32,
 ) -> Result<Check, error::Format> {
     let mut queries = vec![];
@@ -351,8 +353,8 @@ pub fn proto_check_to_token_check(
 pub fn policy_to_proto_policy(
     input: &crate::token::builder::Policy,
     symbols: &mut SymbolTable,
-) -> schema::Policy {
-    schema::Policy {
+) -> biscuit_proto::Policy {
+    biscuit_proto::Policy {
         queries: input
             .queries
             .iter()
@@ -360,18 +362,18 @@ pub fn policy_to_proto_policy(
             .map(|r| token_rule_to_proto_rule(&r))
             .collect(),
         kind: match input.kind {
-            crate::token::builder::PolicyKind::Allow => schema::policy::Kind::Allow as i32,
-            crate::token::builder::PolicyKind::Deny => schema::policy::Kind::Deny as i32,
+            crate::token::builder::PolicyKind::Allow => biscuit_proto::policy::Kind::Allow as i32,
+            crate::token::builder::PolicyKind::Deny => biscuit_proto::policy::Kind::Deny as i32,
         },
     }
 }
 
 pub fn proto_policy_to_policy(
-    input: &schema::Policy,
+    input: &biscuit_proto::Policy,
     symbols: &SymbolTable,
     version: u32,
 ) -> Result<crate::token::builder::Policy, error::Format> {
-    use schema::policy::Kind;
+    use biscuit_proto::policy::Kind;
     let mut queries = vec![];
 
     for q in input.queries.iter() {
@@ -396,8 +398,8 @@ pub fn proto_policy_to_policy(
     Ok(crate::token::builder::Policy { queries, kind })
 }
 
-pub fn token_rule_to_proto_rule(input: &Rule) -> schema::Rule {
-    schema::Rule {
+pub fn token_rule_to_proto_rule(input: &Rule) -> biscuit_proto::Rule {
+    biscuit_proto::Rule {
         head: token_predicate_to_proto_predicate(&input.head),
         body: input
             .body
@@ -418,7 +420,7 @@ pub fn token_rule_to_proto_rule(input: &Rule) -> schema::Rule {
 }
 
 pub fn proto_rule_to_token_rule(
-    input: &schema::Rule,
+    input: &biscuit_proto::Rule,
     version: u32,
 ) -> Result<(Rule, Vec<Scope>), error::Format> {
     let mut body = vec![];
@@ -453,15 +455,15 @@ pub fn proto_rule_to_token_rule(
     ))
 }
 
-pub fn token_predicate_to_proto_predicate(input: &Predicate) -> schema::Predicate {
-    schema::Predicate {
+pub fn token_predicate_to_proto_predicate(input: &Predicate) -> biscuit_proto::Predicate {
+    biscuit_proto::Predicate {
         name: input.name,
         terms: input.terms.iter().map(token_term_to_proto_id).collect(),
     }
 }
 
 pub fn proto_predicate_to_token_predicate(
-    input: &schema::Predicate,
+    input: &biscuit_proto::Predicate,
 ) -> Result<Predicate, error::Format> {
     let mut terms = vec![];
 
@@ -475,55 +477,55 @@ pub fn proto_predicate_to_token_predicate(
     })
 }
 
-pub fn token_term_to_proto_id(input: &Term) -> schema::Term {
-    use schema::term::Content;
+pub fn token_term_to_proto_id(input: &Term) -> biscuit_proto::Term {
+    use biscuit_proto::term::Content;
 
     match input {
-        Term::Variable(v) => schema::Term {
+        Term::Variable(v) => biscuit_proto::Term {
             content: Some(Content::Variable(*v)),
         },
-        Term::Integer(i) => schema::Term {
+        Term::Integer(i) => biscuit_proto::Term {
             content: Some(Content::Integer(*i)),
         },
-        Term::Str(s) => schema::Term {
+        Term::Str(s) => biscuit_proto::Term {
             content: Some(Content::String(*s)),
         },
-        Term::Date(d) => schema::Term {
+        Term::Date(d) => biscuit_proto::Term {
             content: Some(Content::Date(*d)),
         },
-        Term::Bytes(s) => schema::Term {
+        Term::Bytes(s) => biscuit_proto::Term {
             content: Some(Content::Bytes(s.clone())),
         },
-        Term::Bool(b) => schema::Term {
+        Term::Bool(b) => biscuit_proto::Term {
             content: Some(Content::Bool(*b)),
         },
-        Term::Set(s) => schema::Term {
-            content: Some(Content::Set(schema::TermSet {
+        Term::Set(s) => biscuit_proto::Term {
+            content: Some(Content::Set(biscuit_proto::TermSet {
                 set: s.iter().map(token_term_to_proto_id).collect(),
             })),
         },
-        Term::Null => schema::Term {
+        Term::Null => biscuit_proto::Term {
             content: Some(Content::Null(Empty {})),
         },
-        Term::Array(a) => schema::Term {
-            content: Some(Content::Array(schema::Array {
+        Term::Array(a) => biscuit_proto::Term {
+            content: Some(Content::Array(biscuit_proto::Array {
                 array: a.iter().map(token_term_to_proto_id).collect(),
             })),
         },
-        Term::Map(m) => schema::Term {
-            content: Some(Content::Map(schema::Map {
+        Term::Map(m) => biscuit_proto::Term {
+            content: Some(Content::Map(biscuit_proto::Map {
                 entries: m
                     .iter()
                     .map(|(key, term)| {
                         let key = match key {
-                            MapKey::Integer(i) => schema::MapKey {
-                                content: Some(schema::map_key::Content::Integer(*i)),
+                            MapKey::Integer(i) => biscuit_proto::MapKey {
+                                content: Some(biscuit_proto::map_key::Content::Integer(*i)),
                             },
-                            MapKey::Str(s) => schema::MapKey {
-                                content: Some(schema::map_key::Content::String(*s)),
+                            MapKey::Str(s) => biscuit_proto::MapKey {
+                                content: Some(biscuit_proto::map_key::Content::String(*s)),
                             },
                         };
-                        schema::MapEntry {
+                        biscuit_proto::MapEntry {
                             key,
                             value: token_term_to_proto_id(term),
                         }
@@ -534,8 +536,8 @@ pub fn token_term_to_proto_id(input: &Term) -> schema::Term {
     }
 }
 
-pub fn proto_id_to_token_term(input: &schema::Term) -> Result<Term, error::Format> {
-    use schema::term::Content;
+pub fn proto_id_to_token_term(input: &biscuit_proto::Term) -> Result<Term, error::Format> {
+    use biscuit_proto::term::Content;
 
     match &input.content {
         None => Err(error::Format::DeserializationError(
@@ -609,8 +611,8 @@ pub fn proto_id_to_token_term(input: &schema::Term) -> Result<Term, error::Forma
 
             for MapEntry { key, value } in m.entries.iter() {
                 let key = match key.content {
-                    Some(schema::map_key::Content::Integer(i)) => MapKey::Integer(i),
-                    Some(schema::map_key::Content::String(s)) => MapKey::Str(s),
+                    Some(biscuit_proto::map_key::Content::Integer(i)) => MapKey::Integer(i),
+                    Some(biscuit_proto::map_key::Content::String(s)) => MapKey::Str(s),
                     None => {
                         return Err(error::Format::DeserializationError(
                             "deserialization error: ID content enum is empty".to_string(),
@@ -626,13 +628,13 @@ pub fn proto_id_to_token_term(input: &schema::Term) -> Result<Term, error::Forma
     }
 }
 
-fn token_op_to_proto_op(op: &Op) -> schema::Op {
+fn token_op_to_proto_op(op: &Op) -> biscuit_proto::Op {
     let content = match op {
-        Op::Value(i) => schema::op::Content::Value(token_term_to_proto_id(i)),
+        Op::Value(i) => biscuit_proto::op::Content::Value(token_term_to_proto_id(i)),
         Op::Unary(u) => {
-            use schema::op_unary::Kind;
+            use biscuit_proto::op_unary::Kind;
 
-            schema::op::Content::Unary(schema::OpUnary {
+            biscuit_proto::op::Content::Unary(biscuit_proto::OpUnary {
                 kind: match u {
                     Unary::Negate => Kind::Negate,
                     Unary::Parens => Kind::Parens,
@@ -647,9 +649,9 @@ fn token_op_to_proto_op(op: &Op) -> schema::Op {
             })
         }
         Op::Binary(b) => {
-            use schema::op_binary::Kind;
+            use biscuit_proto::op_binary::Kind;
 
-            schema::op::Content::Binary(schema::OpBinary {
+            biscuit_proto::op::Content::Binary(biscuit_proto::OpBinary {
                 kind: match b {
                     Binary::LessThan => Kind::LessThan,
                     Binary::GreaterThan => Kind::GreaterThan,
@@ -688,25 +690,25 @@ fn token_op_to_proto_op(op: &Op) -> schema::Op {
                 },
             })
         }
-        Op::Closure(params, ops) => schema::op::Content::Closure(schema::OpClosure {
+        Op::Closure(params, ops) => biscuit_proto::op::Content::Closure(biscuit_proto::OpClosure {
             params: params.clone(),
             ops: ops.iter().map(token_op_to_proto_op).collect(),
         }),
     };
 
-    schema::Op {
+    biscuit_proto::Op {
         content: Some(content),
     }
 }
 
-pub fn token_expression_to_proto_expression(input: &Expression) -> schema::Expression {
-    schema::Expression {
+pub fn token_expression_to_proto_expression(input: &Expression) -> biscuit_proto::Expression {
+    biscuit_proto::Expression {
         ops: input.ops.iter().map(token_op_to_proto_op).collect(),
     }
 }
 
-fn proto_op_to_token_op(op: &schema::Op) -> Result<Op, error::Format> {
-    use schema::{op, op_binary, op_unary};
+fn proto_op_to_token_op(op: &biscuit_proto::Op) -> Result<Op, error::Format> {
+    use biscuit_proto::{op, op_binary, op_unary};
     Ok(match op.content.as_ref() {
         Some(op::Content::Value(id)) => Op::Value(proto_id_to_token_term(id)?),
         Some(op::Content::Unary(u)) => {
@@ -805,7 +807,7 @@ fn proto_op_to_token_op(op: &schema::Op) -> Result<Op, error::Format> {
 }
 
 pub fn proto_expression_to_token_expression(
-    input: &schema::Expression,
+    input: &biscuit_proto::Expression,
 ) -> Result<Expression, error::Format> {
     let mut ops = Vec::new();
 
@@ -816,28 +818,29 @@ pub fn proto_expression_to_token_expression(
     Ok(Expression { ops })
 }
 
-pub fn token_scope_to_proto_scope(input: &Scope) -> schema::Scope {
-    schema::Scope {
+pub fn token_scope_to_proto_scope(input: &Scope) -> biscuit_proto::Scope {
+    use biscuit_proto::scope;
+    biscuit_proto::Scope {
         content: Some(match input {
             crate::token::Scope::Authority => {
-                schema::scope::Content::ScopeType(schema::scope::ScopeType::Authority as i32)
+                scope::Content::ScopeType(scope::ScopeType::Authority as i32)
             }
             crate::token::Scope::Previous => {
-                schema::scope::Content::ScopeType(schema::scope::ScopeType::Previous as i32)
+                scope::Content::ScopeType(scope::ScopeType::Previous as i32)
             }
-            crate::token::Scope::PublicKey(i) => schema::scope::Content::PublicKey(*i as i64),
+            crate::token::Scope::PublicKey(i) => scope::Content::PublicKey(*i as i64),
         }),
     }
 }
 
-pub fn proto_scope_to_token_scope(input: &schema::Scope) -> Result<Scope, error::Format> {
+pub fn proto_scope_to_token_scope(input: &biscuit_proto::Scope) -> Result<Scope, error::Format> {
     //FIXME: check that the referenced public key index exists in the public key table
     match input.content.as_ref() {
         Some(content) => match content {
-            schema::scope::Content::ScopeType(i) => {
-                if *i == schema::scope::ScopeType::Authority as i32 {
+            biscuit_proto::scope::Content::ScopeType(i) => {
+                if *i == biscuit_proto::scope::ScopeType::Authority as i32 {
                     Ok(Scope::Authority)
-                } else if *i == schema::scope::ScopeType::Previous as i32 {
+                } else if *i == biscuit_proto::scope::ScopeType::Previous as i32 {
                     Ok(Scope::Previous)
                 } else {
                     Err(error::Format::DeserializationError(format!(
@@ -845,7 +848,7 @@ pub fn proto_scope_to_token_scope(input: &schema::Scope) -> Result<Scope, error:
                     )))
                 }
             }
-            schema::scope::Content::PublicKey(i) => Ok(Scope::PublicKey(*i as u64)),
+            biscuit_proto::scope::Content::PublicKey(i) => Ok(Scope::PublicKey(*i as u64)),
         },
         None => Err(error::Format::DeserializationError(
             "deserialization error: expected `content` field in Scope".to_string(),

@@ -11,7 +11,7 @@ use crate::{
     crypto::generate_external_signature_payload_v1,
     datalog::SymbolTable,
     error,
-    format::{convert::token_block_to_proto_block, schema, SerializedBiscuit},
+    format::{convert::token_block_to_proto_block, SerializedBiscuit},
     KeyPair, PrivateKey,
 };
 
@@ -44,7 +44,7 @@ impl ThirdPartyRequest {
     pub fn serialize(&self) -> Result<Vec<u8>, error::Token> {
         let previous_signature = self.previous_signature.clone();
 
-        let request = schema::ThirdPartyBlockRequest {
+        let request = biscuit_proto::ThirdPartyBlockRequest {
             legacy_previous_key: None,
             legacy_public_keys: Vec::new(),
             previous_signature,
@@ -63,7 +63,7 @@ impl ThirdPartyRequest {
     }
 
     pub fn deserialize(slice: &[u8]) -> Result<Self, error::Token> {
-        let data = schema::ThirdPartyBlockRequest::decode(slice).map_err(|e| {
+        let data = biscuit_proto::ThirdPartyBlockRequest::decode(slice).map_err(|e| {
             error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
 
@@ -119,9 +119,9 @@ impl ThirdPartyRequest {
         let signature = keypair.sign(&signed_payload)?;
 
         let public_key = keypair.public();
-        let content = schema::ThirdPartyBlockContents {
+        let content = biscuit_proto::ThirdPartyBlockContents {
             payload,
-            external_signature: schema::ExternalSignature {
+            external_signature: biscuit_proto::ExternalSignature {
                 signature: signature.to_bytes().to_vec(),
                 public_key: public_key.to_proto(),
             },
@@ -136,7 +136,7 @@ impl ThirdPartyRequest {
 /// this must be integrated with the token that created the [`ThirdPartyRequest`]
 /// using [`Biscuit::append_third_party`](crate::Biscuit::append_third_party)
 #[derive(Clone, Debug)]
-pub struct ThirdPartyBlock(pub(crate) schema::ThirdPartyBlockContents);
+pub struct ThirdPartyBlock(pub(crate) biscuit_proto::ThirdPartyBlockContents);
 
 impl ThirdPartyBlock {
     pub fn serialize(&self) -> Result<Vec<u8>, error::Token> {

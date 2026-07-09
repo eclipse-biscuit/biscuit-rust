@@ -4,7 +4,6 @@ version = "6.0.0"
 description = "an authorization token with decentralized verification and offline attenuation"
 authors = ["Geoffroy Couprie <contact@geoffroycouprie.com>"]
 edition = "2018"
-build = "build.rs"
 license = "Apache-2.0"
 documentation = "https://docs.rs/biscuit-auth"
 homepage = "https://github.com/biscuit-auth/biscuit"
@@ -29,7 +28,7 @@ pem = ["ed25519-dalek/pem", "ed25519-dalek/pkcs8"]
 rand_core = "^0.6"
 sha2 = "^0.9"
 prost = "0.10"
-prost-types = "0.10"
+biscuit-proto = { version = "0.1.0", path = "../biscuit-proto" }
 regex = { version = "1.5", default-features = false, features = ["std"] }
 nom = { version = "7", default-features = false, features = ["std"] }
 hex = "0.4"
@@ -59,13 +58,9 @@ bencher = "0.1.5"
 rand = "0.8"
 chrono = { version = "0.4.26", features = ["serde", "clock"] }
 colored-diff = "0.2.3"
-prost-build = "0.10"
 serde = { version = "1.0.130", features = ["derive"] }
 serde_json = "1.0.67"
 codspeed-bencher-compat = "2.6.0"
-
-#[build-dependencies]
-#prost-build = "0.10"
 
 [[example]]
 name = "testcases"

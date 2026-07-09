@@ -2,6 +2,7 @@
  * Copyright (c) 2019 Geoffroy Couprie <contact@geoffroycouprie.com> and Contributors to the Eclipse Foundation.
  * SPDX-License-Identifier: Apache-2.0
  */
+use biscuit_proto::GeneratedFacts;
 use prost::Message;
 use std::{collections::HashMap, time::Duration};
 
@@ -9,21 +10,20 @@ use crate::{
     builder::{load_and_translate_block, BlockBuilder, Convert, Policy},
     datalog::{Origin, RunLimits, TrustedOrigins},
     error,
-    format::{
-        convert::{
-            policy_to_proto_policy, proto_fact_to_token_fact, proto_policy_to_policy,
-            proto_snapshot_block_to_token_block, token_block_to_proto_snapshot_block,
-            token_fact_to_proto_fact,
-        },
-        schema::{self, GeneratedFacts},
+    format::convert::{
+        policy_to_proto_policy, proto_fact_to_token_fact, proto_policy_to_policy,
+        proto_snapshot_block_to_token_block, token_block_to_proto_snapshot_block,
+        token_fact_to_proto_fact,
     },
     token::{default_symbol_table, MAX_SCHEMA_VERSION, MIN_SCHEMA_VERSION},
     PublicKey,
 };
 
 impl super::Authorizer {
-    pub fn from_snapshot(input: schema::AuthorizerSnapshot) -> Result<Self, error::Token> {
-        let schema::AuthorizerSnapshot {
+    pub(crate) fn from_snapshot(
+        input: biscuit_proto::AuthorizerSnapshot,
+    ) -> Result<Self, error::Token> {
+        let biscuit_proto::AuthorizerSnapshot {
             limits,
             execution_time,
             world,
@@ -173,7 +173,7 @@ impl super::Authorizer {
     }
 
     pub fn from_raw_snapshot(input: &[u8]) -> Result<Self, error::Token> {
-        let snapshot = schema::AuthorizerSnapshot::decode(input).map_err(|e| {
+        let snapshot = biscuit_proto::AuthorizerSnapshot::decode(input).map_err(|e| {
             error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
         Self::from_snapshot(snapshot)
@@ -184,7 +184,7 @@ impl super::Authorizer {
         Self::from_raw_snapshot(&bytes)
     }
 
-    pub fn snapshot(&self) -> Result<schema::AuthorizerSnapshot, error::Format> {
+    pub(crate) fn snapshot(&self) -> Result<biscuit_proto::AuthorizerSnapshot, error::Format> {
         let mut symbols = default_symbol_table();
 
         let authorizer_policies = self
@@ -232,7 +232,7 @@ impl super::Authorizer {
             })
             .collect::<Result<Vec<GeneratedFacts>, error::Format>>()?;
 
-        let world = schema::AuthorizerWorld {
+        let world = biscuit_proto::AuthorizerWorld {
             version: Some(MAX_SCHEMA_VERSION),
             symbols: symbols.strings(),
             public_keys: symbols
@@ -248,10 +248,10 @@ impl super::Authorizer {
             iterations: self.world.iterations,
         };
 
-        Ok(schema::AuthorizerSnapshot {
+        Ok(biscuit_proto::AuthorizerSnapshot {
             world,
             execution_time: self.execution_time.unwrap_or_default().as_nanos() as u64,
-            limits: schema::RunLimits {
+            limits: biscuit_proto::RunLimits {
                 max_facts: self.limits.max_facts,
                 max_iterations: self.limits.max_iterations,
                 max_time: self.limits.max_time.as_nanos() as u64,
@@ -274,18 +274,20 @@ impl super::Authorizer {
     }
 }
 
-pub(crate) fn authorizer_origin_to_proto_origin(origin: &Origin) -> Vec<schema::Origin> {
+pub(crate) fn authorizer_origin_to_proto_origin(origin: &Origin) -> Vec<biscuit_proto::Origin> {
     origin
         .inner
         .iter()
         .map(|o| {
             if *o == usize::MAX {
-                schema::Origin {
-                    content: Some(schema::origin::Content::Authorizer(schema::Empty {})),
+                biscuit_proto::Origin {
+                    content: Some(biscuit_proto::origin::Content::Authorizer(
+                        biscuit_proto::Empty {},
+                    )),
                 }
             } else {
-                schema::Origin {
-                    content: Some(schema::origin::Content::Origin(*o as u32)),
+                biscuit_proto::Origin {
+                    content: Some(biscuit_proto::origin::Content::Origin(*o as u32)),
                 }
             }
         })
@@ -293,16 +295,16 @@ pub(crate) fn authorizer_origin_to_proto_origin(origin: &Origin) -> Vec<schema::
 }
 
 pub(crate) fn proto_origin_to_authorizer_origin(
-    origins: &[schema::Origin],
+    origins: &[biscuit_proto::Origin],
 ) -> Result<Origin, error::Format> {
     let mut new_origin = Origin::default();
 
     for origin in origins {
         match origin.content {
-            Some(schema::origin::Content::Authorizer(schema::Empty {})) => {
+            Some(biscuit_proto::origin::Content::Authorizer(biscuit_proto::Empty {})) => {
                 new_origin.insert(usize::MAX)
             }
-            Some(schema::origin::Content::Origin(o)) => new_origin.insert(o as usize),
+            Some(biscuit_proto::origin::Content::Origin(o)) => new_origin.insert(o as usize),
             _ => {
                 return Err(error::Format::DeserializationError(
                     "invalid origin".to_string(),

@@ -12,7 +12,6 @@
 //! The implementation is based on [ed25519_dalek](https://github.com/dalek-cryptography/ed25519-dalek).
 #![allow(non_snake_case)]
 use crate::builder::Algorithm;
-use crate::format::schema;
 use crate::format::ThirdPartyVerificationMode;
 
 use super::error;
@@ -60,13 +59,13 @@ impl KeyPair {
     /// deserializes from a byte array
     pub fn from_bytes(
         bytes: &[u8],
-        algorithm: schema::public_key::Algorithm,
+        algorithm: biscuit_proto::public_key::Algorithm,
     ) -> Result<Self, error::Format> {
         match algorithm {
-            schema::public_key::Algorithm::Ed25519 => {
+            biscuit_proto::public_key::Algorithm::Ed25519 => {
                 Ok(KeyPair::Ed25519(ed25519::KeyPair::from_bytes(bytes)?))
             }
-            schema::public_key::Algorithm::Secp256r1 => {
+            biscuit_proto::public_key::Algorithm::Secp256r1 => {
                 Ok(KeyPair::P256(p256::KeyPair::from_bytes(bytes)?))
             }
         }
@@ -145,10 +144,10 @@ impl KeyPair {
         }
     }
 
-    pub fn algorithm(&self) -> crate::format::schema::public_key::Algorithm {
+    pub fn algorithm(&self) -> Algorithm {
         match self {
-            KeyPair::Ed25519(_) => crate::format::schema::public_key::Algorithm::Ed25519,
-            KeyPair::P256(_) => crate::format::schema::public_key::Algorithm::Secp256r1,
+            KeyPair::Ed25519(_) => Algorithm::Ed25519,
+            KeyPair::P256(_) => Algorithm::Secp256r1,
         }
     }
 }
@@ -199,8 +198,8 @@ impl PrivateKey {
     /// serializes to an hex-encoded string, prefixed with the key algorithm
     pub fn to_prefixed_string(&self) -> String {
         let algorithm = match self.algorithm() {
-            schema::public_key::Algorithm::Ed25519 => "ed25519-private",
-            schema::public_key::Algorithm::Secp256r1 => "secp256r1-private",
+            Algorithm::Ed25519 => "ed25519-private",
+            Algorithm::Secp256r1 => "secp256r1-private",
         };
         format!("{algorithm}/{}", self.to_bytes_hex())
     }
@@ -272,10 +271,10 @@ impl PrivateKey {
         }
     }
 
-    pub fn algorithm(&self) -> crate::format::schema::public_key::Algorithm {
+    pub fn algorithm(&self) -> Algorithm {
         match self {
-            PrivateKey::Ed25519(_) => crate::format::schema::public_key::Algorithm::Ed25519,
-            PrivateKey::P256(_) => crate::format::schema::public_key::Algorithm::Secp256r1,
+            PrivateKey::Ed25519(_) => Algorithm::Ed25519,
+            PrivateKey::P256(_) => Algorithm::Secp256r1,
         }
     }
 }
@@ -315,12 +314,12 @@ impl PublicKey {
         Self::from_bytes(&bytes, algorithm)
     }
 
-    pub fn from_proto(key: &schema::PublicKey) -> Result<Self, error::Format> {
-        if key.algorithm == schema::public_key::Algorithm::Ed25519 as i32 {
+    pub(crate) fn from_proto(key: &biscuit_proto::PublicKey) -> Result<Self, error::Format> {
+        if key.algorithm == biscuit_proto::public_key::Algorithm::Ed25519 as i32 {
             Ok(PublicKey::Ed25519(ed25519::PublicKey::from_bytes(
                 &key.key,
             )?))
-        } else if key.algorithm == schema::public_key::Algorithm::Secp256r1 as i32 {
+        } else if key.algorithm == biscuit_proto::public_key::Algorithm::Secp256r1 as i32 {
             Ok(PublicKey::P256(p256::PublicKey::from_bytes(&key.key)?))
         } else {
             Err(error::Format::DeserializationError(format!(
@@ -330,8 +329,8 @@ impl PublicKey {
         }
     }
 
-    pub fn to_proto(&self) -> schema::PublicKey {
-        schema::PublicKey {
+    pub(crate) fn to_proto(&self) -> biscuit_proto::PublicKey {
+        biscuit_proto::PublicKey {
             algorithm: self.algorithm() as i32,
             key: self.to_bytes(),
         }
@@ -393,10 +392,10 @@ impl PublicKey {
         }
     }
 
-    pub fn algorithm(&self) -> crate::format::schema::public_key::Algorithm {
+    pub fn algorithm(&self) -> Algorithm {
         match self {
-            PublicKey::Ed25519(_) => crate::format::schema::public_key::Algorithm::Ed25519,
-            PublicKey::P256(_) => crate::format::schema::public_key::Algorithm::Secp256r1,
+            PublicKey::Ed25519(_) => Algorithm::Ed25519,
+            PublicKey::P256(_) => Algorithm::Secp256r1,
         }
     }
 
