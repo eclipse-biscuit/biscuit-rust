@@ -6,6 +6,7 @@
 use super::builder::{AuthorizerBuilder, BlockBuilder, Check, Fact, Policy, PolicyKind, Rule};
 use super::{Biscuit, Block};
 use crate::builder::{CheckKind, Convert};
+use crate::crypto::SerializePrivateKey;
 use crate::datalog::{self, ExternFunc, Origin, RunLimits, TrustedOrigins};
 use crate::error;
 use crate::time::Instant;
@@ -56,7 +57,7 @@ impl Authorizer {
         }
     }
 
-    pub(crate) fn from_token(token: &Biscuit) -> Result<Self, error::Token> {
+    pub(crate) fn from_token<PK: SerializePrivateKey>(token: &Biscuit<PK>) -> Result<Self, error::Token> {
         AuthorizerBuilder::new().build(token)
     }
 
@@ -127,13 +128,13 @@ impl Authorizer {
     /// run a query over the authorizer's Datalog engine to gather data
     ///
     /// ```rust
-    /// # use biscuit_auth::KeyPair;
+    /// # use biscuit_auth::PrivateKey;
     /// # use biscuit_auth::Biscuit;
-    /// let keypair = KeyPair::new();
+    /// let private = PrivateKey::new();
     /// let biscuit = Biscuit::builder()
     ///     .fact("user(\"John Doe\", 42)")
     ///     .expect("parse error")
-    ///     .build(&keypair)
+    ///     .build(&private)
     ///     .unwrap();
     ///
     /// let mut authorizer = biscuit.authorizer().unwrap();
@@ -165,12 +166,12 @@ impl Authorizer {
     /// If there is more than one result, this function will throw an error.
     ///
     /// ```rust
-    /// # use biscuit_auth::KeyPair;
+    /// # use biscuit_auth::PrivateKey;
     /// # use biscuit_auth::Biscuit;
-    /// let keypair = KeyPair::new();
+    /// let private = PrivateKey::new();
     /// let builder = Biscuit::builder().fact("user(\"John Doe\", 42)").unwrap();
     ///
-    /// let biscuit = builder.build(&keypair).unwrap();
+    /// let biscuit = builder.build(&private).unwrap();
     ///
     /// let mut authorizer = biscuit.authorizer().unwrap();
     /// let res: (String, i64) = authorizer.query_exactly_one("data($name, $id) <- user($name, $id)").unwrap();
@@ -252,13 +253,13 @@ impl Authorizer {
     /// this has access to the facts generated when evaluating all the blocks
     ///
     /// ```rust
-    /// # use biscuit_auth::KeyPair;
+    /// # use biscuit_auth::PrivateKey;
     /// # use biscuit_auth::Biscuit;
-    /// let keypair = KeyPair::new();
+    /// let private = PrivateKey::new();
     /// let biscuit = Biscuit::builder()
     ///     .fact("user(\"John Doe\", 42)")
     ///     .expect("parse error")
-    ///     .build(&keypair)
+    ///     .build(&private)
     ///     .unwrap();
     ///
     /// let mut authorizer = biscuit.authorizer().unwrap();
@@ -917,10 +918,10 @@ mod tests {
     use token::builder::{self, load_and_translate_block, var};
     use token::{public_keys::PublicKeys, DATALOG_3_1};
 
-    use crate::PublicKey;
+    use crate::token::public_keys::PublicKey as InertPublicKey;
     use crate::{
         builder::{BiscuitBuilder, BlockBuilder},
-        KeyPair,
+        PrivateKey,
     };
 
     use super::*;
@@ -950,12 +951,11 @@ mod tests {
         let mut scope_params = HashMap::new();
         scope_params.insert(
             "pk".to_string(),
-            PublicKey::from_bytes(
-                &hex::decode("6e9e6d5a75cf0c0e87ec1256b4dfed0ca3ba452912d213fcc70f8516583db9db")
-                    .unwrap(),
+            InertPublicKey::from_bytes(
                 crate::builder::Algorithm::Ed25519,
-            )
-            .unwrap(),
+                hex::decode("6e9e6d5a75cf0c0e87ec1256b4dfed0ca3ba452912d213fcc70f8516583db9db")
+                    .unwrap(),
+            ),
         );
         let _authorizer = AuthorizerBuilder::new()
             .code_with_params(
@@ -1052,12 +1052,12 @@ mod tests {
     #[test]
     fn query_authorizer_from_token_tuple() {
         use crate::Biscuit;
-        use crate::KeyPair;
-        let keypair = KeyPair::new();
+        use crate::PrivateKey;
+        let private = PrivateKey::new();
         let biscuit = Biscuit::builder()
             .fact("user(\"John Doe\", 42)")
             .unwrap()
-            .build(&keypair)
+            .build(&private)
             .unwrap();
 
         let mut authorizer = biscuit.authorizer().unwrap();
@@ -1073,12 +1073,12 @@ mod tests {
     #[test]
     fn query_authorizer_from_token_string() {
         use crate::Biscuit;
-        use crate::KeyPair;
-        let keypair = KeyPair::new();
+        use crate::PrivateKey;
+        let private = PrivateKey::new();
         let biscuit = Biscuit::builder()
             .fact("user(\"John Doe\")")
             .unwrap()
-            .build(&keypair)
+            .build(&private)
             .unwrap();
 
         let mut authorizer = biscuit.authorizer().unwrap();
@@ -1091,11 +1091,11 @@ mod tests {
     #[test]
     fn query_exactly_one_authorizer_from_token_string() {
         use crate::Biscuit;
-        use crate::KeyPair;
-        let keypair = KeyPair::new();
+        use crate::PrivateKey;
+        let private = PrivateKey::new();
         let builder = Biscuit::builder().fact("user(\"John Doe\")").unwrap();
 
-        let biscuit = builder.build(&keypair).unwrap();
+        let biscuit = builder.build(&private).unwrap();
 
         let mut authorizer = biscuit.authorizer().unwrap();
         let res: (String,) = authorizer
@@ -1107,11 +1107,11 @@ mod tests {
     #[test]
     fn query_exactly_one_no_results() {
         use crate::Biscuit;
-        use crate::KeyPair;
-        let keypair = KeyPair::new();
+        use crate::PrivateKey;
+        let private = PrivateKey::new();
         let builder = Biscuit::builder();
 
-        let biscuit = builder.build(&keypair).unwrap();
+        let biscuit = builder.build(&private).unwrap();
 
         let mut authorizer = biscuit.authorizer().unwrap();
         let res: Result<(String,), error::Token> =
@@ -1125,15 +1125,15 @@ mod tests {
     #[test]
     fn query_exactly_one_too_many_results() {
         use crate::Biscuit;
-        use crate::KeyPair;
-        let keypair = KeyPair::new();
+        use crate::PrivateKey;
+        let private = PrivateKey::new();
         let builder = Biscuit::builder()
             .fact("user(\"John Doe\")")
             .unwrap()
             .fact("user(\"Jane Doe\")")
             .unwrap();
 
-        let biscuit = builder.build(&keypair).unwrap();
+        let biscuit = builder.build(&private).unwrap();
 
         let mut authorizer = biscuit.authorizer().unwrap();
         let res: Result<(String,), error::Token> =
@@ -1146,11 +1146,11 @@ mod tests {
 
     #[test]
     fn authorizer_with_scopes() {
-        let root = KeyPair::new();
-        let external = KeyPair::new();
+        let root = PrivateKey::new();
+        let external = PrivateKey::new();
 
         let mut scope_params = HashMap::new();
-        scope_params.insert("external_pub".to_string(), external.public());
+        scope_params.insert("external_pub".to_string(), InertPublicKey::from(&external.public()));
 
         let biscuit1 = Biscuit::builder()
             .code_with_params(
@@ -1173,17 +1173,17 @@ mod tests {
             "#,
             )
             .unwrap();
-        let res = req.create_block(&external.private(), builder).unwrap();
+        let res = req.create_block(&external, builder).unwrap();
         let biscuit2 = biscuit1.append_third_party(external.public(), res).unwrap();
         let serialized = biscuit2.to_vec().unwrap();
         let biscuit2 = Biscuit::from(serialized, root.public()).unwrap();
 
         let builder = AuthorizerBuilder::new();
-        let external2 = KeyPair::new();
+        let external2 = PrivateKey::new();
 
         let mut scope_params = HashMap::new();
-        scope_params.insert("external".to_string(), external.public());
-        scope_params.insert("external2".to_string(), external2.public());
+        scope_params.insert("external".to_string(), InertPublicKey::from(&external.public()));
+        scope_params.insert("external2".to_string(), InertPublicKey::from(&external2.public()));
 
         let mut authorizer = builder
             .code_with_params(
@@ -1258,7 +1258,7 @@ mod tests {
                     let mut r: Rule = "right($right) <- right($right) trusting {external}"
                         .try_into()
                         .unwrap();
-                    r.set_scope("external", external.public()).unwrap();
+                    r.set_scope("external", InertPublicKey::from(&external.public())).unwrap();
                     r
                 },
                 AuthorizerLimits {
@@ -1288,7 +1288,7 @@ mod tests {
                     let mut r: Rule = "group($group) <- group($group) trusting {external}"
                         .try_into()
                         .unwrap();
-                    r.set_scope("external", external.public()).unwrap();
+                    r.set_scope("external", InertPublicKey::from(&external.public())).unwrap();
                     r
                 },
                 AuthorizerLimits {
@@ -1327,7 +1327,7 @@ mod tests {
 
     #[test]
     fn authorizer_display_before_and_after_authorization() {
-        let root = KeyPair::new();
+        let root = PrivateKey::new();
 
         let token = BiscuitBuilder::new()
             .code(
@@ -1403,7 +1403,7 @@ allow if true;
 
     #[test]
     fn empty_authorizer_display() {
-        let authorizer = Authorizer::new();
+        let authorizer: Authorizer = Authorizer::new();
         assert_eq!("", authorizer.to_string())
     }
 
@@ -1418,7 +1418,7 @@ allow if true;
             &[datalog::var(&mut syms, "unbound")],
             &[datalog::pred(pred_name, &[datalog::var(&mut syms, "any")])],
         );
-        let mut block = Block {
+        let mut block: Block = Block {
             symbols: syms.clone(),
             facts: vec![],
             rules: vec![rule],

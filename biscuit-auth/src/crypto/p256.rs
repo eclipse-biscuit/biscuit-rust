@@ -3,31 +3,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #![allow(non_snake_case)]
+use std::hash::Hash;
+
+use p256::ecdsa::{signature::Signer, signature::Verifier, SigningKey, VerifyingKey};
+use p256::elliptic_curve::rand_core::{CryptoRng, RngCore};
+use p256::NistP256;
+
 use crate::error::Format;
 
 use super::error;
 use super::Signature;
 
-use p256::ecdsa::{signature::Signer, signature::Verifier, SigningKey, VerifyingKey};
-use p256::elliptic_curve::rand_core::{CryptoRng, RngCore};
-use p256::NistP256;
-use std::hash::Hash;
-
-/// pair of cryptographic keys used to sign a token's block
+/// the private part of an secp256r1 keypair
 #[derive(Debug, PartialEq)]
-pub struct KeyPair {
-    kp: SigningKey,
-}
+pub struct PrivateKey(SigningKey);
 
-impl KeyPair {
+impl PrivateKey {
     pub fn new_with_rng<T: RngCore + CryptoRng>(rng: &mut T) -> Self {
         let kp = SigningKey::random(rng);
 
-        KeyPair { kp }
-    }
-
-    pub fn from(key: &PrivateKey) -> Self {
-        KeyPair { kp: key.0.clone() }
+        Self(kp)
     }
 
     /// deserializes from a big endian byte array
@@ -41,12 +36,12 @@ impl KeyPair {
             .map_err(|s| s.to_string())
             .map_err(Format::InvalidKey)?;
 
-        Ok(KeyPair { kp })
+        Ok(Self(kp))
     }
 
     pub fn sign(&self, data: &[u8]) -> Result<Signature, error::Format> {
         let signature: ecdsa::Signature<NistP256> = self
-            .kp
+            .0
             .try_sign(data)
             .map_err(|s| s.to_string())
             .map_err(error::Signature::InvalidSignatureGeneration)
@@ -54,12 +49,8 @@ impl KeyPair {
         Ok(Signature(signature.to_der().as_bytes().to_owned()))
     }
 
-    pub fn private(&self) -> PrivateKey {
-        PrivateKey(self.kp.clone())
-    }
-
     pub fn public(&self) -> PublicKey {
-        PublicKey(*self.kp.verifying_key())
+        PublicKey(*self.0.verifying_key())
     }
 
     #[cfg(feature = "pem")]
@@ -68,7 +59,7 @@ impl KeyPair {
 
         let kp = SigningKey::from_pkcs8_der(bytes)
             .map_err(|e| error::Format::InvalidKey(e.to_string()))?;
-        Ok(KeyPair { kp })
+        Ok(Self(kp))
     }
 
     #[cfg(feature = "pem")]
@@ -77,14 +68,14 @@ impl KeyPair {
 
         let kp = SigningKey::from_pkcs8_pem(str)
             .map_err(|e| error::Format::InvalidKey(e.to_string()))?;
-        Ok(KeyPair { kp })
+        Ok(Self(kp))
     }
 
     #[cfg(feature = "pem")]
     pub fn to_private_key_der(&self) -> Result<zeroize::Zeroizing<Vec<u8>>, error::Format> {
         use p256::pkcs8::EncodePrivateKey;
         let kp = self
-            .kp
+            .0
             .to_pkcs8_der()
             .map_err(|e| error::Format::PKCS8(e.to_string()))?;
         Ok(kp.to_bytes())
@@ -95,18 +86,12 @@ impl KeyPair {
         use p256::pkcs8::EncodePrivateKey;
         use p256::pkcs8::LineEnding;
         let kp = self
-            .kp
+            .0
             .to_pkcs8_pem(LineEnding::LF)
             .map_err(|e| error::Format::PKCS8(e.to_string()))?;
         Ok(kp)
     }
-}
 
-/// the private part of a [KeyPair]
-#[derive(Debug, PartialEq)]
-pub struct PrivateKey(SigningKey);
-
-impl PrivateKey {
     /// serializes to a big endian byte array
     pub fn to_bytes(&self) -> zeroize::Zeroizing<Vec<u8>> {
         let field_bytes = self.0.to_bytes();
@@ -116,19 +101,6 @@ impl PrivateKey {
     /// serializes to an hex-encoded string
     pub fn to_bytes_hex(&self) -> String {
         hex::encode(self.to_bytes())
-    }
-
-    /// deserializes from a big endian byte array
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, error::Format> {
-        // the version of generic-array used by p256 panics if the input length
-        // is incorrect (including when using `.try_into()`)
-        if bytes.len() != 32 {
-            return Err(Format::InvalidKeySize(bytes.len()));
-        }
-        SigningKey::from_bytes(bytes.into())
-            .map(PrivateKey)
-            .map_err(|s| s.to_string())
-            .map_err(Format::InvalidKey)
     }
 
     /// deserializes from an hex-encoded string
@@ -175,20 +147,15 @@ impl PrivateKey {
             .map_err(|e| error::Format::PKCS8(e.to_string()))?;
         Ok(kp)
     }
-
-    /// returns the matching public key
-    pub fn public(&self) -> PublicKey {
-        PublicKey(*self.0.verifying_key())
-    }
 }
 
-impl std::clone::Clone for PrivateKey {
+impl Clone for PrivateKey {
     fn clone(&self) -> Self {
         PrivateKey::from_bytes(&self.to_bytes()).unwrap()
     }
 }
 
-/// the public part of a [KeyPair]
+/// the public part of an secp256r1 keypair
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PublicKey(VerifyingKey);
 
@@ -299,9 +266,8 @@ mod tests {
 
     #[test]
     fn serialization() {
-        let kp = KeyPair::new_with_rng(&mut OsRng);
-        let private = kp.private();
-        let public = kp.public();
+        let private = PrivateKey::new_with_rng(&mut OsRng);
+        let public = private.public();
         let private_hex = private.to_bytes_hex();
         let public_hex = public.to_bytes_hex();
 
@@ -309,7 +275,7 @@ mod tests {
         println!("public: {public_hex}");
 
         let message = "hello world";
-        let signature = kp.sign(message.as_bytes()).unwrap();
+        let signature = private.sign(message.as_bytes()).unwrap();
         println!("signature: {}", hex::encode(&signature.0));
 
         let deserialized_priv = PrivateKey::from_bytes_hex(&private_hex).unwrap();
@@ -328,10 +294,6 @@ mod tests {
     fn invalid_sizes() {
         assert_eq!(
             PrivateKey::from_bytes(&[0xaa]).unwrap_err(),
-            error::Format::InvalidKeySize(1)
-        );
-        assert_eq!(
-            KeyPair::from_bytes(&[0xaa]).unwrap_err(),
             error::Format::InvalidKeySize(1)
         );
         PublicKey::from_bytes(&[0xaa]).unwrap_err();

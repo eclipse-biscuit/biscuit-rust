@@ -5,11 +5,11 @@
 //! Procedural macros to create tokens and authorizers
 //!
 //! ```rust
-//! use biscuit_auth::KeyPair;
+//! use biscuit_auth::PrivateKey;
 //! use biscuit_auth::macros::{authorizer, biscuit, block};
 //! use std::time::{Duration, SystemTime};
 //!
-//! let root = KeyPair::new();
+//! let root = PrivateKey::new();
 //!
 //! let user_id = "1234";
 //! let biscuit = biscuit!(
@@ -99,11 +99,11 @@ pub use biscuit_quote::authorizer_merge;
 /// block building.
 ///
 /// ```rust
-/// use biscuit_auth::{Biscuit, KeyPair};
+/// use biscuit_auth::{Biscuit, PrivateKey};
 /// use biscuit_auth::macros::biscuit;
 /// use std::time::{SystemTime, Duration};
 ///
-/// let root = KeyPair::new();
+/// let root = PrivateKey::new();
 /// let biscuit = biscuit!(
 ///   r#"
 ///     user({user_id});
@@ -120,11 +120,11 @@ pub use biscuit_quote::biscuit;
 /// and replaced by manual block building.
 ///
 /// ```rust
-/// use biscuit_auth::{Biscuit, KeyPair};
+/// use biscuit_auth::{Biscuit, PrivateKey};
 /// use biscuit_auth::macros::{biscuit, biscuit_merge};
 /// use std::time::{SystemTime, Duration};
 ///
-/// let root = KeyPair::new();
+/// let root = PrivateKey::new();
 ///
 /// let mut b = biscuit!(
 ///   r#"

@@ -6,13 +6,14 @@ use std::cmp::max;
 
 use prost::Message;
 
+use crate::crypto::SerializePrivateKey;
 use crate::{
     builder::BlockBuilder,
     crypto::generate_external_signature_payload_v1,
     datalog::SymbolTable,
     error,
     format::{convert::token_block_to_proto_block, schema, SerializedBiscuit},
-    KeyPair, PrivateKey,
+    PrivateKey,
 };
 
 use super::THIRD_PARTY_SIGNATURE_VERSION;
@@ -24,8 +25,8 @@ pub struct ThirdPartyRequest {
 }
 
 impl ThirdPartyRequest {
-    pub(crate) fn from_container(
-        container: &SerializedBiscuit,
+    pub(crate) fn from_container<K: SerializePrivateKey>(
+        container: &SerializedBiscuit<K>,
     ) -> Result<ThirdPartyRequest, error::Token> {
         if container.proof.is_sealed() {
             return Err(error::Token::AppendOnSealed);
@@ -115,10 +116,9 @@ impl ThirdPartyRequest {
             THIRD_PARTY_SIGNATURE_VERSION,
         );
 
-        let keypair = KeyPair::from(private_key);
-        let signature = keypair.sign(&signed_payload)?;
+        let signature = private_key.sign(&signed_payload)?;
 
-        let public_key = keypair.public();
+        let public_key = private_key.public();
         let content = schema::ThirdPartyBlockContents {
             payload,
             external_signature: schema::ExternalSignature {
@@ -160,7 +160,7 @@ mod tests {
     #[test]
     fn third_party_request_roundtrip() {
         let mut rng: rand::rngs::StdRng = rand::SeedableRng::seed_from_u64(0);
-        let root = KeyPair::new_with_rng(crate::builder::Algorithm::Ed25519, &mut rng);
+        let root = PrivateKey::new_with_rng(crate::builder::Algorithm::Ed25519, &mut rng);
         let biscuit1 = crate::Biscuit::builder()
             .fact("right(\"file1\", \"read\")")
             .unwrap()

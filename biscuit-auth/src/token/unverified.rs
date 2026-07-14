@@ -2,12 +2,15 @@
  * Copyright (c) 2019 Geoffroy Couprie <contact@geoffroycouprie.com> and Contributors to the Eclipse Foundation.
  * SPDX-License-Identifier: Apache-2.0
  */
+use std::fmt::{self, Debug, Formatter};
+
 use prost::Message;
 
 use super::{default_symbol_table, Biscuit, Block};
+use crate::crypto::SerializePrivateKey;
 use crate::{
     builder::BlockBuilder,
-    crypto::{self, PublicKey, Signature},
+    crypto::{self, PrivateKey, PublicKey, Signature},
     datalog::SymbolTable,
     error,
     format::{
@@ -16,7 +19,7 @@ use crate::{
         SerializedBiscuit,
     },
     token::{ThirdPartyBlockContents, ThirdPartyRequest},
-    KeyPair, RootKeyProvider,
+    RootKeyProvider,
 };
 
 /// A token that was parsed without cryptographic signature verification
@@ -26,12 +29,27 @@ use crate::{
 ///
 /// It can be converted to a [Biscuit] using [UnverifiedBiscuit::verify],
 /// and then used for authorization
-#[derive(Clone, Debug)]
-pub struct UnverifiedBiscuit {
+#[derive(Clone)]
+pub struct UnverifiedBiscuit<K: SerializePrivateKey = PrivateKey> {
     pub(crate) authority: schema::Block,
     pub(crate) blocks: Vec<schema::Block>,
     pub(crate) symbols: SymbolTable,
-    container: SerializedBiscuit,
+    container: SerializedBiscuit<K>,
+}
+
+impl<K> Debug for UnverifiedBiscuit<K>
+where
+    K: SerializePrivateKey + Debug,
+    K::PublicKey: Debug,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("UnverifiedBiscuit")
+            .field("authority", &self.authority)
+            .field("blocks", &self.blocks)
+            .field("symbols", &self.symbols)
+            .field("container", &self.container)
+            .finish()
+    }
 }
 
 impl UnverifiedBiscuit {
@@ -86,7 +104,7 @@ impl UnverifiedBiscuit {
     /// checks the signature of the token and convert it to a [Biscuit] for authorization
     pub fn verify<KP>(self, key_provider: KP) -> Result<Biscuit, error::Format>
     where
-        KP: RootKeyProvider,
+        KP: RootKeyProvider<Key = PublicKey>,
     {
         let key = key_provider.choose(self.root_key_id())?;
         self.container.verify(&key)?;
@@ -102,12 +120,12 @@ impl UnverifiedBiscuit {
 
     /// adds a new block to the token
     ///
-    /// since the public key is integrated into the token, the keypair can be
-    /// discarded right after calling this function
+    /// since the public key is integrated into the token, the key can be discarded right after
+    /// calling this function
     pub fn append(&self, block_builder: BlockBuilder) -> Result<Self, error::Token> {
-        let keypair =
-            KeyPair::new_with_rng(super::builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
-        self.append_with_keypair(&keypair, block_builder)
+        let private =
+            PrivateKey::new_with_rng(super::builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
+        self.append_with_key(&private, block_builder)
     }
 
     /// serializes the token
@@ -151,11 +169,11 @@ impl UnverifiedBiscuit {
 
     /// adds a new block to the token
     ///
-    /// since the public key is integrated into the token, the keypair can be
-    /// discarded right after calling this function
-    pub fn append_with_keypair(
+    /// since the public key is integrated into the token, the key can be discarded right after
+    /// calling this function
+    pub fn append_with_key(
         &self,
-        keypair: &KeyPair,
+        key: &PrivateKey,
         block_builder: BlockBuilder,
     ) -> Result<Self, error::Token> {
         let block = block_builder.build(self.symbols.clone());
@@ -168,7 +186,7 @@ impl UnverifiedBiscuit {
         let mut blocks = self.blocks.clone();
         let mut symbols = self.symbols.clone();
 
-        let container = self.container.append(keypair, &block, None)?;
+        let container = self.container.append(key, &block, None)?;
 
         symbols.extend(&block.symbols)?;
         symbols.public_keys.extend(&block.public_keys)?;
@@ -259,7 +277,7 @@ impl UnverifiedBiscuit {
                     .authority
                     .external_signature
                     .as_ref()
-                    .map(|ex| ex.public_key),
+                    .map(|ex| &ex.public_key),
             )
             .map_err(error::Token::Format)?
         } else {
@@ -274,7 +292,7 @@ impl UnverifiedBiscuit {
                 self.container.blocks[index - 1]
                     .external_signature
                     .as_ref()
-                    .map(|ex| ex.public_key),
+                    .map(|ex| &ex.public_key),
             )
             .map_err(error::Token::Format)?
         };
@@ -300,15 +318,15 @@ impl UnverifiedBiscuit {
     }
 
     pub fn append_third_party(&self, slice: &[u8]) -> Result<Self, error::Token> {
-        let next_keypair =
-            KeyPair::new_with_rng(super::builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
-        self.append_third_party_with_keypair(slice, next_keypair)
+        let next_private_key =
+            PrivateKey::new_with_rng(super::builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
+        self.append_third_party_with_key(slice, next_private_key)
     }
 
-    pub fn append_third_party_with_keypair(
+    pub fn append_third_party_with_key(
         &self,
         slice: &[u8],
-        next_keypair: KeyPair,
+        next_key: PrivateKey,
     ) -> Result<Self, error::Token> {
         let ThirdPartyBlockContents {
             payload,
@@ -350,11 +368,10 @@ impl UnverifiedBiscuit {
 
         let container =
             self.container
-                .append_serialized(&next_keypair, payload, Some(external_signature))?;
+                .append_serialized(&next_key, payload, Some(external_signature))?;
 
-        let token_block = proto_block_to_token_block(&block, Some(external_key)).unwrap();
-        for key in &token_block.public_keys.keys {
-            symbols.public_keys.insert_fallible(key)?;
+        for key in &block.public_keys[..] {
+            symbols.public_keys.insert_proto_fallible(key)?;
         }
 
         blocks.push(block);
@@ -378,14 +395,14 @@ impl UnverifiedBiscuit {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BiscuitBuilder, BlockBuilder, KeyPair};
+    use crate::{BiscuitBuilder, BlockBuilder, PrivateKey};
 
     use super::UnverifiedBiscuit;
 
     #[test]
     fn consistent_with_biscuit() {
-        let root_key = KeyPair::new();
-        let external_key = KeyPair::new();
+        let root_key = PrivateKey::new();
+        let external_key = PrivateKey::new();
         let biscuit = BiscuitBuilder::new()
             .fact("test(true)")
             .unwrap()
@@ -396,7 +413,7 @@ mod tests {
         let req = biscuit.third_party_request().unwrap();
         let res = req
             .create_block(
-                &external_key.private(),
+                &external_key,
                 BlockBuilder::new().fact("third_party(true)").unwrap(),
             )
             .unwrap();

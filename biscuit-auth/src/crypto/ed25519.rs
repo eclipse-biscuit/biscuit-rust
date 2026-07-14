@@ -11,50 +11,33 @@
 //!
 //! The implementation is based on [ed25519_dalek](https://github.com/dalek-cryptography/ed25519-dalek).
 #![allow(non_snake_case)]
-use crate::error::Format;
+use std::convert::TryInto;
+use std::hash::Hash;
 
-use super::error;
-use super::Signature;
 #[cfg(feature = "pem")]
 use ed25519_dalek::pkcs8::DecodePrivateKey;
 use ed25519_dalek::Signer;
 use ed25519_dalek::*;
 use rand_core::{CryptoRng, RngCore};
-use std::{convert::TryInto, hash::Hash, ops::Drop};
-use zeroize::Zeroize;
 
-/// pair of cryptographic keys used to sign a token's block
+use crate::error::Format;
+
+use super::error;
+use super::Signature;
+
+/// the private part of an ed25519 key pair
 #[derive(Debug, PartialEq)]
-pub struct KeyPair {
-    pub(super) kp: ed25519_dalek::SigningKey,
-}
+pub struct PrivateKey(pub(crate) ed25519_dalek::SigningKey);
 
-impl KeyPair {
+impl PrivateKey {
     pub fn new_with_rng<T: RngCore + CryptoRng>(rng: &mut T) -> Self {
         let kp = ed25519_dalek::SigningKey::generate(rng);
-        KeyPair { kp }
-    }
-
-    pub fn from(key: &PrivateKey) -> Self {
-        KeyPair {
-            kp: ed25519_dalek::SigningKey::from_bytes(&key.0),
-        }
-    }
-
-    /// deserializes from a byte array
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, error::Format> {
-        let bytes: [u8; 32] = bytes
-            .try_into()
-            .map_err(|_| Format::InvalidKeySize(bytes.len()))?;
-
-        Ok(KeyPair {
-            kp: ed25519_dalek::SigningKey::from_bytes(&bytes),
-        })
+        Self(kp)
     }
 
     pub fn sign(&self, data: &[u8]) -> Result<Signature, error::Format> {
         Ok(Signature(
-            self.kp
+            self.0
                 .try_sign(data)
                 .map_err(|s| s.to_string())
                 .map_err(error::Signature::InvalidSignatureGeneration)
@@ -64,33 +47,25 @@ impl KeyPair {
         ))
     }
 
-    pub fn private(&self) -> PrivateKey {
-        PrivateKey(self.kp.to_bytes())
-    }
-
-    pub fn public(&self) -> PublicKey {
-        PublicKey(self.kp.verifying_key())
-    }
-
     #[cfg(feature = "pem")]
     pub fn from_private_key_der(bytes: &[u8]) -> Result<Self, error::Format> {
         let kp = SigningKey::from_pkcs8_der(bytes)
             .map_err(|e| error::Format::InvalidKey(e.to_string()))?;
-        Ok(KeyPair { kp })
+        Ok(Self(kp))
     }
 
     #[cfg(feature = "pem")]
     pub fn from_private_key_pem(str: &str) -> Result<Self, error::Format> {
         let kp = SigningKey::from_pkcs8_pem(str)
             .map_err(|e| error::Format::InvalidKey(e.to_string()))?;
-        Ok(KeyPair { kp })
+        Ok(Self(kp))
     }
 
     #[cfg(feature = "pem")]
     pub fn to_private_key_der(&self) -> Result<zeroize::Zeroizing<Vec<u8>>, error::Format> {
         use ed25519_dalek::pkcs8::EncodePrivateKey;
         let kp = self
-            .kp
+            .0
             .to_pkcs8_der()
             .map_err(|e| error::Format::PKCS8(e.to_string()))?;
         Ok(kp.to_bytes())
@@ -101,21 +76,15 @@ impl KeyPair {
         use ed25519_dalek::pkcs8::EncodePrivateKey;
         use p256::pkcs8::LineEnding;
         let kp = self
-            .kp
+            .0
             .to_pkcs8_pem(LineEnding::LF)
             .map_err(|e| error::Format::PKCS8(e.to_string()))?;
         Ok(kp)
     }
-}
 
-/// the private part of a [KeyPair]
-#[derive(Debug, PartialEq)]
-pub struct PrivateKey(pub(crate) ed25519_dalek::SecretKey);
-
-impl PrivateKey {
     /// serializes to a byte array
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_vec()
+        self.0.to_bytes().to_vec()
     }
 
     /// deserializes from a byte array
@@ -123,27 +92,27 @@ impl PrivateKey {
         let bytes: [u8; 32] = bytes
             .try_into()
             .map_err(|_| Format::InvalidKeySize(bytes.len()))?;
-        Ok(PrivateKey(bytes))
+        Ok(PrivateKey(SigningKey::from_bytes(&bytes)))
     }
 
     #[cfg(feature = "pem")]
     pub fn from_der(bytes: &[u8]) -> Result<Self, error::Format> {
         let kp = SigningKey::from_pkcs8_der(bytes)
             .map_err(|e| error::Format::InvalidKey(e.to_string()))?;
-        Ok(PrivateKey(kp.to_bytes()))
+        Ok(PrivateKey(kp))
     }
 
     #[cfg(feature = "pem")]
     pub fn from_pem(str: &str) -> Result<Self, error::Format> {
         let kp = SigningKey::from_pkcs8_pem(str)
             .map_err(|e| error::Format::InvalidKey(e.to_string()))?;
-        Ok(PrivateKey(kp.to_bytes()))
+        Ok(PrivateKey(kp))
     }
 
     #[cfg(feature = "pem")]
     pub fn to_der(&self) -> Result<zeroize::Zeroizing<Vec<u8>>, error::Format> {
         use ed25519_dalek::pkcs8::EncodePrivateKey;
-        let kp = ed25519_dalek::SigningKey::from_bytes(&self.0)
+        let kp = self.0
             .to_pkcs8_der()
             .map_err(|e| error::Format::PKCS8(e.to_string()))?;
         Ok(kp.to_bytes())
@@ -153,7 +122,7 @@ impl PrivateKey {
     pub fn to_pem(&self) -> Result<zeroize::Zeroizing<String>, error::Format> {
         use ed25519_dalek::pkcs8::EncodePrivateKey;
         use p256::pkcs8::LineEnding;
-        let kp = ed25519_dalek::SigningKey::from_bytes(&self.0)
+        let kp = self.0
             .to_pkcs8_pem(LineEnding::LF)
             .map_err(|e| error::Format::PKCS8(e.to_string()))?;
         Ok(kp)
@@ -161,23 +130,17 @@ impl PrivateKey {
 
     /// returns the matching public key
     pub fn public(&self) -> PublicKey {
-        PublicKey(SigningKey::from_bytes(&self.0).verifying_key())
+        PublicKey(self.0.verifying_key())
     }
 }
 
-impl std::clone::Clone for PrivateKey {
+impl Clone for PrivateKey {
     fn clone(&self) -> Self {
         PrivateKey::from_bytes(&self.to_bytes()).unwrap()
     }
 }
 
-impl Drop for PrivateKey {
-    fn drop(&mut self) {
-        self.0.zeroize();
-    }
-}
-
-/// the public part of a [KeyPair]
+/// the public part of an ed25519 keypair
 #[derive(Debug, Clone, Copy, Eq)]
 pub struct PublicKey(ed25519_dalek::VerifyingKey);
 

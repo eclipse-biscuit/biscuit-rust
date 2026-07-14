@@ -4,10 +4,11 @@
  */
 use super::{BlockBuilder, Check, Fact, Rule, Scope, Term};
 use crate::builder_ext::BuilderExt;
-use crate::crypto::PublicKey;
+use crate::crypto::SerializePrivateKey;
+use crate::token::public_keys::PublicKey;
 use crate::datalog::SymbolTable;
 use crate::token::default_symbol_table;
-use crate::{error, Biscuit, KeyPair};
+use crate::{error, Biscuit};
 use rand::{CryptoRng, RngCore};
 
 use std::fmt;
@@ -124,34 +125,34 @@ impl BiscuitBuilder {
         f
     }
 
-    pub fn build(self, root_key: &KeyPair) -> Result<Biscuit, error::Token> {
+    pub fn build<K: SerializePrivateKey>(self, root_key: &K) -> Result<Biscuit<K>, error::Token> {
         self.build_with_symbols(root_key, default_symbol_table())
     }
 
-    pub fn build_with_symbols(
+    pub fn build_with_symbols<K: SerializePrivateKey>(
         self,
-        root_key: &KeyPair,
+        root_key: &K,
         symbols: SymbolTable,
-    ) -> Result<Biscuit, error::Token> {
+    ) -> Result<Biscuit<K>, error::Token> {
         self.build_with_rng(root_key, symbols, &mut rand::rngs::OsRng)
     }
 
-    pub fn build_with_rng<R: RngCore + CryptoRng>(
+    pub fn build_with_rng<K: SerializePrivateKey, R: RngCore + CryptoRng>(
         self,
-        root: &KeyPair,
+        root: &K,
         symbols: SymbolTable,
         rng: &mut R,
-    ) -> Result<Biscuit, error::Token> {
+    ) -> Result<Biscuit<K>, error::Token> {
         let authority_block = self.inner.build(symbols.clone());
         Biscuit::new_with_rng(rng, self.root_key_id, root, symbols, authority_block)
     }
 
-    pub fn build_with_key_pair(
+    pub fn build_with_key_pair<K: SerializePrivateKey>(
         self,
-        root: &KeyPair,
+        root: &K,
         symbols: SymbolTable,
-        next: &KeyPair,
-    ) -> Result<Biscuit, error::Token> {
+        next: &K,
+    ) -> Result<Biscuit<K>, error::Token> {
         let authority_block = self.inner.build(symbols.clone());
         Biscuit::new_with_key_pair(self.root_key_id, root, next, symbols, authority_block)
     }

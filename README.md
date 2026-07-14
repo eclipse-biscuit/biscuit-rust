@@ -20,12 +20,12 @@ In this example we will see how we can create a token, add some checks, serializ
 ```rust
 extern crate biscuit_auth as biscuit;
 
-use biscuit::{KeyPair, Biscuit, error};
+use biscuit::{PrivateKey, Biscuit, error};
 
 fn main() -> Result<(), error::Token> {
   // let's generate the root key pair. The root public key will be necessary
   // to verify the token
-  let root = KeyPair::new();
+  let root = PrivateKey::new();
   let public_key = root.public();
 
   // creating a first token

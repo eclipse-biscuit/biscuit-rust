@@ -4,12 +4,11 @@
  */
 use crate::{
     builder::{self, Convert},
-    crypto::PublicKey,
     datalog::{Check, Fact, Rule, SymbolTable, Term},
     error,
 };
 
-use super::{public_keys::PublicKeys, Scope};
+use super::{public_keys::{self, PublicKeys}, Scope};
 
 /// a block contained in a token
 #[derive(Clone, Debug)]
@@ -28,7 +27,7 @@ pub struct Block {
     /// format version used to generate this block
     pub version: u32,
     /// key used in optional external signature
-    pub external_key: Option<PublicKey>,
+    pub external_key: Option<public_keys::PublicKey>,
     /// list of public keys referenced by this block
     pub public_keys: PublicKeys,
     /// list of scopes defining which blocks are trusted by this block
@@ -103,7 +102,7 @@ impl Block {
                 .collect::<Result<Vec<Check>, error::Format>>()?,
             context: self.context.clone(),
             version: self.version,
-            external_key: self.external_key,
+            external_key: self.external_key.clone(),
             public_keys: self.public_keys.clone(),
             scopes: self
                 .scopes

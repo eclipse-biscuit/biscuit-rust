@@ -5,7 +5,6 @@
 #![allow(unused_must_use)]
 use biscuit::builder::*;
 use biscuit::datalog::SymbolTable;
-use biscuit::KeyPair;
 use biscuit::*;
 use biscuit_auth as biscuit;
 
@@ -13,7 +12,7 @@ use rand::{prelude::StdRng, SeedableRng};
 
 fn main() {
     let mut rng: StdRng = SeedableRng::seed_from_u64(1234);
-    let root = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+    let root = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
 
     let biscuit1 = Biscuit::builder()
         .fact(fact(

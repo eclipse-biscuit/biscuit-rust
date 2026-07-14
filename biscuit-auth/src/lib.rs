@@ -31,12 +31,12 @@
 //! ```rust
 //! extern crate biscuit_auth as biscuit;
 //!
-//! use biscuit::{KeyPair, Biscuit, Authorizer, builder::*, error, macros::*};
+//! use biscuit::{PrivateKey, Biscuit, Authorizer, builder::*, error, macros::*};
 //!
 //! fn main() -> Result<(), error::Token> {
 //!   // let's generate the root key pair. The root public key will be necessary
 //!   // to verify the token
-//!   let root = KeyPair::new();
+//!   let root = PrivateKey::new();
 //!   let public_key = root.public();
 //!
 //!   // creating a first token
@@ -251,7 +251,8 @@ pub mod format;
 pub mod parser;
 mod token;
 
-pub use crypto::{KeyPair, PrivateKey, PublicKey};
+pub use crypto::{PrivateKey, PublicKey};
+pub use token::public_keys;
 pub use token::authorizer::{Authorizer, AuthorizerLimits};
 pub use token::builder;
 pub use token::builder::{Algorithm, AuthorizerBuilder, BiscuitBuilder, BlockBuilder};

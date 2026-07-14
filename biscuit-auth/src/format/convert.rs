@@ -6,7 +6,7 @@
 
 use super::schema;
 use crate::builder::Convert;
-use crate::crypto::PublicKey;
+use crate::crypto::SerializePublicKey;
 use crate::datalog::*;
 use crate::error;
 use crate::format::schema::Empty;
@@ -45,9 +45,9 @@ pub fn token_block_to_proto_block(input: &Block) -> schema::Block {
     }
 }
 
-pub fn proto_block_to_token_block(
+pub fn proto_block_to_token_block<EK: SerializePublicKey>(
     input: &schema::Block,
-    external_key: Option<PublicKey>,
+    external_key: Option<&EK>,
 ) -> Result<Block, error::Format> {
     let version = input.version.unwrap_or(0);
     if !(MIN_SCHEMA_VERSION..=MAX_SCHEMA_VERSION).contains(&version) {
@@ -104,7 +104,7 @@ pub fn proto_block_to_token_block(
 
     let mut public_keys = PublicKeys::new();
     for pk in &input.public_keys {
-        public_keys.insert_fallible(&PublicKey::from_proto(pk)?)?;
+        public_keys.insert_proto_fallible(pk)?;
     }
     let symbols =
         SymbolTable::from_symbols_and_public_keys(input.symbols.clone(), public_keys.keys.clone())?;
@@ -120,7 +120,7 @@ pub fn proto_block_to_token_block(
         checks,
         context,
         version,
-        external_key,
+        external_key: external_key.map(crate::token::public_keys::PublicKey::from),
         public_keys,
         scopes,
     })
@@ -142,7 +142,7 @@ pub fn token_block_to_proto_snapshot_block(input: &Block) -> schema::SnapshotBlo
             .iter()
             .map(token_scope_to_proto_scope)
             .collect(),
-        external_key: input.external_key.map(|key| key.to_proto()),
+        external_key: input.external_key.as_ref().map(|key| key.to_proto()),
     }
 }
 
@@ -191,7 +191,9 @@ pub fn proto_snapshot_block_to_token_block(
 
     let external_key = match &input.external_key {
         None => None,
-        Some(key) => Some(PublicKey::from_proto(key)?),
+        Some(key) => Some(crate::token::public_keys::PublicKey::from(
+            &crate::crypto::PublicKey::from_proto(key)?,
+        )),
     };
 
     Ok(Block {
@@ -851,4 +853,16 @@ pub fn proto_scope_to_token_scope(input: &schema::Scope) -> Result<Scope, error:
             "deserialization error: expected `content` field in Scope".to_string(),
         )),
     }
+}
+
+pub fn public_key_to_proto<K: SerializePublicKey>(key: &K) -> schema::PublicKey {
+    schema::PublicKey {
+        algorithm: schema::public_key::Algorithm::from(key.algorithm()) as i32,
+        key: key.to_bytes(),
+    }
+}
+
+pub fn public_key_from_proto<K: SerializePublicKey>(key: &schema::PublicKey) -> Result<K, error::Format> {
+    let algorithm = crate::Algorithm::from(key.algorithm());
+    K::from_bytes_and_algorithm(algorithm, &key.key)
 }

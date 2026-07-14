@@ -1,3 +1,7 @@
+# `7.0.0`
+
+- Abstract biscuits over the crypto implementation (#334)
+
 # `6.0.0`
 
 - support for `pem` / `der` private and public keys (#212 and #265)

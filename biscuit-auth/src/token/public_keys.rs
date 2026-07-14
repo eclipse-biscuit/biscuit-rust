@@ -3,24 +3,27 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 use std::collections::HashSet;
+use std::fmt::{self, Display, Formatter};
 
-use crate::{crypto::PublicKey, error};
+use crate::crypto::SerializePublicKey;
+use crate::format::schema;
+use crate::{Algorithm, error};
 
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct PublicKeys {
     pub(crate) keys: Vec<PublicKey>,
 }
 
 impl PublicKeys {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         PublicKeys { keys: vec![] }
     }
 
-    pub fn from(keys: Vec<PublicKey>) -> Self {
+    pub(crate) fn from_keys(keys: Vec<PublicKey>) -> Self {
         PublicKeys { keys }
     }
 
-    pub fn extend(&mut self, other: &PublicKeys) -> Result<(), error::Format> {
+    pub(crate) fn extend(&mut self, other: &PublicKeys) -> Result<(), error::Format> {
         if !self.is_disjoint(other) {
             return Err(error::Format::PublicKeyTableOverlap);
         }
@@ -28,52 +31,117 @@ impl PublicKeys {
         Ok(())
     }
 
-    pub fn insert(&mut self, k: &PublicKey) -> u64 {
+    pub(crate) fn insert(&mut self, k: &PublicKey) -> u64 {
         match self.keys.iter().position(|key| key == k) {
             Some(index) => index as u64,
             None => {
-                self.keys.push(*k);
+                self.keys.push(k.clone());
                 (self.keys.len() - 1) as u64
             }
         }
     }
 
-    pub fn insert_fallible(&mut self, k: &PublicKey) -> Result<u64, error::Format> {
+    pub(crate) fn insert_serialize<K: SerializePublicKey>(&mut self, k: &K) -> u64 {
+        self.insert(&PublicKey::from(k))
+    }
+
+    pub(crate) fn insert_data(&mut self, k: &PublicKey) -> u64 {
         match self.keys.iter().position(|key| key == k) {
+            Some(index) => index as u64,
+            None => {
+                self.keys.push(k.clone());
+                (self.keys.len() - 1) as u64
+            }
+        }
+    }
+
+    pub(crate) fn insert_proto(&mut self, k: &schema::PublicKey) -> u64 {
+        let k = PublicKey::from_proto(k);
+        match self.keys.iter().position(|key| *key == k) {
+            Some(index) => index as u64,
+            None => {
+                self.keys.push(k.clone());
+                (self.keys.len() - 1) as u64
+            }
+        }
+    }
+
+    pub(crate) fn insert_proto_fallible(&mut self, k: &schema::PublicKey) -> Result<u64, error::Format> {
+        let k = PublicKey::from_proto(k);
+        match self.keys.iter().position(|key| *key == k) {
             Some(_) => Err(error::Format::PublicKeyTableOverlap),
             None => {
-                self.keys.push(*k);
+                self.keys.push(k.clone());
                 Ok((self.keys.len() - 1) as u64)
             }
         }
     }
 
-    pub fn get(&self, k: &PublicKey) -> Option<u64> {
-        self.keys.iter().position(|key| key == k).map(|i| i as u64)
-    }
-
-    pub fn current_offset(&self) -> usize {
+    pub(crate) fn current_offset(&self) -> usize {
         self.keys.len()
     }
 
-    pub fn split_at(&mut self, offset: usize) -> PublicKeys {
+    pub(crate) fn split_at(&mut self, offset: usize) -> PublicKeys {
         let mut table = PublicKeys::new();
         table.keys = self.keys.split_off(offset);
         table
     }
 
-    pub fn is_disjoint(&self, other: &PublicKeys) -> bool {
+    pub(crate) fn is_disjoint(&self, other: &PublicKeys) -> bool {
         let h1 = self.keys.iter().collect::<HashSet<_>>();
         let h2 = other.keys.iter().collect::<HashSet<_>>();
 
         h1.is_disjoint(&h2)
     }
 
-    pub fn get_key(&self, i: u64) -> Option<&PublicKey> {
+    pub(crate) fn get_key(&self, i: u64) -> Option<&PublicKey> {
         self.keys.get(i as usize)
     }
 
-    pub fn into_inner(self) -> Vec<PublicKey> {
+    pub(crate) fn into_inner(self) -> Vec<PublicKey> {
         self.keys
+    }
+}
+
+#[derive(Default, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PublicKey {
+    algorithm: Algorithm,
+    key: Vec<u8>,
+}
+
+impl PublicKey {
+    pub fn from_bytes(algorithm: Algorithm, key: Vec<u8>) -> PublicKey {
+        PublicKey { algorithm, key }
+    }
+
+    pub(crate) fn from<K: SerializePublicKey>(key: &K) -> PublicKey {
+        PublicKey {
+            algorithm: key.algorithm(),
+            key: key.to_bytes(),
+        }
+    }
+
+    fn from_proto(key: &schema::PublicKey) -> PublicKey {
+        PublicKey {
+            algorithm: key.algorithm().into(),
+            key: key.key.clone(),
+        }
+    }
+
+    pub(crate) fn to_proto(&self) -> schema::PublicKey {
+        schema::PublicKey {
+            algorithm: schema::public_key::Algorithm::from(self.algorithm) as i32,
+            key: self.key.clone(),
+        }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.key.clone()
+    }
+}
+
+impl Display for PublicKey {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}/{}", self.algorithm, hex::encode(&self.key))
     }
 }

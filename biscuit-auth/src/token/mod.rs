@@ -3,20 +3,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 //! main structures to interact with Biscuit tokens
-use std::fmt::Display;
+use std::fmt::{self, Debug, Display, Formatter};
 use std::iter::once;
+use std::rc::Rc;
+use std::sync::Arc;
 
 use builder::{BiscuitBuilder, BlockBuilder};
 use prost::Message;
 use rand_core::{CryptoRng, RngCore};
 
 use self::public_keys::PublicKeys;
-use super::crypto::{KeyPair, PublicKey, Signature};
+use super::crypto::{PrivateKey, PublicKey, Signature};
 use super::datalog::SymbolTable;
 use super::error;
 use super::format::SerializedBiscuit;
-use crate::crypto::{self};
-use crate::format::convert::proto_block_to_token_block;
+use crate::crypto::{self, SerializePrivateKey, Verify};
+use crate::format::convert::{proto_block_to_token_block, public_key_from_proto};
 use crate::format::schema::{self, ThirdPartyBlockContents};
 use crate::format::{ThirdPartyVerificationMode, THIRD_PARTY_SIGNATURE_VERSION};
 use authorizer::Authorizer;
@@ -25,7 +27,7 @@ pub mod authorizer;
 pub(crate) mod block;
 pub mod builder;
 pub mod builder_ext;
-pub(crate) mod public_keys;
+pub mod public_keys;
 pub(crate) mod third_party;
 pub mod unverified;
 pub use block::Block;
@@ -56,10 +58,10 @@ pub fn default_symbol_table() -> SymbolTable {
 /// ```rust
 /// extern crate biscuit_auth as biscuit;
 ///
-/// use biscuit::{KeyPair, Biscuit, builder::*, builder_ext::*};
+/// use biscuit::{PrivateKey, Biscuit, builder::*, builder_ext::*};
 ///
 /// fn main() -> Result<(), biscuit::error::Token> {
-///   let root = KeyPair::new();
+///   let root = PrivateKey::new();
 ///
 ///   // first we define the authority block for global data,
 ///   // like access rights
@@ -80,13 +82,13 @@ pub fn default_symbol_table() -> SymbolTable {
 ///   Ok(())
 /// }
 /// ```
-#[derive(Clone, Debug)]
-pub struct Biscuit {
+#[derive(Clone)]
+pub struct Biscuit<K: SerializePrivateKey = PrivateKey> {
     pub(crate) root_key_id: Option<u32>,
     pub(crate) authority: schema::Block,
     pub(crate) blocks: Vec<schema::Block>,
     pub(crate) symbols: SymbolTable,
-    pub(crate) container: SerializedBiscuit,
+    pub(crate) container: SerializedBiscuit<K>,
 }
 
 impl Biscuit {
@@ -101,7 +103,7 @@ impl Biscuit {
     pub fn from<T, KP>(slice: T, key_provider: KP) -> Result<Self, error::Token>
     where
         T: AsRef<[u8]>,
-        KP: RootKeyProvider,
+        KP: RootKeyProvider<Key = PublicKey>,
     {
         Biscuit::from_with_symbols(slice.as_ref(), key_provider, default_symbol_table())
     }
@@ -110,7 +112,7 @@ impl Biscuit {
     pub fn from_base64<T, KP>(slice: T, key_provider: KP) -> Result<Self, error::Token>
     where
         T: AsRef<[u8]>,
-        KP: RootKeyProvider,
+        KP: RootKeyProvider<Key = PublicKey>,
     {
         Biscuit::from_base64_with_symbols(slice, key_provider, default_symbol_table())
     }
@@ -124,7 +126,7 @@ impl Biscuit {
     ) -> Result<Self, error::Token>
     where
         T: AsRef<[u8]>,
-        KP: RootKeyProvider,
+        KP: RootKeyProvider<Key = PublicKey>,
     {
         let container = SerializedBiscuit::unsafe_from_slice(slice.as_ref(), key_provider)
             .map_err(error::Token::Format)?;
@@ -168,14 +170,17 @@ impl Biscuit {
     pub fn authorizer(&self) -> Result<Authorizer, error::Token> {
         Authorizer::from_token(self)
     }
+}
+
+impl<K: SerializePrivateKey> Biscuit<K> {
 
     /// adds a new block to the token
     ///
-    /// since the public key is integrated into the token, the keypair can be
+    /// since the public key is integrated into the token, the private key can be
     /// discarded right after calling this function
     pub fn append(&self, block_builder: BlockBuilder) -> Result<Self, error::Token> {
-        let keypair = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
-        self.append_with_keypair(&keypair, block_builder)
+        let key = K::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
+        self.append_with_key(&key, block_builder)
     }
 
     /// returns the list of context elements of each block
@@ -216,11 +221,11 @@ impl Biscuit {
     /// Blocks carrying an external public key are _third-party blocks_
     /// and their contents can be trusted as coming from the holder of
     /// the corresponding private key
-    pub fn external_public_keys(&self) -> Vec<Option<PublicKey>> {
+    pub fn external_public_keys(&self) -> Vec<Option<K::PublicKey>> {
         let mut res = vec![None];
 
         for block in self.container.blocks.iter() {
-            res.push(block.external_signature.as_ref().map(|sig| sig.public_key));
+            res.push(block.external_signature.as_ref().map(|sig| sig.public_key.clone()));
         }
 
         res
@@ -250,33 +255,34 @@ impl Biscuit {
 
     /// creates a new token, using a provided CSPRNG
     ///
-    /// the public part of the root keypair must be used for verification
+    /// the public part of the root key must be used for verification
     pub(crate) fn new_with_rng<T: RngCore + CryptoRng>(
         rng: &mut T,
         root_key_id: Option<u32>,
-        root: &KeyPair,
+        root: &K,
         symbols: SymbolTable,
         authority: Block,
-    ) -> Result<Biscuit, error::Token> {
+    ) -> Result<Biscuit<K>, error::Token> {
         Self::new_with_key_pair(
             root_key_id,
             root,
-            &KeyPair::new_with_rng(builder::Algorithm::Ed25519, rng),
+            &K::new_with_rng(root.algorithm(), rng),
             symbols,
             authority,
         )
     }
 
-    /// creates a new token, using provided keypairs (the root keypair, and the keypair used to sign the next block)
+    /// creates a new token, using provided keys (the root key, and the key used to sign the next
+    /// block)
     ///
     /// the public part of the root keypair must be used for verification
     pub(crate) fn new_with_key_pair(
         root_key_id: Option<u32>,
-        root: &KeyPair,
-        next_keypair: &KeyPair,
+        root_key: &K,
+        next_key: &K,
         mut symbols: SymbolTable,
         authority: Block,
-    ) -> Result<Biscuit, error::Token> {
+    ) -> Result<Biscuit<K>, error::Token> {
         if !symbols.is_disjoint(&authority.symbols) {
             return Err(error::Token::Format(error::Format::SymbolTableOverlap));
         }
@@ -285,7 +291,7 @@ impl Biscuit {
 
         let blocks = vec![];
 
-        let container = SerializedBiscuit::new(root_key_id, root, next_keypair, &authority)?;
+        let container = SerializedBiscuit::new(root_key_id, root_key, next_key, &authority)?;
 
         symbols.public_keys.extend(&authority.public_keys)?;
 
@@ -311,7 +317,7 @@ impl Biscuit {
         symbols: SymbolTable,
     ) -> Result<Self, error::Token>
     where
-        KP: RootKeyProvider,
+        KP: RootKeyProvider<Key = K::PublicKey>,
     {
         let container =
             SerializedBiscuit::from_slice(slice, key_provider).map_err(error::Token::Format)?;
@@ -320,7 +326,7 @@ impl Biscuit {
     }
 
     fn from_serialized_container(
-        container: SerializedBiscuit,
+        container: SerializedBiscuit<K>,
         mut symbols: SymbolTable,
     ) -> Result<Self, error::Token> {
         let (authority, blocks) = container.extract_blocks(&mut symbols)?;
@@ -336,7 +342,8 @@ impl Biscuit {
         })
     }
 
-    /// deserializes a token and validates the signature using the root public key, with a custom symbol table
+    /// deserializes a token and validates the signature using the root public key, with a custom
+    /// symbol table
     fn from_base64_with_symbols<T, KP>(
         slice: T,
         key_provider: KP,
@@ -344,24 +351,24 @@ impl Biscuit {
     ) -> Result<Self, error::Token>
     where
         T: AsRef<[u8]>,
-        KP: RootKeyProvider,
+        KP: RootKeyProvider<Key = K::PublicKey>,
     {
         let decoded = base64::decode_config(slice, base64::URL_SAFE)?;
         Biscuit::from_with_symbols(&decoded, key_provider, symbols)
     }
 
     /// returns the internal representation of the token
-    pub fn container(&self) -> &SerializedBiscuit {
+    pub fn container(&self) -> &SerializedBiscuit<K> {
         &self.container
     }
 
     /// adds a new block to the token, using the provided CSPRNG
     ///
-    /// since the public key is integrated into the token, the keypair can be
+    /// since the public key is integrated into the token, the key can be
     /// discarded right after calling this function
-    pub fn append_with_keypair(
+    pub fn append_with_key(
         &self,
-        keypair: &KeyPair,
+        key: &K,
         block_builder: BlockBuilder,
     ) -> Result<Self, error::Token> {
         let block = block_builder.build(self.symbols.clone());
@@ -374,7 +381,7 @@ impl Biscuit {
         let mut blocks = self.blocks.clone();
         let mut symbols = self.symbols.clone();
 
-        let container = self.container.append(keypair, &block, None)?;
+        let container = self.container.append(key, &block, None)?;
 
         symbols.extend(&block.symbols)?;
         symbols.public_keys.extend(&block.public_keys)?;
@@ -408,31 +415,30 @@ impl Biscuit {
 
     pub fn append_third_party(
         &self,
-        external_key: PublicKey,
+        external_key: K::PublicKey,
         response: ThirdPartyBlock,
     ) -> Result<Self, error::Token> {
-        let next_keypair =
-            KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
-
-        self.append_third_party_with_keypair(external_key, response, next_keypair)
+        let next_key = K::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
+        self.append_third_party_with_key(external_key, response, next_key)
     }
-    pub fn append_third_party_with_keypair(
+
+    pub fn append_third_party_with_key(
         &self,
-        external_key: PublicKey,
+        external_key: K::PublicKey,
         response: ThirdPartyBlock,
-        next_keypair: KeyPair,
+        next_key: K,
     ) -> Result<Self, error::Token> {
         let ThirdPartyBlockContents {
             payload,
             external_signature,
         } = response.0;
 
-        let provided_key = PublicKey::from_proto(&external_signature.public_key)?;
+        let provided_key = public_key_from_proto(&external_signature.public_key)?;
         if external_key != provided_key {
             return Err(error::Token::Format(error::Format::DeserializationError(
                 format!(
                     "deserialization error: unexpected key {}",
-                    provided_key.print()
+                    crypto::print(&provided_key),
                 ),
             )));
         }
@@ -444,7 +450,7 @@ impl Biscuit {
             .blocks
             .last()
             .unwrap_or(&self.container.authority)
-            .next_key;
+            .next_key.clone();
 
         let external_signature = crypto::ExternalSignature {
             public_key: external_key,
@@ -475,7 +481,7 @@ impl Biscuit {
 
         let container =
             self.container
-                .append_serialized(&next_keypair, payload, Some(external_signature))?;
+                .append_serialized(&next_key, payload, Some(external_signature))?;
 
         blocks.push(block);
 
@@ -516,13 +522,13 @@ impl Biscuit {
         let mut public_keys = PublicKeys::new();
 
         for pk in &block.public_keys {
-            public_keys.insert(&PublicKey::from_proto(pk)?);
+            public_keys.insert_proto(pk);
         }
         Ok(public_keys)
     }
 
     /// gets the list of public keys from a block
-    pub fn block_external_key(&self, index: usize) -> Result<Option<PublicKey>, error::Token> {
+    pub fn block_external_key(&self, index: usize) -> Result<Option<K::PublicKey>, error::Token> {
         let block = if index == 0 {
             &self.container.authority
         } else {
@@ -535,7 +541,7 @@ impl Biscuit {
         Ok(block
             .external_signature
             .as_ref()
-            .map(|signature| signature.public_key))
+            .map(|signature| signature.public_key.clone()))
     }
 
     /// returns the number of blocks (at least 1)
@@ -551,7 +557,7 @@ impl Biscuit {
                     .authority
                     .external_signature
                     .as_ref()
-                    .map(|ex| ex.public_key),
+                    .map(|ex| &ex.public_key),
             )
             .map_err(error::Token::Format)?
         } else {
@@ -566,7 +572,7 @@ impl Biscuit {
                 self.container.blocks[index - 1]
                     .external_signature
                     .as_ref()
-                    .map(|ex| ex.public_key),
+                    .map(|ex| &ex.public_key),
             )
             .map_err(error::Token::Format)?
         };
@@ -574,7 +580,7 @@ impl Biscuit {
         Ok(block)
     }
 
-    pub(crate) fn blocks(&self) -> impl Iterator<Item = Result<Block, error::Token>> + use<'_> {
+    pub(crate) fn blocks(&self) -> impl Iterator<Item = Result<Block, error::Token>> + use<'_, K> {
         once(
             proto_block_to_token_block(
                 &self.authority,
@@ -582,7 +588,7 @@ impl Biscuit {
                     .authority
                     .external_signature
                     .as_ref()
-                    .map(|ex| ex.public_key),
+                    .map(|ex| &ex.public_key),
             )
             .map_err(error::Token::Format),
         )
@@ -593,7 +599,7 @@ impl Biscuit {
                     container
                         .external_signature
                         .as_ref()
-                        .map(|ex| ex.public_key),
+                        .map(|ex| &ex.public_key),
                 )
                 .map_err(error::Token::Format)
             },
@@ -601,8 +607,25 @@ impl Biscuit {
     }
 }
 
-impl Display for Biscuit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<K> Debug for Biscuit<K>
+where
+    K: SerializePrivateKey + Debug,
+    K::PublicKey: Debug,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Biscuit")
+            .field("root_key_id", &self.root_key_id)
+            .field("authority", &self.authority)
+            .field("blocks", &self.blocks)
+            .field("symbols", &self.symbols)
+            .field("container", &self.container)
+            .finish()
+    }
+}
+
+
+impl<K: SerializePrivateKey> Display for Biscuit<K> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let authority = self
             .block(0)
             .as_ref()
@@ -619,12 +642,13 @@ impl Display for Biscuit {
 
         write!(f, "Biscuit {{\n    symbols: {:?}\n    public keys: {:?}\n    authority: {}\n    blocks: [\n        {}\n    ]\n}}",
         self.symbols.strings(),
-        self.symbols.public_keys.keys.iter().map(|pk| hex::encode(pk.to_bytes())).collect::<Vec<_>>(),
+        self.symbols.public_keys.keys.iter().map(|pk| format!("{}", pk)).collect::<Vec<_>>(),
         authority,
         blocks.join(",\n\t")
     )
     }
 }
+
 fn print_block(symbols: &SymbolTable, block: &Block) -> String {
     let facts: Vec<_> = block.facts.iter().map(|f| symbols.print_fact(f)).collect();
     let rules: Vec<_> = block.rules.iter().map(|r| symbols.print_rule(r)).collect();
@@ -665,7 +689,7 @@ fn print_block(symbols: &SymbolTable, block: &Block) -> String {
         block.version,
         block.context.as_deref().unwrap_or(""),
         block.external_key.as_ref().map(|k| hex::encode(k.to_bytes())).unwrap_or_default(),
-        block.public_keys.keys.iter().map(|k | hex::encode(k.to_bytes())).collect::<Vec<_>>(),
+        block.public_keys.keys.iter().map(|k| format!("{}", k)).collect::<Vec<_>>(),
         block.scopes,
         facts,
         rules,
@@ -688,41 +712,55 @@ pub enum Scope {
 /// value will be passed to the implementor of `RootKeyProvider`
 /// to choose which key will be used.
 pub trait RootKeyProvider {
-    fn choose(&self, key_id: Option<u32>) -> Result<PublicKey, error::Format>;
+    type Key: Verify;
+
+    fn choose(&self, key_id: Option<u32>) -> Result<Self::Key, error::Format>;
 }
 
-impl RootKeyProvider for Box<dyn RootKeyProvider> {
-    fn choose(&self, key_id: Option<u32>) -> Result<PublicKey, error::Format> {
+impl<K: Verify> RootKeyProvider for Box<dyn RootKeyProvider<Key = K>> {
+    type Key = K;
+
+    fn choose(&self, key_id: Option<u32>) -> Result<K, error::Format> {
         self.as_ref().choose(key_id)
     }
 }
 
-impl RootKeyProvider for std::rc::Rc<dyn RootKeyProvider> {
-    fn choose(&self, key_id: Option<u32>) -> Result<PublicKey, error::Format> {
+impl<K: Verify> RootKeyProvider for Rc<dyn RootKeyProvider<Key = K>> {
+    type Key = K;
+
+    fn choose(&self, key_id: Option<u32>) -> Result<K, error::Format> {
         self.as_ref().choose(key_id)
     }
 }
 
-impl RootKeyProvider for std::sync::Arc<dyn RootKeyProvider> {
-    fn choose(&self, key_id: Option<u32>) -> Result<PublicKey, error::Format> {
+impl<K: Verify> RootKeyProvider for Arc<dyn RootKeyProvider<Key = K>> {
+    type Key = K;
+
+    fn choose(&self, key_id: Option<u32>) -> Result<K, error::Format> {
         self.as_ref().choose(key_id)
     }
 }
 
 impl RootKeyProvider for PublicKey {
+    type Key = PublicKey;
+
     fn choose(&self, _: Option<u32>) -> Result<PublicKey, error::Format> {
         Ok(*self)
     }
 }
 
 impl RootKeyProvider for &PublicKey {
+    type Key = PublicKey;
+
     fn choose(&self, _: Option<u32>) -> Result<PublicKey, error::Format> {
         Ok(**self)
     }
 }
 
-impl<F: Fn(Option<u32>) -> Result<PublicKey, error::Format>> RootKeyProvider for F {
-    fn choose(&self, root_key_id: Option<u32>) -> Result<PublicKey, error::Format> {
+impl<F: Fn(Option<u32>) -> Result<K, error::Format>, K: Verify> RootKeyProvider for F {
+    type Key = K;
+
+    fn choose(&self, root_key_id: Option<u32>) -> Result<K, error::Format> {
         self(root_key_id)
     }
 }
@@ -733,7 +771,7 @@ mod tests {
     use super::builder_ext::BuilderExt;
     use super::*;
     use crate::builder::CheckKind;
-    use crate::crypto::KeyPair;
+    use crate::crypto::PrivateKey;
     use crate::{error::*, AuthorizerLimits, UnverifiedBiscuit};
     use builder::AuthorizerBuilder;
     use builder_ext::AuthorizerExt;
@@ -743,7 +781,7 @@ mod tests {
     #[test]
     fn basic() {
         let mut rng: StdRng = SeedableRng::seed_from_u64(0);
-        let root = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let root = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
 
         let serialized1 = {
             let biscuit1 = Biscuit::builder()
@@ -782,7 +820,7 @@ mod tests {
                 ],
             ));
 
-            let keypair2 = KeyPair::new_with_rng(&mut rng);
+            let keypair2 = PrivateKey::new_with_rng(&mut rng);
             let biscuit2 = biscuit1_deser.append(&keypair2, block2.to_block()).unwrap();
 
             println!("biscuit2 (1 check): {}", biscuit2);
@@ -810,9 +848,9 @@ mod tests {
                 ))
                 .unwrap();
 
-            let keypair2 = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+            let keypair2 = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
             let biscuit2 = biscuit1_deser
-                .append_with_keypair(&keypair2, block2)
+                .append_with_key(&keypair2, block2)
                 .unwrap();
 
             println!("biscuit2 (1 check): {biscuit2}");
@@ -835,9 +873,9 @@ mod tests {
                 ))
                 .unwrap();
 
-            let keypair3 = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+            let keypair3 = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
             let biscuit3 = biscuit2_deser
-                .append_with_keypair(&keypair3, block3)
+                .append_with_key(&keypair3, block3)
                 .unwrap();
 
             biscuit3.to_vec().unwrap()
@@ -904,7 +942,7 @@ mod tests {
     #[test]
     fn folders() {
         let mut rng: StdRng = SeedableRng::seed_from_u64(0);
-        let root = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let root = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
 
         let biscuit1 = Biscuit::builder()
             .right("/folder1/file1", "read")
@@ -922,8 +960,8 @@ mod tests {
             .check_right("read")
             .unwrap();
 
-        let keypair2 = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
-        let biscuit2 = biscuit1.append_with_keypair(&keypair2, block2).unwrap();
+        let keypair2 = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let biscuit2 = biscuit1.append_with_key(&keypair2, block2).unwrap();
 
         {
             let mut authorizer = AuthorizerBuilder::new()
@@ -997,7 +1035,7 @@ mod tests {
     #[test]
     fn constraints() {
         let mut rng: StdRng = SeedableRng::seed_from_u64(0);
-        let root = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let root = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
 
         let biscuit1 = Biscuit::builder()
             .right("file1", "read")
@@ -1012,8 +1050,8 @@ mod tests {
             .fact("key(1234)")
             .unwrap();
 
-        let keypair2 = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
-        let biscuit2 = biscuit1.append_with_keypair(&keypair2, block2).unwrap();
+        let keypair2 = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let biscuit2 = biscuit1.append_with_key(&keypair2, block2).unwrap();
 
         {
             let mut authorizer = AuthorizerBuilder::new()
@@ -1061,7 +1099,7 @@ mod tests {
     #[test]
     fn sealed_token() {
         let mut rng: StdRng = SeedableRng::seed_from_u64(0);
-        let root = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let root = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
         let biscuit1 = Biscuit::builder()
             .right("/folder1/file1", "read")
             .right("/folder1/file1", "write")
@@ -1078,8 +1116,8 @@ mod tests {
             .check_right("read")
             .unwrap();
 
-        let keypair2 = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
-        let biscuit2 = biscuit1.append_with_keypair(&keypair2, block2).unwrap();
+        let keypair2 = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let biscuit2 = biscuit1.append_with_key(&keypair2, block2).unwrap();
 
         //println!("biscuit2:\n{:#?}", biscuit2);
         //panic!();
@@ -1130,7 +1168,7 @@ mod tests {
         use crate::token::builder::*;
 
         let mut rng: StdRng = SeedableRng::seed_from_u64(1234);
-        let root = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let root = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
 
         let biscuit1 = Biscuit::builder()
             .fact(fact("right", &[string("file1"), string("read")]))
@@ -1173,7 +1211,7 @@ mod tests {
     #[test]
     fn authorizer_queries() {
         let mut rng: StdRng = SeedableRng::seed_from_u64(0);
-        let root = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let root = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
 
         let biscuit1 = Biscuit::builder()
             .right("file1", "read")
@@ -1190,16 +1228,16 @@ mod tests {
             .fact("key(1234)")
             .unwrap();
 
-        let keypair2 = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
-        let biscuit2 = biscuit1.append_with_keypair(&keypair2, block2).unwrap();
+        let keypair2 = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let biscuit2 = biscuit1.append_with_key(&keypair2, block2).unwrap();
 
         let block3 = BlockBuilder::new()
             .check_expiration_date(SystemTime::now() + Duration::from_secs(10))
             .fact("key(5678)")
             .unwrap();
 
-        let keypair3 = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
-        let biscuit3 = biscuit2.append_with_keypair(&keypair3, block3).unwrap();
+        let keypair3 = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let biscuit3 = biscuit2.append_with_key(&keypair3, block3).unwrap();
         {
             println!("biscuit3: {biscuit3}");
 
@@ -1263,7 +1301,7 @@ mod tests {
     #[test]
     fn check_head_name() {
         let mut rng: StdRng = SeedableRng::seed_from_u64(0);
-        let root = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let root = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
 
         let biscuit1 = Biscuit::builder()
             .check(check(
@@ -1281,8 +1319,8 @@ mod tests {
             .fact(fact("check1", &[string("test")]))
             .unwrap();
 
-        let keypair2 = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
-        let biscuit2 = biscuit1.append_with_keypair(&keypair2, block2).unwrap();
+        let keypair2 = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let biscuit2 = biscuit1.append_with_key(&keypair2, block2).unwrap();
 
         println!("biscuit2: {biscuit2}");
 
@@ -1323,7 +1361,7 @@ mod tests {
     #[test]
     fn check_requires_fact_in_future_block() {
         let mut rng: StdRng = SeedableRng::seed_from_u64(0);
-        let root = KeyPair::new_with_rng(&mut rng);
+        let root = PrivateKey::new_with_rng(&mut rng);
 
         let mut builder = Biscuit::builder(&root);
 
@@ -1352,7 +1390,7 @@ mod tests {
         let mut block2 = BlockBuilder::new();
         block2.add_fact(fact("name", &[string("test")])).unwrap();
 
-        let keypair2 = KeyPair::new_with_rng(&mut rng);
+        let keypair2 = PrivateKey::new_with_rng(&mut rng);
         let biscuit2 = biscuit1
             .append_with_keypair(&keypair2, block2)
             .unwrap();
@@ -1367,7 +1405,7 @@ mod tests {
     #[test]
     fn bytes_constraints() {
         let mut rng: StdRng = SeedableRng::seed_from_u64(0);
-        let root = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let root = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
 
         let biscuit1 = Biscuit::builder()
             .fact("bytes(hex:0102AB)")
@@ -1380,8 +1418,8 @@ mod tests {
         let block2 = BlockBuilder::new()
             .rule("has_bytes($0) <- bytes($0), { hex:00000000, hex:0102AB }.contains($0)")
             .unwrap();
-        let keypair2 = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
-        let biscuit2 = biscuit1.append_with_keypair(&keypair2, block2).unwrap();
+        let keypair2 = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let biscuit2 = biscuit1.append_with_key(&keypair2, block2).unwrap();
 
         let mut authorizer = AuthorizerBuilder::new()
             .check("check if bytes($0), { hex:00000000, hex:0102AB }.contains($0)")
@@ -1417,7 +1455,7 @@ mod tests {
     #[test]
     fn block1_generates_authority_or_ambient() {
         let mut rng: StdRng = SeedableRng::seed_from_u64(0);
-        let root = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let root = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
 
         let serialized1 = {
             let biscuit1 = Biscuit::builder()
@@ -1459,9 +1497,9 @@ mod tests {
           .rule("right($file, $right) <- right($any1, $any2), resource($file), operation($right)")
                 .unwrap();
 
-            let keypair2 = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+            let keypair2 = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
             let biscuit2 = biscuit1_deser
-                .append_with_keypair(&keypair2, block2)
+                .append_with_key(&keypair2, block2)
                 .unwrap();
 
             println!("biscuit2 (1 check): {biscuit2}");
@@ -1499,7 +1537,7 @@ mod tests {
     #[test]
     fn check_all() {
         let mut rng: StdRng = SeedableRng::seed_from_u64(0);
-        let root = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let root = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
 
         let biscuit1 = Biscuit::builder()
             .check("check if fact($v), $v < 1")
@@ -1598,7 +1636,7 @@ mod tests {
     #[test]
     fn authority_signature_v1() {
         let mut rng: StdRng = SeedableRng::seed_from_u64(0);
-        let root = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let root = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
 
         let authority_block = Block {
             symbols: default_symbol_table(),
@@ -1612,7 +1650,7 @@ mod tests {
             scopes: vec![],
         };
 
-        let next_keypair = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let next_keypair = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
         let token =
             SerializedBiscuit::new_inner(None, &root, &next_keypair, &authority_block, 1).unwrap();
         let serialized = token.to_vec().unwrap();
@@ -1623,7 +1661,7 @@ mod tests {
     #[test]
     fn verified_unverified_consistency() {
         let mut rng: StdRng = SeedableRng::seed_from_u64(0);
-        let root = KeyPair::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let root = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
         let biscuit1 = Biscuit::builder()
             .fact("right(\"file1\", \"read\")")
             .unwrap()

@@ -8,13 +8,16 @@
 //!
 //! - serialization of Biscuit blocks to Protobuf then `Vec<u8>`
 //! - serialization of a wrapper structure containing serialized blocks and the signature
-use super::crypto::{self, KeyPair, PrivateKey, PublicKey, TokenNext};
+use std::fmt::{self, Debug, Formatter};
+
+use super::crypto::{self, PrivateKey, Proof};
 
 use prost::Message;
 
 use super::error;
 use super::token::Block;
-use crate::crypto::ExternalSignature;
+use crate::Algorithm;
+use crate::crypto::{ExternalSignature, SerializePrivateKey, Sign, Verify};
 use crate::crypto::Signature;
 use crate::datalog::SymbolTable;
 use crate::token::RootKeyProvider;
@@ -32,22 +35,23 @@ use self::convert::*;
 pub(crate) const THIRD_PARTY_SIGNATURE_VERSION: u32 = 1;
 pub(crate) const DATALOG_3_3_SIGNATURE_VERSION: u32 = 1;
 pub(crate) const NON_ED25519_SIGNATURE_VERSION: u32 = 1;
+
 /// Intermediate structure for token serialization
 ///
 /// This structure contains the blocks serialized to byte arrays. Those arrays
 /// will be used for the signature
-#[derive(Clone, Debug)]
-pub struct SerializedBiscuit {
+#[derive(Clone)]
+pub struct SerializedBiscuit<K: SerializePrivateKey = PrivateKey> {
     pub root_key_id: Option<u32>,
-    pub authority: crypto::Block,
-    pub blocks: Vec<crypto::Block>,
-    pub proof: crypto::TokenNext,
+    pub authority: crypto::Block<K::PublicKey, K::PublicKey>,
+    pub blocks: Vec<crypto::Block<K::PublicKey, K::PublicKey>>,
+    pub proof: crypto::Proof<K>,
 }
 
-impl SerializedBiscuit {
+impl<K: SerializePrivateKey> SerializedBiscuit<K> {
     pub fn from_slice<KP>(slice: &[u8], key_provider: KP) -> Result<Self, error::Format>
     where
-        KP: RootKeyProvider,
+        KP: RootKeyProvider<Key = K::PublicKey>,
     {
         let deser = SerializedBiscuit::deserialize(
             slice,
@@ -65,7 +69,7 @@ impl SerializedBiscuit {
         key_provider: KP,
     ) -> Result<Self, error::Format>
     where
-        KP: RootKeyProvider,
+        KP: RootKeyProvider<Key = K::PublicKey>,
     {
         let deser =
             SerializedBiscuit::deserialize(slice, ThirdPartyVerificationMode::UnsafeLegacy)?;
@@ -84,7 +88,7 @@ impl SerializedBiscuit {
             error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
 
-        let next_key = PublicKey::from_proto(&data.authority.next_key)?;
+        let next_key: K::PublicKey = convert::public_key_from_proto(&data.authority.next_key)?;
         let mut next_key_algorithm = next_key.algorithm();
 
         let signature = Signature::from_vec(data.authority.signature);
@@ -105,7 +109,7 @@ impl SerializedBiscuit {
 
         let mut blocks = Vec::new();
         for block in data.blocks {
-            let next_key = PublicKey::from_proto(&block.next_key)?;
+            let next_key: K::PublicKey = convert::public_key_from_proto(&block.next_key)?;
             next_key_algorithm = next_key.algorithm();
 
             let signature = Signature::from_vec(block.signature);
@@ -119,7 +123,7 @@ impl SerializedBiscuit {
                     ));
                 }
 
-                let public_key = PublicKey::from_proto(&ex.public_key)?;
+                let public_key = convert::public_key_from_proto(&ex.public_key)?;
                 let signature = Signature::from_vec(ex.signature);
 
                 Some(ExternalSignature {
@@ -146,18 +150,12 @@ impl SerializedBiscuit {
                 ))
             }
             Some(schema::proof::Content::NextSecret(v)) => {
-                let next_key_algorithm = match next_key_algorithm {
-                    schema::public_key::Algorithm::Ed25519 => crate::builder::Algorithm::Ed25519,
-                    schema::public_key::Algorithm::Secp256r1 => {
-                        crate::builder::Algorithm::Secp256r1
-                    }
-                };
-                TokenNext::Secret(PrivateKey::from_bytes(&v, next_key_algorithm)?)
+                Proof::Secret(K::from_bytes_and_algorithm(next_key_algorithm, &v)?)
             }
             Some(schema::proof::Content::FinalSignature(v)) => {
                 let signature = Signature::from_vec(v);
 
-                TokenNext::Seal(signature)
+                Proof::Seal(signature)
             }
         };
 
@@ -175,8 +173,6 @@ impl SerializedBiscuit {
         &self,
         symbols: &mut SymbolTable,
     ) -> Result<(schema::Block, Vec<schema::Block>), error::Token> {
-        let mut block_external_keys = Vec::new();
-
         let authority = schema::Block::decode(&self.authority.data[..]).map_err(|e| {
             error::Token::Format(error::Format::BlockDeserializationError(format!(
                 "error deserializing authority block: {e:?}"
@@ -186,13 +182,8 @@ impl SerializedBiscuit {
         symbols.extend(&SymbolTable::from(authority.symbols.clone())?)?;
 
         for pk in &authority.public_keys {
-            symbols
-                .public_keys
-                .insert_fallible(&PublicKey::from_proto(pk)?)?;
+            symbols.public_keys.insert_proto_fallible(&pk)?;
         }
-        // the authority block should not have an external key
-        block_external_keys.push(None);
-        //FIXME: return an error if the authority block has an external key
 
         let mut blocks = vec![];
 
@@ -203,15 +194,10 @@ impl SerializedBiscuit {
                 )))
             })?;
 
-            if let Some(external_signature) = &block.external_signature {
-                block_external_keys.push(Some(external_signature.public_key));
-            } else {
-                block_external_keys.push(None);
+            if block.external_signature.is_none() {
                 symbols.extend(&SymbolTable::from(deser.symbols.clone())?)?;
                 for pk in &deser.public_keys {
-                    symbols
-                        .public_keys
-                        .insert_fallible(&PublicKey::from_proto(pk)?)?;
+                    symbols.public_keys.insert_proto_fallible(&pk)?;
                 }
             }
 
@@ -225,7 +211,7 @@ impl SerializedBiscuit {
     pub fn to_proto(&self) -> schema::Biscuit {
         let authority = schema::SignedBlock {
             block: self.authority.data.clone(),
-            next_key: self.authority.next_key.to_proto(),
+            next_key: convert::public_key_to_proto(&self.authority.next_key),
             signature: self.authority.signature.to_bytes().to_vec(),
             external_signature: None,
             version: if self.authority.version > 0 {
@@ -239,12 +225,12 @@ impl SerializedBiscuit {
         for block in &self.blocks {
             let b = schema::SignedBlock {
                 block: block.data.clone(),
-                next_key: block.next_key.to_proto(),
+                next_key: convert::public_key_to_proto(&block.next_key),
                 signature: block.signature.to_bytes().to_vec(),
                 external_signature: block.external_signature.as_ref().map(|external_signature| {
                     schema::ExternalSignature {
                         signature: external_signature.signature.to_bytes().to_vec(),
-                        public_key: external_signature.public_key.to_proto(),
+                        public_key: convert::public_key_to_proto(&external_signature.public_key),
                     }
                 }),
                 version: if block.version > 0 {
@@ -263,10 +249,10 @@ impl SerializedBiscuit {
             blocks,
             proof: schema::Proof {
                 content: match &self.proof {
-                    TokenNext::Seal(signature) => Some(schema::proof::Content::FinalSignature(
+                    Proof::Seal(signature) => Some(schema::proof::Content::FinalSignature(
                         signature.to_bytes().to_vec(),
                     )),
-                    TokenNext::Secret(private) => Some(schema::proof::Content::NextSecret(
+                    Proof::Secret(private) => Some(schema::proof::Content::NextSecret(
                         private.to_bytes().to_vec(),
                     )),
                 },
@@ -290,33 +276,33 @@ impl SerializedBiscuit {
     }
 
     /// creates a new token
-    pub fn new(
+    pub fn new<IK: Sign>(
         root_key_id: Option<u32>,
-        root_keypair: &KeyPair,
-        next_keypair: &KeyPair,
+        root_private_key: &IK,
+        next_private_key: &K,
         authority: &Block,
     ) -> Result<Self, error::Token> {
         let authority_signature_version = block_signature_version(
-            root_keypair,
-            next_keypair,
-            &None,
+            root_private_key,
+            next_private_key,
+            &None::<ExternalSignature>,
             &Some(authority.version),
             std::iter::empty(),
         );
         Self::new_inner(
             root_key_id,
-            root_keypair,
-            next_keypair,
+            root_private_key,
+            next_private_key,
             authority,
             authority_signature_version,
         )
     }
 
     /// creates a new token
-    pub(crate) fn new_inner(
+    pub(crate) fn new_inner<IK: Sign>(
         root_key_id: Option<u32>,
-        root_keypair: &KeyPair,
-        next_keypair: &KeyPair,
+        root_private_key: &IK,
+        next_private_key: &K,
         authority: &Block,
         authority_signature_version: u32,
     ) -> Result<Self, error::Token> {
@@ -328,8 +314,8 @@ impl SerializedBiscuit {
             })?;
 
         let signature = crypto::sign_authority_block(
-            root_keypair,
-            next_keypair,
+            root_private_key,
+            &next_private_key.public(),
             &v,
             authority_signature_version,
         )?;
@@ -338,24 +324,24 @@ impl SerializedBiscuit {
             root_key_id,
             authority: crypto::Block {
                 data: v,
-                next_key: next_keypair.public(),
+                next_key: next_private_key.public(),
                 signature,
                 external_signature: None,
                 version: authority_signature_version,
             },
             blocks: vec![],
-            proof: TokenNext::Secret(next_keypair.private()),
+            proof: Proof::Secret(next_private_key.clone()),
         })
     }
 
     /// adds a new block, serializes it and sign a new token
     pub fn append(
         &self,
-        next_keypair: &KeyPair,
+        next_private_key: &K,
         block: &Block,
-        external_signature: Option<ExternalSignature>,
+        external_signature: Option<ExternalSignature<K::PublicKey>>,
     ) -> Result<Self, error::Token> {
-        let keypair = self.proof.keypair()?;
+        let private_key = self.proof.private_key()?;
 
         let mut v = Vec::new();
         token_block_to_proto_block(block)
@@ -365,8 +351,8 @@ impl SerializedBiscuit {
             })?;
 
         let signature_version = block_signature_version(
-            &keypair,
-            next_keypair,
+            &private_key,
+            next_private_key,
             &external_signature,
             &Some(block.version),
             // std::iter::once(self.authority.version)
@@ -378,8 +364,8 @@ impl SerializedBiscuit {
         );
 
         let signature = crypto::sign_block(
-            &keypair,
-            next_keypair,
+            &private_key,
+            &next_private_key.public(),
             &v,
             external_signature.as_ref(),
             &self.last_block().signature,
@@ -390,7 +376,7 @@ impl SerializedBiscuit {
         let mut blocks = self.blocks.clone();
         blocks.push(crypto::Block {
             data: v,
-            next_key: next_keypair.public(),
+            next_key: next_private_key.public(),
             signature,
             external_signature,
             version: signature_version,
@@ -400,22 +386,22 @@ impl SerializedBiscuit {
             root_key_id: self.root_key_id,
             authority: self.authority.clone(),
             blocks,
-            proof: TokenNext::Secret(next_keypair.private()),
+            proof: Proof::Secret(next_private_key.clone()),
         })
     }
 
     /// adds a new block, serializes it and sign a new token
     pub fn append_serialized(
         &self,
-        next_keypair: &KeyPair,
+        next_private_key: &K,
         block: Vec<u8>,
-        external_signature: Option<ExternalSignature>,
+        external_signature: Option<ExternalSignature<K::PublicKey>>,
     ) -> Result<Self, error::Token> {
-        let keypair = self.proof.keypair()?;
+        let private_key = self.proof.private_key()?;
 
         let signature_version = block_signature_version(
-            &keypair,
-            next_keypair,
+            &private_key,
+            next_private_key,
             &external_signature,
             // The version block is not directly available, so we don’t take it into account here
             // `append_serialized` is only used for third-party blocks anyway, so maybe we should make `external_signature` mandatory and not bother
@@ -425,8 +411,8 @@ impl SerializedBiscuit {
         );
 
         let signature = crypto::sign_block(
-            &keypair,
-            next_keypair,
+            &private_key,
+            &next_private_key.public(),
             &block,
             external_signature.as_ref(),
             &self.last_block().signature,
@@ -437,7 +423,7 @@ impl SerializedBiscuit {
         let mut blocks = self.blocks.clone();
         blocks.push(crypto::Block {
             data: block,
-            next_key: next_keypair.public(),
+            next_key: next_private_key.public(),
             signature,
             external_signature,
             version: signature_version,
@@ -447,26 +433,25 @@ impl SerializedBiscuit {
             root_key_id: self.root_key_id,
             authority: self.authority.clone(),
             blocks,
-            proof: TokenNext::Secret(next_keypair.private()),
+            proof: Proof::Secret(next_private_key.clone()),
         })
     }
 
     /// checks the signature on a deserialized token
-    pub fn verify(&self, root: &PublicKey) -> Result<(), error::Format> {
+    pub fn verify<IK: Verify>(&self, root: &IK) -> Result<(), error::Format> {
         self.verify_inner(root, ThirdPartyVerificationMode::PreviousSignatureHashing)
     }
 
-    pub(crate) fn verify_inner(
+    pub(crate) fn verify_inner<IK: Verify>(
         &self,
-        root: &PublicKey,
+        root: &IK,
         verification_mode: ThirdPartyVerificationMode,
     ) -> Result<(), error::Format> {
         //FIXME: try batched signature verification
-        let mut current_pub = root;
         let mut previous_signature;
 
-        crypto::verify_authority_block_signature(&self.authority, current_pub)?;
-        current_pub = &self.authority.next_key;
+        crypto::verify_authority_block_signature(&self.authority, root)?;
+        let mut current_pub = &self.authority.next_key;
         previous_signature = &self.authority.signature;
 
         for block in &self.blocks {
@@ -488,8 +473,8 @@ impl SerializedBiscuit {
         }
 
         match &self.proof {
-            TokenNext::Secret(private) => {
-                if current_pub != &private.public() {
+            Proof::Secret(private) => {
+                if *current_pub != private.public() {
                     return Err(error::Format::Signature(
                         error::Signature::InvalidSignature(
                             "the last public key does not match the private key".to_string(),
@@ -497,7 +482,7 @@ impl SerializedBiscuit {
                     ));
                 }
             }
-            TokenNext::Seal(signature) => {
+            Proof::Seal(signature) => {
                 //FIXME: replace with SHA512 hashing
                 let block = if self.blocks.is_empty() {
                     &self.authority
@@ -513,9 +498,8 @@ impl SerializedBiscuit {
 
         Ok(())
     }
-
     pub fn seal(&self) -> Result<Self, error::Token> {
-        let keypair = self.proof.keypair()?;
+        let private_key = self.proof.private_key()?;
 
         //FIXME: replace with SHA512 hashing
         let block = if self.blocks.is_empty() {
@@ -526,18 +510,33 @@ impl SerializedBiscuit {
 
         let to_sign = crypto::generate_seal_signature_payload_v0(block);
 
-        let signature = keypair.sign(&to_sign)?;
+        let signature = private_key.sign(&to_sign)?;
 
         Ok(SerializedBiscuit {
             root_key_id: self.root_key_id,
             authority: self.authority.clone(),
             blocks: self.blocks.clone(),
-            proof: TokenNext::Seal(signature),
+            proof: Proof::Seal(signature),
         })
     }
 
-    pub(crate) fn last_block(&self) -> &crypto::Block {
+    pub(crate) fn last_block(&self) -> &crypto::Block<K::PublicKey, K::PublicKey> {
         self.blocks.last().unwrap_or(&self.authority)
+    }
+}
+
+impl<K> Debug for SerializedBiscuit<K>
+where
+    K: SerializePrivateKey + Debug,
+    K::PublicKey: Debug,
+{
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("SerializedBiscuit")
+            .field("root_key_id", &self.root_key_id)
+            .field("authority", &self.authority)
+            .field("blocks", &self.blocks)
+            .field("proof", &self.proof)
+            .finish()
     }
 }
 
@@ -547,10 +546,10 @@ pub(crate) enum ThirdPartyVerificationMode {
     PreviousSignatureHashing,
 }
 
-fn block_signature_version<I>(
-    block_keypair: &KeyPair,
-    next_keypair: &KeyPair,
-    external_signature: &Option<ExternalSignature>,
+fn block_signature_version<I, IK: Sign, AK: Sign, EK>(
+    block_private_key: &IK,
+    next_private_key: &AK,
+    external_signature: &Option<ExternalSignature<EK>>,
     block_version: &Option<u32>,
     previous_blocks_sig_versions: I,
 ) -> u32
@@ -568,8 +567,8 @@ where
         _ => {}
     }
 
-    match (block_keypair, next_keypair) {
-        (KeyPair::Ed25519(_), KeyPair::Ed25519(_)) => {}
+    match (block_private_key.algorithm(), next_private_key.algorithm()) {
+        (Algorithm::Ed25519, Algorithm::Ed25519) => {}
         _ => {
             return NON_ED25519_SIGNATURE_VERSION;
         }
@@ -587,7 +586,7 @@ mod tests {
         crypto::{ExternalSignature, Signature},
         format::block_signature_version,
         token::{DATALOG_3_1, DATALOG_3_3},
-        KeyPair,
+        PrivateKey,
     };
 
     #[test]
@@ -620,9 +619,9 @@ mod tests {
     fn test_block_signature_version() {
         assert_eq!(
             block_signature_version(
-                &KeyPair::new(),
-                &KeyPair::new(),
-                &None,
+                &PrivateKey::new(),
+                &PrivateKey::new(),
+                &None::<ExternalSignature>,
                 &Some(DATALOG_3_1),
                 std::iter::empty()
             ),
@@ -631,9 +630,9 @@ mod tests {
         );
         assert_eq!(
             block_signature_version(
-                &KeyPair::new_with_algorithm(Algorithm::Secp256r1),
-                &KeyPair::new_with_algorithm(Algorithm::Ed25519),
-                &None,
+                &PrivateKey::new_with_algorithm(Algorithm::Secp256r1),
+                &PrivateKey::new_with_algorithm(Algorithm::Ed25519),
+                &None::<ExternalSignature>,
                 &Some(DATALOG_3_1),
                 std::iter::empty()
             ),
@@ -642,9 +641,9 @@ mod tests {
         );
         assert_eq!(
             block_signature_version(
-                &KeyPair::new_with_algorithm(Algorithm::Ed25519),
-                &KeyPair::new_with_algorithm(Algorithm::Secp256r1),
-                &None,
+                &PrivateKey::new_with_algorithm(Algorithm::Ed25519),
+                &PrivateKey::new_with_algorithm(Algorithm::Secp256r1),
+                &None::<ExternalSignature>,
                 &Some(DATALOG_3_1),
                 std::iter::empty()
             ),
@@ -653,9 +652,9 @@ mod tests {
         );
         assert_eq!(
             block_signature_version(
-                &KeyPair::new_with_algorithm(Algorithm::Secp256r1),
-                &KeyPair::new_with_algorithm(Algorithm::Secp256r1),
-                &None,
+                &PrivateKey::new_with_algorithm(Algorithm::Secp256r1),
+                &PrivateKey::new_with_algorithm(Algorithm::Secp256r1),
+                &None::<ExternalSignature>,
                 &Some(DATALOG_3_1),
                 std::iter::empty()
             ),
@@ -664,10 +663,10 @@ mod tests {
         );
         assert_eq!(
             block_signature_version(
-                &KeyPair::new(),
-                &KeyPair::new(),
+                &PrivateKey::new(),
+                &PrivateKey::new(),
                 &Some(ExternalSignature {
-                    public_key: KeyPair::new().public(),
+                    public_key: PrivateKey::new().public(),
                     signature: Signature::from_vec(Vec::new())
                 }),
                 &Some(DATALOG_3_1),
@@ -678,9 +677,9 @@ mod tests {
         );
         assert_eq!(
             block_signature_version(
-                &KeyPair::new(),
-                &KeyPair::new(),
-                &None,
+                &PrivateKey::new(),
+                &PrivateKey::new(),
+                &None::<ExternalSignature>,
                 &Some(DATALOG_3_3),
                 std::iter::empty()
             ),
@@ -689,9 +688,9 @@ mod tests {
         );
         assert_eq!(
             block_signature_version(
-                &KeyPair::new(),
-                &KeyPair::new(),
-                &None,
+                &PrivateKey::new(),
+                &PrivateKey::new(),
+                &None::<ExternalSignature>,
                 &Some(DATALOG_3_1),
                 std::iter::once(1)
             ),

@@ -8,14 +8,14 @@ use biscuit_auth::{
     builder::{Algorithm, AuthorizerBuilder, BlockBuilder},
     builder_ext::AuthorizerExt,
     datalog::{RunLimits, SymbolTable},
-    Biscuit, KeyPair,
+    Biscuit, PrivateKey,
 };
 use rand::{prelude::StdRng, SeedableRng};
 
 fn main() {
     let mut rng: StdRng = SeedableRng::seed_from_u64(0);
-    let root = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
-    let external = KeyPair::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let external = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let external_pub = hex::encode(external.public().to_bytes());
 
     let biscuit1 = Biscuit::builder()
@@ -34,7 +34,7 @@ fn main() {
     let builder = BlockBuilder::new()
         .fact("external_fact(\"hello\")")
         .unwrap();
-    let res = req.create_block(&external.private(), builder).unwrap();
+    let res = req.create_block(&external, builder).unwrap();
 
     let biscuit2 = biscuit1.append_third_party(external.public(), res).unwrap();
 

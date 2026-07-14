@@ -164,10 +164,10 @@ impl ToTokens for Scope {
                 let bytes = pk.key.iter();
                 match pk.algorithm {
                     Algorithm::Ed25519 => quote! { ::biscuit_auth::builder::Scope::PublicKey(
-                        ::biscuit_auth::PublicKey::from_bytes(&[#(#bytes),*], ::biscuit_auth::builder::Algorithm::Ed25519).unwrap()
+                        ::biscuit_auth::public_keys::PublicKey::from_bytes(::biscuit_auth::builder::Algorithm::Ed25519, vec![#(#bytes),*])
                       )},
                     Algorithm::Secp256r1 => quote! { ::biscuit_auth::builder::Scope::PublicKey(
-                        ::biscuit_auth::PublicKey::from_bytes(&[#(#bytes),*], ::biscuit_auth::builder::Algorithm::Secp256r1).unwrap()
+                        ::biscuit_auth::public_keys::PublicKey::from_bytes(::biscuit_auth::builder::Algorithm::Secp256r1, vec![#(#bytes),*])
                       )},
                 }
             }
