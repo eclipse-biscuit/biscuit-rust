@@ -10,7 +10,7 @@ use biscuit_parser::{
     parser::{parse_block_source, parse_source},
 };
 use proc_macro2::{Span, TokenStream};
-use proc_macro_error2::{abort_call_site, proc_macro_error};
+use manyhow::bail;
 use quote::{quote, ToTokens};
 use std::collections::{HashMap, HashSet};
 use syn::{
@@ -88,112 +88,112 @@ impl Parse for ParsedMerge {
 /// Create a `BlockBuilder` from a datalog string and optional parameters.
 /// The datalog string is parsed at compile time and replaced by manual
 /// block building.
+#[manyhow::manyhow]
 #[proc_macro]
-#[proc_macro_error]
-pub fn block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn block(input: proc_macro::TokenStream) -> manyhow::Result<proc_macro::TokenStream> {
     let ParsedCreateNew {
         datalog,
         parameters,
-    } = syn::parse_macro_input!(input as ParsedCreateNew);
+    } = syn::parse::<ParsedCreateNew>(input).map_err(|e| manyhow::error_message!("{}", e))?;
 
     let ty = syn::parse_quote!(::biscuit_auth::builder::BlockBuilder);
     let builder = Builder::block_source(ty, None, datalog, parameters)
-        .unwrap_or_else(|e| abort_call_site!(e.to_string()));
+        .map_err(|e| manyhow::error_message!("{}", e))?;
 
-    builder.into_token_stream().into()
+    Ok(builder.into_token_stream().into())
 }
 
 /// Merge facts, rules, and checks into a `BlockBuilder` from a datalog
 /// string and optional parameters. The datalog string is parsed at compile time
 /// and replaced by manual block building.
+#[manyhow::manyhow]
 #[proc_macro]
-#[proc_macro_error]
-pub fn block_merge(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn block_merge(input: proc_macro::TokenStream) -> manyhow::Result<proc_macro::TokenStream> {
     let ParsedMerge {
         target,
         datalog,
         parameters,
-    } = syn::parse_macro_input!(input as ParsedMerge);
+    } = syn::parse::<ParsedMerge>(input).map_err(|e| manyhow::error_message!("{}", e))?;
 
     let ty = syn::parse_quote!(::biscuit_auth::builder::BlockBuilder);
     let builder = Builder::block_source(ty, Some(target), datalog, parameters)
-        .unwrap_or_else(|e| abort_call_site!(e.to_string()));
+        .map_err(|e| manyhow::error_message!("{}", e))?;
 
-    builder.into_token_stream().into()
+    Ok(builder.into_token_stream().into())
 }
 
 /// Create an `Authorizer` from a datalog string and optional parameters.
 /// The datalog string is parsed at compile time and replaced by manual
 /// block building.
+#[manyhow::manyhow]
 #[proc_macro]
-#[proc_macro_error]
-pub fn authorizer(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn authorizer(input: proc_macro::TokenStream) -> manyhow::Result<proc_macro::TokenStream> {
     let ParsedCreateNew {
         datalog,
         parameters,
-    } = syn::parse_macro_input!(input as ParsedCreateNew);
+    } = syn::parse::<ParsedCreateNew>(input).map_err(|e| manyhow::error_message!("{}", e))?;
 
     let ty = syn::parse_quote!(::biscuit_auth::builder::AuthorizerBuilder);
     let builder = Builder::source(ty, None, datalog, parameters)
-        .unwrap_or_else(|e| abort_call_site!(e.to_string()));
+        .map_err(|e| manyhow::error_message!("{}", e))?;
 
-    builder.into_token_stream().into()
+    Ok(builder.into_token_stream().into())
 }
 
 /// Merge facts, rules, checks, and policies into an `Authorizer` from a datalog
 /// string and optional parameters. The datalog string is parsed at compile time
 /// and replaced by manual block building.
+#[manyhow::manyhow]
 #[proc_macro]
-#[proc_macro_error]
-pub fn authorizer_merge(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn authorizer_merge(input: proc_macro::TokenStream) -> manyhow::Result<proc_macro::TokenStream> {
     let ParsedMerge {
         target,
         datalog,
         parameters,
-    } = syn::parse_macro_input!(input as ParsedMerge);
+    } = syn::parse::<ParsedMerge>(input).map_err(|e| manyhow::error_message!("{}", e))?;
 
     let ty = syn::parse_quote!(::biscuit_auth::builder::AuthorizerBuilder);
     let builder = Builder::source(ty, Some(target), datalog, parameters)
-        .unwrap_or_else(|e| abort_call_site!(e.to_string()));
+        .map_err(|e| manyhow::error_message!("{}", e))?;
 
-    builder.into_token_stream().into()
+    Ok(builder.into_token_stream().into())
 }
 
 /// Create an `BiscuitBuilder` from a datalog string and optional parameters.
 /// The datalog string is parsed at compile time and replaced by manual
 /// block building.
+#[manyhow::manyhow]
 #[proc_macro]
-#[proc_macro_error]
-pub fn biscuit(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn biscuit(input: proc_macro::TokenStream) -> manyhow::Result<proc_macro::TokenStream> {
     let ParsedCreateNew {
         datalog,
         parameters,
-    } = syn::parse_macro_input!(input as ParsedCreateNew);
+    } = syn::parse::<ParsedCreateNew>(input).map_err(|e| manyhow::error_message!("{}", e))?;
 
     let ty = syn::parse_quote!(::biscuit_auth::builder::BiscuitBuilder);
     let builder = Builder::block_source(ty, None, datalog, parameters)
-        .unwrap_or_else(|e| abort_call_site!(e.to_string()));
+        .map_err(|e| manyhow::error_message!("{}", e))?;
 
-    builder.into_token_stream().into()
+    Ok(builder.into_token_stream().into())
 }
 
 /// Merge facts, rules, and checks into a `BiscuitBuilder` from a datalog
 /// string and optional parameters. The datalog string is parsed at compile time
 /// and replaced by manual block building.
+#[manyhow::manyhow]
 #[proc_macro]
-#[proc_macro_error]
-pub fn biscuit_merge(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn biscuit_merge(input: proc_macro::TokenStream) -> manyhow::Result<proc_macro::TokenStream> {
     let ParsedMerge {
         target,
         datalog,
         parameters,
-    } = syn::parse_macro_input!(input as ParsedMerge);
+    } = syn::parse::<ParsedMerge>(input).map_err(|e| manyhow::error_message!("{}", e))?;
 
     let ty = syn::parse_quote!(::biscuit_auth::builder::BiscuitBuilder);
     let builder = Builder::block_source(ty, Some(target), datalog, parameters)
-        .unwrap_or_else(|e| abort_call_site!(e.to_string()));
+        .map_err(|e| manyhow::error_message!("{}", e))?;
 
-    builder.into_token_stream().into()
+    Ok(builder.into_token_stream().into())
 }
 
 #[derive(Clone, Debug)]
@@ -556,13 +556,13 @@ impl ToTokens for Builder {
 /// Create a `Rule` from a datalog string and optional parameters.
 /// The datalog string is parsed at compile time and replaced by manual
 /// builder calls.
+#[manyhow::manyhow]
 #[proc_macro]
-#[proc_macro_error]
-pub fn rule(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn rule(input: proc_macro::TokenStream) -> manyhow::Result<proc_macro::TokenStream> {
     let ParsedCreateNew {
         datalog,
         parameters,
-    } = syn::parse_macro_input!(input as ParsedCreateNew);
+    } = syn::parse::<ParsedCreateNew>(input).map_err(|e| manyhow::error_message!("{}", e))?;
 
     // here we reuse the machinery made for managing parameter substitution
     // for whole blocks. Of course, we're only interested in a single rule
@@ -570,16 +570,16 @@ pub fn rule(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // affect runtime performance.
     let ty = syn::parse_quote!(::biscuit_auth::builder::BlockBuilder);
     let builder = Builder::block_source(ty, None, datalog, parameters)
-        .unwrap_or_else(|e| abort_call_site!(e.to_string()));
+        .map_err(|e| manyhow::error_message!("{}", e))?;
 
     let mut rule_item = if let Some(r) = builder.rules.first() {
         if builder.rules.len() == 1 && builder.facts.is_empty() && builder.checks.is_empty() {
             Item::rule(r)
         } else {
-            abort_call_site!("The rule macro only accepts a single rule as input")
+            bail!("The rule macro only accepts a single rule as input")
         }
     } else {
-        abort_call_site!("The rule macro only accepts a single rule as input")
+        bail!("The rule macro only accepts a single rule as input")
     };
 
     // here we are only interested in returning the rule, not adding it to a
@@ -618,25 +618,25 @@ pub fn rule(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     }
 
-    (quote! {
+    Ok((quote! {
         {
             #params_quote
             #rule_item
         }
     })
-    .into()
+    .into())
 }
 
 /// Create a `Fact` from a datalog string and optional parameters.
 /// The datalog string is parsed at compile time and replaced by manual
 /// builder calls.
+#[manyhow::manyhow]
 #[proc_macro]
-#[proc_macro_error]
-pub fn fact(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn fact(input: proc_macro::TokenStream) -> manyhow::Result<proc_macro::TokenStream> {
     let ParsedCreateNew {
         datalog,
         parameters,
-    } = syn::parse_macro_input!(input as ParsedCreateNew);
+    } = syn::parse::<ParsedCreateNew>(input).map_err(|e| manyhow::error_message!("{}", e))?;
 
     // here we reuse the machinery made for managing parameter substitution
     // for whole blocks. Of course, we're only interested in a single fact
@@ -644,16 +644,16 @@ pub fn fact(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // affect runtime performance.
     let ty = syn::parse_quote!(::biscuit_auth::builder::BlockBuilder);
     let builder = Builder::block_source(ty, None, datalog, parameters)
-        .unwrap_or_else(|e| abort_call_site!(e.to_string()));
+        .map_err(|e| manyhow::error_message!("{}", e))?;
 
     let mut fact_item = if let Some(f) = builder.facts.first() {
         if builder.facts.len() == 1 && builder.rules.is_empty() && builder.checks.is_empty() {
             Item::fact(f)
         } else {
-            abort_call_site!("The fact macro only accepts a single fact as input")
+            bail!("The fact macro only accepts a single fact as input")
         }
     } else {
-        abort_call_site!("The fact macro only accepts a single fact as input")
+        bail!("The fact macro only accepts a single fact as input")
     };
 
     // here we are only interested in returning the fact, not adding it to a
@@ -686,25 +686,25 @@ pub fn fact(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     }
 
-    (quote! {
+    Ok((quote! {
         {
             #params_quote
             #fact_item
         }
     })
-    .into()
+    .into())
 }
 
 /// Create a `Check` from a datalog string and optional parameters.
 /// The datalog string is parsed at compile time and replaced by manual
 /// builder calls.
+#[manyhow::manyhow]
 #[proc_macro]
-#[proc_macro_error]
-pub fn check(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn check(input: proc_macro::TokenStream) -> manyhow::Result<proc_macro::TokenStream> {
     let ParsedCreateNew {
         datalog,
         parameters,
-    } = syn::parse_macro_input!(input as ParsedCreateNew);
+    } = syn::parse::<ParsedCreateNew>(input).map_err(|e| manyhow::error_message!("{}", e))?;
 
     // here we reuse the machinery made for managing parameter substitution
     // for whole blocks. Of course, we're only interested in a single check
@@ -712,16 +712,16 @@ pub fn check(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // affect runtime performance.
     let ty = syn::parse_quote!(::biscuit_auth::builder::BlockBuilder);
     let builder = Builder::block_source(ty, None, datalog, parameters)
-        .unwrap_or_else(|e| abort_call_site!(e.to_string()));
+        .map_err(|e| manyhow::error_message!("{}", e))?;
 
     let mut check_item = if let Some(c) = builder.checks.first() {
         if builder.checks.len() == 1 && builder.facts.is_empty() && builder.rules.is_empty() {
             Item::check(c)
         } else {
-            abort_call_site!("The check macro only accepts a single check as input")
+            bail!("The check macro only accepts a single check as input")
         }
     } else {
-        abort_call_site!("The check macro only accepts a single check as input")
+        bail!("The check macro only accepts a single check as input")
     };
 
     // here we are only interested in returning the check, not adding it to a
@@ -760,25 +760,25 @@ pub fn check(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     }
 
-    (quote! {
+    Ok((quote! {
         {
             #params_quote
             #check_item
         }
     })
-    .into()
+    .into())
 }
 
 /// Create a `Policy` from a datalog string and optional parameters.
 /// The datalog string is parsed at compile time and replaced by manual
 /// builder calls.
+#[manyhow::manyhow]
 #[proc_macro]
-#[proc_macro_error]
-pub fn policy(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn policy(input: proc_macro::TokenStream) -> manyhow::Result<proc_macro::TokenStream> {
     let ParsedCreateNew {
         datalog,
         parameters,
-    } = syn::parse_macro_input!(input as ParsedCreateNew);
+    } = syn::parse::<ParsedCreateNew>(input).map_err(|e| manyhow::error_message!("{}", e))?;
 
     // here we reuse the machinery made for managing parameter substitution
     // for whole blocks. Of course, we're only interested in a single policy
@@ -786,7 +786,7 @@ pub fn policy(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // affect runtime performance.
     let ty = syn::parse_quote!(::biscuit_auth::Authorizer);
     let builder = Builder::source(ty, None, datalog, parameters)
-        .unwrap_or_else(|e| abort_call_site!(e.to_string()));
+        .map_err(|e| manyhow::error_message!("{}", e))?;
 
     let mut policy_item = if let Some(p) = builder.policies.first() {
         if builder.policies.len() == 1
@@ -796,10 +796,10 @@ pub fn policy(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         {
             Item::policy(p)
         } else {
-            abort_call_site!("The policy macro only accepts a single policy as input")
+            bail!("The policy macro only accepts a single policy as input")
         }
     } else {
-        abort_call_site!("The policy macro only accepts a single policy as input")
+        bail!("The policy macro only accepts a single policy as input")
     };
 
     // here we are only interested in returning the policy, not adding it to a
@@ -838,11 +838,11 @@ pub fn policy(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     }
 
-    (quote! {
+    Ok((quote! {
         {
             #params_quote
             #policy_item
         }
     })
-    .into()
+    .into())
 }

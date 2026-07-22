@@ -1,0 +1,36 @@
+error: datalog parsing error: ParseErrors { errors: [ParseError { input: "typo can_view(\"/file2\")", message: None }] }
+  --> tests/error_message/biscuit_macro.rs:21:13
+   |
+21 |       let _ = biscuit!(r#"
+   |  _____________^
+22 | |         can_view("/file1");
+23 | |         typo can_view("/file2");
+24 | |         file("/file1");
+25 | |     "#);
+   | |_______^
+   |
+   = note: this error originates in the macro `biscuit` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: datalog parsing error: ParseErrors { errors: [ParseError { input: "can_view(\"/file1\")\n        can_view(\"/file2\")", message: None }, ParseError { input: "", message: None }] }
+  --> tests/error_message/biscuit_macro.rs:28:13
+   |
+28 |       let _ = biscuit!(r#"
+   |  _____________^
+29 | |         can_view("/file1")
+30 | |         can_view("/file2");
+31 | |     "#);
+   | |_______^
+   |
+   = note: this error originates in the macro `biscuit` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: datalog parsing error: ParseErrors { errors: [ParseError { input: "allow if file($f), operation($op), right($f, $op)", message: None }, ParseError { input: "", message: None }] }
+  --> tests/error_message/biscuit_macro.rs:33:13
+   |
+33 |       let _ = biscuit!(r#"
+   |  _____________^
+34 | |         can_view($file) <- right($file, "read");
+35 | |         allow if file($f), operation($op), right($f, $op);
+36 | |     "#);
+   | |_______^
+   |
+   = note: this error originates in the macro `biscuit` (in Nightly builds, run with -Z macro-backtrace for more info)

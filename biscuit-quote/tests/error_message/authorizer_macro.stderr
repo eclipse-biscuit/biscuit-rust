@@ -1,0 +1,23 @@
+error: datalog parsing error: ParseErrors { errors: [ParseError { input: "$file", message: Some("variables are not allowed in facts") }] }
+  --> tests/error_message/authorizer_macro.rs:20:13
+   |
+20 |       let _ = authorizer!(r#"
+   |  _____________^
+21 | |         can_view($file) - right($file, "read");
+22 | |         allow if file($f), operation($op), right($f, $op);
+23 | |     "#);
+   | |_______^
+   |
+   = note: this error originates in the macro `authorizer` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: datalog parsing error: ParseErrors { errors: [ParseError { input: "\n        can_view($file, $unused) <- right($file, \"read\")", message: Some("the rule contains variables that are not bound by predicates in the rule's body: $unused") }] }
+  --> tests/error_message/authorizer_macro.rs:26:13
+   |
+26 |       let _ = authorizer!(r#"
+   |  _____________^
+27 | |         can_view($file, $unused) <- right($file, "read");
+28 | |         allow if file($f), operation($op), right($f, $op);
+29 | |     "#);
+   | |_______^
+   |
+   = note: this error originates in the macro `authorizer` (in Nightly builds, run with -Z macro-backtrace for more info)
