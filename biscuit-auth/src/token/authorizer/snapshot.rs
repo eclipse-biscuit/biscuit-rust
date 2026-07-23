@@ -2,6 +2,7 @@
  * Copyright (c) 2019 Geoffroy Couprie <contact@geoffroycouprie.com> and Contributors to the Eclipse Foundation.
  * SPDX-License-Identifier: Apache-2.0
  */
+use base64::prelude::*;
 use prost::Message;
 use std::{collections::HashMap, time::Duration};
 
@@ -180,7 +181,7 @@ impl super::Authorizer {
     }
 
     pub fn from_base64_snapshot(input: &str) -> Result<Self, error::Token> {
-        let bytes = base64::decode_config(input, base64::URL_SAFE)?;
+        let bytes = BASE64_URL_SAFE.decode(input)?;
         Self::from_raw_snapshot(&bytes)
     }
 
@@ -270,7 +271,7 @@ impl super::Authorizer {
 
     pub fn to_base64_snapshot(&self) -> Result<String, error::Format> {
         let snapshot_bytes = self.to_raw_snapshot()?;
-        Ok(base64::encode_config(snapshot_bytes, base64::URL_SAFE))
+        Ok(BASE64_URL_SAFE.encode(snapshot_bytes))
     }
 }
 

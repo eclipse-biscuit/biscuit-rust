@@ -2,7 +2,10 @@
  * Copyright (c) 2019 Geoffroy Couprie <contact@geoffroycouprie.com> and Contributors to the Eclipse Foundation.
  * SPDX-License-Identifier: Apache-2.0
  */
-use prost::Message;
+use std::convert::TryFrom as _;
+
+use base64::prelude::*;
+use prost::{Message, UnknownEnumValue};
 
 use super::{default_symbol_table, Biscuit, Block};
 use crate::{
@@ -120,7 +123,7 @@ impl UnverifiedBiscuit {
         self.container
             .to_vec()
             .map_err(error::Token::Format)
-            .map(|v| base64::encode_config(v, base64::URL_SAFE))
+            .map(|v| BASE64_URL_SAFE.encode(v))
     }
 
     /// deserializes from raw bytes with a custom symbol table
@@ -145,7 +148,7 @@ impl UnverifiedBiscuit {
     where
         T: AsRef<[u8]>,
     {
-        let decoded = base64::decode_config(slice, base64::URL_SAFE)?;
+        let decoded = BASE64_URL_SAFE.decode(slice)?;
         Self::from_with_symbols(&decoded, symbols)
     }
 
@@ -317,12 +320,13 @@ impl UnverifiedBiscuit {
             error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
 
-        let algorithm =
-            Algorithm::from_i32(external_signature.public_key.algorithm).ok_or_else(|| {
-                error::Format::DeserializationError(
-                    "deserialization error: invalid external key algorithm".to_string(),
-                )
-            })?;
+        let algorithm = Algorithm::try_from(external_signature.public_key.algorithm).map_err(
+            |UnknownEnumValue(v)| {
+                error::Format::DeserializationError(format!(
+                    "deserialization error: invalid external key algorithm `{v}`"
+                ))
+            },
+        )?;
         let external_key =
             PublicKey::from_bytes(&external_signature.public_key.key, algorithm.into()).map_err(
                 |e| {
@@ -371,7 +375,7 @@ impl UnverifiedBiscuit {
     where
         T: AsRef<[u8]>,
     {
-        let decoded = base64::decode_config(slice, base64::URL_SAFE)?;
+        let decoded = BASE64_URL_SAFE.decode(slice)?;
         self.append_third_party(&decoded)
     }
 }

@@ -821,9 +821,7 @@ fn reordered_blocks(target: &str, root: &KeyPair, test: bool) -> TestResult {
     let token = print_blocks(&biscuit3);
 
     let mut serialized = biscuit3.container().clone();
-    let mut blocks = vec![];
-    blocks.push(serialized.blocks[1].clone());
-    blocks.push(serialized.blocks[0].clone());
+    let blocks = vec![serialized.blocks[1].clone(), serialized.blocks[0].clone()];
     serialized.blocks = blocks;
 
     let data = if test {

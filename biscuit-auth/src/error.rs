@@ -67,10 +67,11 @@ impl From<base64::DecodeError> for Token {
             base64::DecodeError::InvalidByte(offset, byte) => {
                 Base64Error::InvalidByte(offset, byte)
             }
-            base64::DecodeError::InvalidLength => Base64Error::InvalidLength,
+            base64::DecodeError::InvalidLength(len) => Base64Error::InvalidLength(len),
             base64::DecodeError::InvalidLastSymbol(offset, byte) => {
                 Base64Error::InvalidLastSymbol(offset, byte)
             }
+            base64::DecodeError::InvalidPadding => Base64Error::InvalidPadding,
         };
 
         Token::Base64(err)
@@ -90,8 +91,9 @@ impl From<Execution> for Token {
 #[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
 pub enum Base64Error {
     InvalidByte(usize, u8),
-    InvalidLength,
+    InvalidLength(usize),
     InvalidLastSymbol(usize, u8),
+    InvalidPadding,
 }
 
 impl std::fmt::Display for Base64Error {
@@ -100,10 +102,13 @@ impl std::fmt::Display for Base64Error {
             Base64Error::InvalidByte(index, byte) => {
                 write!(f, "Invalid byte {byte}, offset {index}.")
             }
-            Base64Error::InvalidLength => write!(f, "Encoded text cannot have a 6-bit remainder."),
+            Base64Error::InvalidLength(len) => {
+                write!(f, "Invalid input length: {len}.")
+            }
             Base64Error::InvalidLastSymbol(index, byte) => {
                 write!(f, "Invalid last symbol {byte}, offset {index}.")
             }
+            Base64Error::InvalidPadding => write!(f, "Invalid padding"),
         }
     }
 }
@@ -315,8 +320,8 @@ mod tests {
         );
 
         assert_eq!(
-            format!("{}", Token::Base64(Base64Error::InvalidLength)),
-            "Cannot decode base64 token: Encoded text cannot have a 6-bit remainder."
+            format!("{}", Token::Base64(Base64Error::InvalidLength(6))),
+            "Cannot decode base64 token: Invalid input length: 6."
         );
 
         assert_eq!(
