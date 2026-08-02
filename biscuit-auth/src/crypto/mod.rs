@@ -91,6 +91,13 @@ impl KeyPair {
         }
     }
 
+    pub fn sign(&self, data: &[u8]) -> Result<Signature, error::Format> {
+        match self {
+            Self::Ed25519(key) => key.sign(data),
+            Self::P256(key) => key.sign(data),
+        }
+    }
+
     #[cfg(feature = "pem")]
     pub fn from_private_key_der_with_algorithm(
         bytes: &[u8],
@@ -154,13 +161,6 @@ impl KeyPair {
         match self {
             KeyPair::Ed25519(key) => PublicKey::Ed25519(key.public()),
             KeyPair::P256(key) => PublicKey::P256(key.public()),
-        }
-    }
-
-    pub fn sign(&self, data: &[u8]) -> Result<Signature, error::Format> {
-        match self {
-            Self::Ed25519(key) => key.sign(data),
-            Self::P256(key) => key.sign(data),
         }
     }
 
