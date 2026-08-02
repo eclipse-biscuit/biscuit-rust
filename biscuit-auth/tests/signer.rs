@@ -13,6 +13,7 @@ impl Signer for Ed25519Signer {
         Ok(self.0.sign(data).into())
     }
 }
+
 struct P256Signer(p256::ecdsa::SigningKey);
 
 impl Signer for P256Signer {
