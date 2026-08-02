@@ -12,7 +12,7 @@
 //! The implementation is based on [ed25519_dalek](https://github.com/dalek-cryptography/ed25519-dalek).
 #![allow(non_snake_case)]
 use crate::builder::Algorithm;
-use crate::format::schema;
+use crate::format::schema::{self, public_key::Algorithm as SchemaAlgorithm};
 use crate::format::ThirdPartyVerificationMode;
 
 use super::error;
@@ -25,11 +25,30 @@ use std::fmt;
 use std::hash::Hash;
 use std::str::FromStr;
 
+mod traits;
+pub use traits::*;
+
 /// pair of cryptographic keys used to sign a token's block
 #[derive(Debug, PartialEq)]
 pub enum KeyPair {
     Ed25519(ed25519::KeyPair),
     P256(p256::KeyPair),
+}
+
+impl Signer for KeyPair {
+    fn sign(&self, data: &[u8]) -> Result<Signature, error::Format> {
+        match self {
+            Self::Ed25519(key) => key.sign(data),
+            Self::P256(key) => key.sign(data),
+        }
+    }
+
+    fn algorithm(&self) -> Algorithm {
+        match self {
+            Self::Ed25519(_) => Algorithm::Ed25519,
+            Self::P256(_) => Algorithm::Secp256r1,
+        }
+    }
 }
 
 impl KeyPair {
@@ -74,8 +93,8 @@ impl KeyPair {
 
     pub fn sign(&self, data: &[u8]) -> Result<Signature, error::Format> {
         match self {
-            KeyPair::Ed25519(key) => key.sign(data),
-            KeyPair::P256(key) => key.sign(data),
+            Self::Ed25519(key) => key.sign(data),
+            Self::P256(key) => key.sign(data),
         }
     }
 
@@ -145,10 +164,10 @@ impl KeyPair {
         }
     }
 
-    pub fn algorithm(&self) -> crate::format::schema::public_key::Algorithm {
+    pub fn algorithm(&self) -> SchemaAlgorithm {
         match self {
-            KeyPair::Ed25519(_) => crate::format::schema::public_key::Algorithm::Ed25519,
-            KeyPair::P256(_) => crate::format::schema::public_key::Algorithm::Secp256r1,
+            Self::Ed25519(_) => SchemaAlgorithm::Ed25519,
+            Self::P256(_) => SchemaAlgorithm::Secp256r1,
         }
     }
 }
@@ -272,10 +291,10 @@ impl PrivateKey {
         }
     }
 
-    pub fn algorithm(&self) -> crate::format::schema::public_key::Algorithm {
+    pub fn algorithm(&self) -> SchemaAlgorithm {
         match self {
-            PrivateKey::Ed25519(_) => crate::format::schema::public_key::Algorithm::Ed25519,
-            PrivateKey::P256(_) => crate::format::schema::public_key::Algorithm::Secp256r1,
+            Self::Ed25519(_) => SchemaAlgorithm::Ed25519,
+            Self::P256(_) => SchemaAlgorithm::Secp256r1,
         }
     }
 }
@@ -429,19 +448,31 @@ impl fmt::Display for PublicKey {
 }
 
 #[derive(Clone, Debug)]
+/// A signature of a [Biscuit](crate::Biscuit) block.
+///
+/// May be constructed via [Into] from  [ed25519_dalek::Signature] or
+/// from [ecdsa::Signature] with the [NistP256](::p256::NistP256) curve.
 pub struct Signature(pub(crate) Vec<u8>);
 
 impl Signature {
-    pub fn from_bytes(data: &[u8]) -> Result<Self, error::Format> {
-        Ok(Signature(data.to_owned()))
-    }
-
     pub(crate) fn from_vec(data: Vec<u8>) -> Self {
         Signature(data)
     }
 
     pub fn to_bytes(&self) -> &[u8] {
         &self.0[..]
+    }
+}
+
+impl From<ed25519_dalek::Signature> for Signature {
+    fn from(value: ed25519_dalek::Signature) -> Self {
+        Self(value.to_vec())
+    }
+}
+
+impl From<ecdsa::Signature<::p256::NistP256>> for Signature {
+    fn from(value: ecdsa::Signature<::p256::NistP256>) -> Self {
+        Self(value.to_der().as_bytes().to_vec())
     }
 }
 
@@ -484,7 +515,7 @@ pub enum TokenNext {
 }
 
 pub fn sign_authority_block(
-    keypair: &KeyPair,
+    signer: &impl Signer,
     next_key: &KeyPair,
     message: &[u8],
     version: u32,
@@ -500,7 +531,7 @@ pub fn sign_authority_block(
         }
     };
 
-    let signature = keypair.sign(&to_sign)?;
+    let signature = signer.sign(&to_sign)?;
 
     Ok(Signature(signature.to_bytes().to_vec()))
 }
