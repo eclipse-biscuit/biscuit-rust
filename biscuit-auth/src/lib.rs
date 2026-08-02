@@ -259,7 +259,7 @@ pub use token::builder_ext;
 pub use token::unverified::UnverifiedBiscuit;
 pub use token::Biscuit;
 pub use token::RootKeyProvider;
-pub use token::{ThirdPartyBlock, ThirdPartyRequest};
+pub use token::{ThirdPartyBlock, ThirdPartyRequest, ThirdPartyUnsignedBlock};
 
 #[cfg(feature = "bwk")]
 mod bwk;
