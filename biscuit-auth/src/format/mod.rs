@@ -8,7 +8,7 @@
 //!
 //! - serialization of Biscuit blocks to Protobuf then `Vec<u8>`
 //! - serialization of a wrapper structure containing serialized blocks and the signature
-use super::crypto::{self, KeyPair, PrivateKey, PublicKey, TokenNext};
+use super::crypto::{self, KeyPair, PrivateKey, PublicKey, Signer, TokenNext};
 
 use prost::Message;
 
@@ -17,8 +17,10 @@ use super::token::Block;
 use crate::crypto::ExternalSignature;
 use crate::crypto::Signature;
 use crate::datalog::SymbolTable;
+use crate::format::schema::public_key::Algorithm as SchemaAlgorithm;
 use crate::token::RootKeyProvider;
 use crate::token::DATALOG_3_3;
+use crate::Algorithm;
 
 /// Structures generated from the Protobuf schema
 pub mod schema; /*{
@@ -292,7 +294,7 @@ impl SerializedBiscuit {
     /// creates a new token
     pub fn new(
         root_key_id: Option<u32>,
-        root_keypair: &KeyPair,
+        root_keypair: &impl Signer,
         next_keypair: &KeyPair,
         authority: &Block,
     ) -> Result<Self, error::Token> {
@@ -315,7 +317,7 @@ impl SerializedBiscuit {
     /// creates a new token
     pub(crate) fn new_inner(
         root_key_id: Option<u32>,
-        root_keypair: &KeyPair,
+        root_signer: &impl Signer,
         next_keypair: &KeyPair,
         authority: &Block,
         authority_signature_version: u32,
@@ -328,7 +330,7 @@ impl SerializedBiscuit {
             })?;
 
         let signature = crypto::sign_authority_block(
-            root_keypair,
+            root_signer,
             next_keypair,
             &v,
             authority_signature_version,
@@ -548,7 +550,7 @@ pub(crate) enum ThirdPartyVerificationMode {
 }
 
 fn block_signature_version<I>(
-    block_keypair: &KeyPair,
+    block_keypair: &impl Signer,
     next_keypair: &KeyPair,
     external_signature: &Option<ExternalSignature>,
     block_version: &Option<u32>,
@@ -568,8 +570,8 @@ where
         _ => {}
     }
 
-    match (block_keypair, next_keypair) {
-        (KeyPair::Ed25519(_), KeyPair::Ed25519(_)) => {}
+    match (block_keypair.algorithm(), next_keypair.algorithm()) {
+        (Algorithm::Ed25519, SchemaAlgorithm::Ed25519) => {}
         _ => {
             return NON_ED25519_SIGNATURE_VERSION;
         }

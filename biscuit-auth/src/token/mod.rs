@@ -15,7 +15,7 @@ use super::crypto::{KeyPair, PublicKey, Signature};
 use super::datalog::SymbolTable;
 use super::error;
 use super::format::SerializedBiscuit;
-use crate::crypto::{self};
+use crate::crypto::{self, Signer};
 use crate::format::convert::proto_block_to_token_block;
 use crate::format::schema::{self, ThirdPartyBlockContents};
 use crate::format::{ThirdPartyVerificationMode, THIRD_PARTY_SIGNATURE_VERSION};
@@ -254,7 +254,7 @@ impl Biscuit {
     pub(crate) fn new_with_rng<T: RngCore + CryptoRng>(
         rng: &mut T,
         root_key_id: Option<u32>,
-        root: &KeyPair,
+        root: &impl Signer,
         symbols: SymbolTable,
         authority: Block,
     ) -> Result<Biscuit, error::Token> {
@@ -272,7 +272,7 @@ impl Biscuit {
     /// the public part of the root keypair must be used for verification
     pub(crate) fn new_with_key_pair(
         root_key_id: Option<u32>,
-        root: &KeyPair,
+        root: &impl Signer,
         next_keypair: &KeyPair,
         mut symbols: SymbolTable,
         authority: Block,

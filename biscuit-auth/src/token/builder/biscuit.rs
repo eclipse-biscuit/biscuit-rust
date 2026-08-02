@@ -4,7 +4,7 @@
  */
 use super::{BlockBuilder, Check, Fact, Rule, Scope, Term};
 use crate::builder_ext::BuilderExt;
-use crate::crypto::PublicKey;
+use crate::crypto::{PublicKey, Signer};
 use crate::datalog::SymbolTable;
 use crate::token::default_symbol_table;
 use crate::{error, Biscuit, KeyPair};
@@ -124,21 +124,21 @@ impl BiscuitBuilder {
         f
     }
 
-    pub fn build(self, root_key: &KeyPair) -> Result<Biscuit, error::Token> {
-        self.build_with_symbols(root_key, default_symbol_table())
+    pub fn build(self, root: &impl Signer) -> Result<Biscuit, error::Token> {
+        self.build_with_symbols(root, default_symbol_table())
     }
 
     pub fn build_with_symbols(
         self,
-        root_key: &KeyPair,
+        root: &impl Signer,
         symbols: SymbolTable,
     ) -> Result<Biscuit, error::Token> {
-        self.build_with_rng(root_key, symbols, &mut rand::rngs::OsRng)
+        self.build_with_rng(root, symbols, &mut rand::rngs::OsRng)
     }
 
     pub fn build_with_rng<R: RngCore + CryptoRng>(
         self,
-        root: &KeyPair,
+        root: &impl Signer,
         symbols: SymbolTable,
         rng: &mut R,
     ) -> Result<Biscuit, error::Token> {
@@ -148,7 +148,7 @@ impl BiscuitBuilder {
 
     pub fn build_with_key_pair(
         self,
-        root: &KeyPair,
+        root: &impl Signer,
         symbols: SymbolTable,
         next: &KeyPair,
     ) -> Result<Biscuit, error::Token> {

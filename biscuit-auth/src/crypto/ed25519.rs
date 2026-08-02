@@ -53,15 +53,13 @@ impl KeyPair {
     }
 
     pub fn sign(&self, data: &[u8]) -> Result<Signature, error::Format> {
-        Ok(Signature(
-            self.kp
-                .try_sign(data)
-                .map_err(|s| s.to_string())
-                .map_err(error::Signature::InvalidSignatureGeneration)
-                .map_err(error::Format::Signature)?
-                .to_bytes()
-                .to_vec(),
-        ))
+        Ok(self
+            .kp
+            .try_sign(data)
+            .map_err(|s| s.to_string())
+            .map_err(error::Signature::InvalidSignatureGeneration)
+            .map_err(error::Format::Signature)?
+            .into())
     }
 
     pub fn private(&self) -> PrivateKey {

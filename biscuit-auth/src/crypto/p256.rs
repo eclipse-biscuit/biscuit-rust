@@ -51,7 +51,7 @@ impl KeyPair {
             .map_err(|s| s.to_string())
             .map_err(error::Signature::InvalidSignatureGeneration)
             .map_err(error::Format::Signature)?;
-        Ok(Signature(signature.to_der().as_bytes().to_owned()))
+        Ok(signature.into())
     }
 
     pub fn private(&self) -> PrivateKey {
