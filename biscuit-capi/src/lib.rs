@@ -9,9 +9,10 @@ use std::{
     ffi::{CStr, CString},
     fmt,
     os::raw::c_char,
+    time::Duration,
 };
 
-use biscuit_auth::datalog::SymbolTable;
+use biscuit_auth::datalog::{RunLimits, SymbolTable};
 
 enum Error {
     Biscuit(biscuit_auth::error::Token),
@@ -1092,6 +1093,16 @@ pub unsafe extern "C" fn block_builder_add_check(
 pub unsafe extern "C" fn block_builder_free(_builder: Option<Box<BlockBuilder>>) {}
 
 impl AuthorizerBuilder {
+    fn set_limits(&mut self, max_facts: u64, max_iterations: u64, max_time_microseconds: u64) {
+        let mut inner = self.0.take().unwrap();
+        inner = inner.set_limits(RunLimits {
+            max_facts,
+            max_iterations,
+            max_time: Duration::from_micros(max_time_microseconds),
+        });
+        self.0 = Some(inner);
+    }
+
     fn add_fact(&mut self, fact: &str) -> Result<(), biscuit_auth::error::Token> {
         let mut inner = self.0.take().unwrap();
         inner = inner.fact(fact)?;
@@ -1126,6 +1137,23 @@ pub unsafe extern "C" fn authorizer_builder() -> Option<Box<AuthorizerBuilder>> 
     Some(Box::new(AuthorizerBuilder(Some(
         biscuit_auth::builder::AuthorizerBuilder::new(),
     ))))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn authorizer_builder_set_limits(
+    builder: Option<&mut AuthorizerBuilder>,
+    max_facts: u64,
+    max_iterations: u64,
+    max_time_microseconds: u64,
+) -> bool {
+    if builder.is_none() {
+        update_last_error(Error::InvalidArgument);
+        return false;
+    }
+    let builder = builder.unwrap();
+
+    builder.set_limits(max_facts, max_iterations, max_time_microseconds);
+    true
 }
 
 #[no_mangle]

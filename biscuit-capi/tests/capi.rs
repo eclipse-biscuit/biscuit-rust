@@ -151,6 +151,40 @@ biscuit block 0 context: (null)
 }
 
 #[test]
+fn authorizer_limits() {
+    (assert_c! {
+        #include <stdio.h>
+        #include <string.h>
+        #include "biscuit_auth.h"
+
+        int main() {
+            char *seed = "abcdefghabcdefghabcdefghabcdefgh";
+            PrivateKey *root_kp = key_pair_new((const uint8_t *) seed, strlen(seed), 0);
+            BiscuitBuilder *b = biscuit_builder();
+            biscuit_builder_add_fact(b, "right(\"file1\", \"read\")");
+            Biscuit *biscuit = biscuit_builder_build(b, root_kp, (const uint8_t *) seed, strlen(seed));
+
+            AuthorizerBuilder *ab = authorizer_builder();
+            authorizer_builder_add_rule(ab, "can_read($file) <- right($file, \"read\")");
+            authorizer_builder_add_policy(ab, "allow if true");
+            authorizer_builder_set_limits(ab, 1, 100, 1000000);
+            Authorizer *authorizer = authorizer_builder_build(ab, biscuit);
+
+            if (!authorizer_authorize(authorizer)) {
+                printf("authorizer error code: %d\n", error_kind());
+            }
+
+            authorizer_free(authorizer);
+            biscuit_free(biscuit);
+            key_pair_free(root_kp);
+            return 0;
+        }
+    })
+    .success()
+    .stdout("authorizer error code: 25\n");
+}
+
+#[test]
 fn serialize_keys() {
     (assert_c! {
         #include <stdio.h>
