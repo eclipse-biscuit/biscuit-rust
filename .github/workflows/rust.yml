@@ -52,6 +52,20 @@ jobs:
       - name: Run cargo-c tests
         run: cargo ctest --release
 
+  wasi:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: wasm32-wasip1
+      - name: Check biscuit-auth
+        run: cargo check -p biscuit-auth --target wasm32-wasip1
+      - name: Check biscuit-capi
+        run: cargo check -p biscuit-capi --target wasm32-wasip1
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
