@@ -221,7 +221,7 @@ impl Authorizer {
     fn query_inner<T: TryFrom<Fact, Error = E>, E: Into<error::Token>>(
         &mut self,
         rule: datalog::Rule,
-        _limits: AuthorizerLimits,
+        limits: AuthorizerLimits,
     ) -> Result<Vec<T>, error::Token> {
         let rule_trusted_origins = TrustedOrigins::from_scopes(
             &rule.scopes,
@@ -233,9 +233,14 @@ impl Authorizer {
             &self.public_key_to_block_id,
         );
 
-        let res = self
-            .world
-            .query_rule(rule, usize::MAX, &rule_trusted_origins, &self.symbols)?;
+        let deadline = Instant::now() + limits.max_time;
+        let res = self.world.query_rule(
+            rule,
+            usize::MAX,
+            &rule_trusted_origins,
+            &self.symbols,
+            Some(deadline),
+        )?;
 
         res.inner
             .into_iter()
@@ -316,7 +321,7 @@ impl Authorizer {
     fn query_all_inner<T: TryFrom<Fact, Error = E>, E: Into<error::Token>>(
         &mut self,
         rule: datalog::Rule,
-        _limits: AuthorizerLimits,
+        limits: AuthorizerLimits,
     ) -> Result<Vec<T>, error::Token> {
         let rule_trusted_origins = if rule.scopes.is_empty() {
             self.token_origins.clone()
@@ -332,9 +337,10 @@ impl Authorizer {
             )
         };
 
+        let deadline = Instant::now() + limits.max_time;
         let res = self
             .world
-            .query_rule(rule, 0, &rule_trusted_origins, &self.symbols)?;
+            .query_rule(rule, 0, &rule_trusted_origins, &self.symbols, Some(deadline))?;
 
         let r: HashSet<_> = res.into_iter().map(|(_, fact)| fact).collect();
 
@@ -438,16 +444,20 @@ impl Authorizer {
                         usize::MAX,
                         &rule_trusted_origins,
                         &self.symbols,
+                        Some(time_limit),
                     )?,
-                    CheckKind::All => {
-                        self.world
-                            .query_match_all(query, &rule_trusted_origins, &self.symbols)?
-                    }
+                    CheckKind::All => self.world.query_match_all(
+                        query,
+                        &rule_trusted_origins,
+                        &self.symbols,
+                        Some(time_limit),
+                    )?,
                     CheckKind::Reject => !self.world.query_match(
                         query,
                         usize::MAX,
                         &rule_trusted_origins,
                         &self.symbols,
+                        Some(time_limit),
                     )?,
                 };
 
@@ -496,17 +506,20 @@ impl Authorizer {
                             0,
                             &rule_trusted_origins,
                             &self.symbols,
+                            Some(time_limit),
                         )?,
                         CheckKind::All => self.world.query_match_all(
                             query.clone(),
                             &rule_trusted_origins,
                             &self.symbols,
+                            Some(time_limit),
                         )?,
                         CheckKind::Reject => !self.world.query_match(
                             query.clone(),
                             0,
                             &rule_trusted_origins,
                             &self.symbols,
+                            Some(time_limit),
                         )?,
                     };
 
@@ -546,6 +559,7 @@ impl Authorizer {
                     usize::MAX,
                     &rule_trusted_origins,
                     &self.symbols,
+                    Some(time_limit),
                 )?;
 
                 let now = Instant::now();
@@ -589,17 +603,20 @@ impl Authorizer {
                                 i + 1,
                                 &rule_trusted_origins,
                                 &self.symbols,
+                                Some(time_limit),
                             )?,
                             CheckKind::All => self.world.query_match_all(
                                 query.clone(),
                                 &rule_trusted_origins,
                                 &self.symbols,
+                                Some(time_limit),
                             )?,
                             CheckKind::Reject => !self.world.query_match(
                                 query.clone(),
                                 i + 1,
                                 &rule_trusted_origins,
                                 &self.symbols,
+                                Some(time_limit),
                             )?,
                         };
 
@@ -1468,5 +1485,101 @@ allow if true;
             .unwrap();
 
         assert_eq!(res, vec![]);
+    }
+
+    #[test]
+    fn expression_evaluation_is_bounded_by_max_time() {
+        use crate::PrivateKey;
+        use std::time::Instant;
+
+        let root = PrivateKey::new();
+        let biscuit = Biscuit::builder()
+            .fact("user(\"john\")")
+            .unwrap()
+            .build(&root)
+            .unwrap();
+
+        // build `check if [0..10].all($v0 -> [0..10].all($v1 -> ... true))`
+        let array = format!(
+            "[{}]",
+            (0..10).map(|i| i.to_string()).collect::<Vec<_>>().join(", ")
+        );
+        let mut body = String::from("true");
+        for level in (0..12).rev() {
+            body = format!("{array}.all($v{level} -> {body})");
+        }
+        let check = format!("check if {body}");
+        // small block, but 10^12 closure-body evaluations if unbounded
+        assert!(check.len() < 1024);
+
+        let attacked = biscuit
+            .append(BlockBuilder::new().check(check.as_str()).unwrap())
+            .unwrap();
+
+        let mut authorizer = AuthorizerBuilder::new()
+            .policy("allow if true")
+            .unwrap()
+            .set_limits(AuthorizerLimits {
+                max_time: Duration::from_millis(100),
+                ..Default::default()
+            })
+            .build(&attacked)
+            .unwrap();
+
+        let start = Instant::now();
+        let res = authorizer.authorize();
+        let elapsed = start.elapsed();
+
+        assert!(
+            matches!(res, Err(error::Token::RunLimit(error::RunLimit::Timeout))),
+            "expected RunLimit::Timeout, got {res:?}"
+        );
+        // must be interrupted near the deadline, not run to (infeasible) completion
+        assert!(
+            elapsed < Duration::from_secs(5),
+            "authorization was not interrupted in time: {elapsed:?}"
+        );
+    }
+
+    #[test]
+    fn closure_semantics_are_preserved() {
+        use crate::PrivateKey;
+
+        let root = PrivateKey::new();
+        let biscuit = Biscuit::builder()
+            .fact("user(\"john\")")
+            .unwrap()
+            .build(&root)
+            .unwrap();
+
+        let authorize = |token: &Biscuit| {
+            AuthorizerBuilder::new()
+                .policy("allow if true")
+                .unwrap()
+                .build(token)
+                .unwrap()
+                .authorize()
+        };
+
+        let passing = biscuit
+            .append(
+                BlockBuilder::new()
+                    .check("check if [1, 2, 3].all($v -> $v > 0)")
+                    .unwrap(),
+            )
+            .unwrap();
+        assert!(authorize(&passing).is_ok());
+
+        let failing = biscuit
+            .append(
+                BlockBuilder::new()
+                    .check("check if [1, 2, 3].all($v -> $v > 5)")
+                    .unwrap(),
+            )
+            .unwrap();
+        assert!(matches!(
+            authorize(&failing),
+            Err(error::Token::FailedLogic(_))
+        ));
     }
 }
