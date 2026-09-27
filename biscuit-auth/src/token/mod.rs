@@ -902,7 +902,10 @@ mod tests {
 
             let mut authorizer = builder.allow_all().build(&final_token).unwrap();
 
-            let res = authorizer.authorize();
+            let res = authorizer.authorize_with_limits(AuthorizerLimits {
+                max_time: Duration::from_secs(10),
+                ..Default::default()
+            });
             println!("res1: {res:?}");
             res.unwrap();
         }
@@ -1284,8 +1287,14 @@ mod tests {
                 ]
             );
 
-            let res1: Result<Vec<builder::Fact>, crate::error::Token> =
-                other_authorizer.query("key_verif($id) <- key($id)");
+            let res1: Result<Vec<builder::Fact>, crate::error::Token> = other_authorizer
+                .query_with_limits(
+                    "key_verif($id) <- key($id)",
+                    AuthorizerLimits {
+                        max_time: Duration::from_secs(10),
+                        ..Default::default()
+                    },
+                );
             println!("res1: {res1:?}");
             assert_eq!(
                 res1.unwrap()

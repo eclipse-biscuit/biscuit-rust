@@ -1062,7 +1062,13 @@ mod tests {
 
         let mut authorizer = biscuit.authorizer().unwrap();
         let res: Vec<(String, i64)> = authorizer
-            .query("data($name, $id) <- user($name, $id)")
+            .query_with_limits(
+                "data($name, $id) <- user($name, $id)",
+                AuthorizerLimits {
+                    max_time: Duration::from_secs(10),
+                    ..Default::default()
+                },
+            )
             .unwrap();
 
         assert_eq!(res.len(), 1);
@@ -1082,7 +1088,15 @@ mod tests {
             .unwrap();
 
         let mut authorizer = biscuit.authorizer().unwrap();
-        let res: Vec<(String,)> = authorizer.query("data($name) <- user($name)").unwrap();
+        let res: Vec<(String,)> = authorizer
+            .query_with_limits(
+                "data($name) <- user($name)",
+                AuthorizerLimits {
+                    max_time: Duration::from_secs(10),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
 
         assert_eq!(res.len(), 1);
         assert_eq!(res[0].0, "John Doe");
@@ -1460,11 +1474,17 @@ allow if true;
             .build_unauthenticated()
             .unwrap();
         let res: Vec<(String,)> = authorizer
-            .query(builder::rule(
-                "output",
-                &[builder::string("x")],
-                &[builder::pred("test", &[builder::var("any")])],
-            ))
+            .query_with_limits(
+                builder::rule(
+                    "output",
+                    &[builder::string("x")],
+                    &[builder::pred("test", &[builder::var("any")])],
+                ),
+                AuthorizerLimits {
+                    max_time: Duration::from_secs(10),
+                    ..Default::default()
+                },
+            )
             .unwrap();
 
         assert_eq!(res, vec![]);
