@@ -1532,12 +1532,14 @@ allow if true;
 
         assert!(
             matches!(res, Err(error::Token::RunLimit(error::RunLimit::Timeout))),
-            "expected RunLimit::Timeout, got {res:?}"
+            "expected RunLimit::Timeout, got {:?}",
+            res
         );
         // must be interrupted near the deadline, not run to (infeasible) completion
         assert!(
             elapsed < Duration::from_secs(5),
-            "authorization was not interrupted in time: {elapsed:?}"
+            "authorization was not interrupted in time: {:?}",
+            elapsed
         );
     }
 
