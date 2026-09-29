@@ -14,11 +14,12 @@ use wasm_bindgen::prelude::*;
 
 pub use std::time::*;
 
-#[cfg(not(target_arch = "wasm32"))]
+// Only wasm32-unknown-unknown lacks a clock; WASI targets have std::time::Instant.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Instant(std::time::Instant);
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[allow(dead_code)]
 impl Instant {
     pub fn now() -> Self {
@@ -38,7 +39,7 @@ impl Instant {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 #[cfg(feature = "wasm")]
 #[wasm_bindgen(inline_js = r#"
 export function performance_now() {
@@ -48,11 +49,11 @@ extern "C" {
     fn performance_now() -> f64;
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Instant(u64);
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 impl Instant {
     pub fn now() -> Self {
         Self((performance_now() * 1000.0) as u64)
