@@ -75,7 +75,10 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: tarpaulin
-          args: --output-dir coverage --out xml --workspace --features serde-error --tests --example testcases --example third_party
+          # biscuit-quote only has a trybuild compile-fail test, which exceeds
+          # tarpaulin's per-test timeout and yields no coverage (proc macros run
+          # inside rustc, outside the traced test binary).
+          args: --output-dir coverage --out xml --workspace --exclude biscuit-quote --features serde-error --tests --example testcases --example third_party
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
