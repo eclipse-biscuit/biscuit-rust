@@ -8,9 +8,10 @@ use std::iter::once;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use base64::prelude::*;
 use builder::{BiscuitBuilder, BlockBuilder};
 use prost::Message;
-use rand_core::{CryptoRng, RngCore};
+use rand_core::{CryptoRng, Rng};
 
 use self::public_keys::{PublicKeyData, PublicKeys};
 use super::datalog::SymbolTable;
@@ -143,7 +144,7 @@ impl Biscuit {
         self.container
             .to_vec()
             .map_err(error::Token::Format)
-            .map(|v| base64::encode_config(v, base64::URL_SAFE))
+            .map(|v| BASE64_URL_SAFE.encode(v))
     }
 
     /// serializes the token
@@ -178,7 +179,7 @@ impl<K: SerializePrivateKey> Biscuit<K> {
     /// since the public key is integrated into the token, the private key can be
     /// discarded right after calling this function
     pub fn append(&self, block_builder: BlockBuilder) -> Result<Self, error::Token> {
-        let key = K::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
+        let key = K::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rng());
         self.append_with_key(&key, block_builder)
     }
 
@@ -255,7 +256,7 @@ impl<K: SerializePrivateKey> Biscuit<K> {
     /// creates a new token, using a provided CSPRNG
     ///
     /// the public part of the root key must be used for verification
-    pub(crate) fn new_with_rng<RK: Sign, T: RngCore + CryptoRng>(
+    pub(crate) fn new_with_rng<RK: Sign, T: Rng + CryptoRng + ?Sized>(
         rng: &mut T,
         root_key_id: Option<u32>,
         root: &RK,
@@ -352,7 +353,7 @@ impl<K: SerializePrivateKey> Biscuit<K> {
         T: AsRef<[u8]>,
         KP: RootKeyProvider<Key = K::PublicKey>,
     {
-        let decoded = base64::decode_config(slice, base64::URL_SAFE)?;
+        let decoded = BASE64_URL_SAFE.decode(slice)?;
         Biscuit::from_with_symbols(&decoded, key_provider, symbols)
     }
 
@@ -417,7 +418,7 @@ impl<K: SerializePrivateKey> Biscuit<K> {
         external_key: K::PublicKey,
         response: ThirdPartyBlock,
     ) -> Result<Self, error::Token> {
-        let next_key = K::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
+        let next_key = K::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rng());
         self.append_third_party_with_key(external_key, response, next_key)
     }
 

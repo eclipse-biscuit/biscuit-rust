@@ -717,7 +717,7 @@ fn random_block(target: &str, root: &PrivateKey, test: bool) -> TestResult {
     } else {
         let serialized = biscuit2.container();
         let mut proto = serialized.to_proto();
-        let arr: [u8; 32] = rng.gen();
+        let arr: [u8; 32] = rng.random();
         proto.blocks[0].block = Vec::from(&arr[..]);
         let mut data = Vec::new();
         proto.encode(&mut data).unwrap();
@@ -822,9 +822,7 @@ fn reordered_blocks(target: &str, root: &PrivateKey, test: bool) -> TestResult {
     let token = print_blocks(&biscuit3);
 
     let mut serialized = biscuit3.container().clone();
-    let mut blocks = vec![];
-    blocks.push(serialized.blocks[1].clone());
-    blocks.push(serialized.blocks[0].clone());
+    let blocks = vec![serialized.blocks[1].clone(), serialized.blocks[0].clone()];
     serialized.blocks = blocks;
 
     let data = if test {

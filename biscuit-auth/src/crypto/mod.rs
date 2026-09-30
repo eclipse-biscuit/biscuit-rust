@@ -20,7 +20,7 @@ use std::hash::Hash;
 use std::str::FromStr;
 
 use nom::Finish;
-use rand_core::{CryptoRng, RngCore};
+use rand_core::{CryptoRng, Rng};
 use zeroize::Zeroizing;
 
 use crate::builder::Algorithm;
@@ -41,15 +41,15 @@ pub enum PrivateKey {
 impl PrivateKey {
     /// Create a new ed25519 private key with the default OS RNG
     pub fn new() -> Self {
-        Self::new_with_rng(Algorithm::Ed25519, &mut rand::rngs::OsRng)
+        Self::new_with_rng(Algorithm::Ed25519, &mut rand::rng())
     }
 
     /// Create a new private key with a chosen algorithm and the default OS RNG
     pub fn new_with_algorithm(algorithm: Algorithm) -> Self {
-        Self::new_with_rng(algorithm, &mut rand::rngs::OsRng)
+        Self::new_with_rng(algorithm, &mut rand::rng())
     }
 
-    pub fn new_with_rng<T: RngCore + CryptoRng>(algorithm: Algorithm, rng: &mut T) -> Self {
+    pub fn new_with_rng<T: Rng + CryptoRng + ?Sized>(algorithm: Algorithm, rng: &mut T) -> Self {
         match algorithm {
             Algorithm::Ed25519 => PrivateKey::Ed25519(ed25519::PrivateKey::new_with_rng(rng)),
             Algorithm::Secp256r1 => PrivateKey::P256(p256::PrivateKey::new_with_rng(rng)),
@@ -260,7 +260,7 @@ impl Sign for PrivateKey {
 }
 
 impl SerializePrivateKey for PrivateKey {
-    fn new_with_rng<R: RngCore + CryptoRng>(algorithm: Algorithm, rng: &mut R) -> Self {
+    fn new_with_rng<R: Rng + CryptoRng + ?Sized>(algorithm: Algorithm, rng: &mut R) -> Self {
         Self::new_with_rng(algorithm, rng)
     }
 

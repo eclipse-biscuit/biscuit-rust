@@ -120,7 +120,7 @@
             "Err": {
               "Format": {
                 "Signature": {
-                  "InvalidSignature": "signature error: Verification equation was not satisfied"
+                  "InvalidSignature": "signature error"
                 }
               }
             }
@@ -200,7 +200,7 @@
             "Err": {
               "Format": {
                 "Signature": {
-                  "InvalidSignature": "signature error: Verification equation was not satisfied"
+                  "InvalidSignature": "signature error"
                 }
               }
             }
@@ -241,7 +241,7 @@
             "Err": {
               "Format": {
                 "Signature": {
-                  "InvalidSignature": "signature error: Verification equation was not satisfied"
+                  "InvalidSignature": "signature error"
                 }
               }
             }
@@ -289,7 +289,7 @@
             "Err": {
               "Format": {
                 "Signature": {
-                  "InvalidSignature": "signature error: Verification equation was not satisfied"
+                  "InvalidSignature": "signature error"
                 }
               }
             }
