@@ -8,6 +8,8 @@
 - `Term` implements `From<Uuid>` with the `uuid` feature.
 - Scope parameters are `Into<PublicKeyData>` so they can take anything which can be converted into a
   public key (including `&K: SerializePublicKey`).
+- `BlockBuilder` can be serialized to and deserialized from the binary representation of the
+  protobuf `Block` message with `to_vec` and `from`.
 
 ## Breaking changes
 
