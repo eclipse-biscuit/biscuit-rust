@@ -20,12 +20,9 @@ use crate::{
     builder_ext::{AuthorizerExt, BuilderExt},
     datalog::{ExternFunc, Origin, RunLimits, SymbolTable, TrustedOrigins, World},
     error,
-    format::{
-        convert::{
-            policy_to_proto_policy, proto_policy_to_policy, proto_snapshot_block_to_token_block,
-            token_block_to_proto_snapshot_block,
-        },
-        schema,
+    format::convert::{
+        policy_to_proto_policy, proto_policy_to_policy, proto_snapshot_block_to_token_block,
+        token_block_to_proto_snapshot_block,
     },
     token::{self, default_symbol_table, Block, MAX_SCHEMA_VERSION, MIN_SCHEMA_VERSION},
     Authorizer, AuthorizerLimits, Biscuit,
@@ -552,8 +549,10 @@ impl AuthorizerExt for AuthorizerBuilder {
 }
 
 impl AuthorizerBuilder {
-    pub fn from_snapshot(input: schema::AuthorizerSnapshot) -> Result<Self, error::Token> {
-        let schema::AuthorizerSnapshot {
+    pub(crate) fn from_snapshot(
+        input: biscuit_proto::AuthorizerSnapshot,
+    ) -> Result<Self, error::Token> {
+        let biscuit_proto::AuthorizerSnapshot {
             limits,
             execution_time,
             world,
@@ -633,7 +632,7 @@ impl AuthorizerBuilder {
     }
 
     pub fn from_raw_snapshot(input: &[u8]) -> Result<Self, error::Token> {
-        let snapshot = schema::AuthorizerSnapshot::decode(input).map_err(|e| {
+        let snapshot = biscuit_proto::AuthorizerSnapshot::decode(input).map_err(|e| {
             error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
         Self::from_snapshot(snapshot)
@@ -644,7 +643,7 @@ impl AuthorizerBuilder {
         Self::from_raw_snapshot(&bytes)
     }
 
-    pub fn snapshot(&self) -> Result<schema::AuthorizerSnapshot, error::Format> {
+    pub(crate) fn snapshot(&self) -> Result<biscuit_proto::AuthorizerSnapshot, error::Format> {
         let mut symbols = default_symbol_table();
 
         let authorizer_policies = self
@@ -666,7 +665,7 @@ impl AuthorizerBuilder {
 
         let generated_facts = vec![];
 
-        let world = schema::AuthorizerWorld {
+        let world = biscuit_proto::AuthorizerWorld {
             version: Some(MAX_SCHEMA_VERSION),
             symbols: symbols.strings(),
             public_keys: symbols
@@ -682,10 +681,10 @@ impl AuthorizerBuilder {
             iterations: 0,
         };
 
-        Ok(schema::AuthorizerSnapshot {
+        Ok(biscuit_proto::AuthorizerSnapshot {
             world,
             execution_time: 0u64,
-            limits: schema::RunLimits {
+            limits: biscuit_proto::RunLimits {
                 max_facts: self.limits.max_facts,
                 max_iterations: self.limits.max_iterations,
                 max_time: self.limits.max_time.as_nanos() as u64,

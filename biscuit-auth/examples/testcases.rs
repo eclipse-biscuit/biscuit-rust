@@ -9,7 +9,6 @@ extern crate biscuit_auth as biscuit;
 use biscuit::builder::BlockBuilder;
 use biscuit::datalog::SymbolTable;
 use biscuit::error;
-use biscuit::format::convert;
 use biscuit::macros::*;
 use biscuit::public_keys::PublicKeyData;
 use biscuit::{builder::*, builder_ext::*, Biscuit};
@@ -23,12 +22,7 @@ use rand::prelude::*;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fs::File,
-    io::Write,
-    time::*,
-};
+use std::{collections::BTreeMap, fs::File, io::Write, time::*};
 
 fn main() {
     let mut args = std::env::args();
@@ -295,7 +289,7 @@ struct AuthorizerWorld {
 
 #[derive(Debug, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 struct Facts {
-    origin: BTreeSet<Option<usize>>,
+    origin: Vec<Option<usize>>,
     facts: Vec<String>,
 }
 
@@ -372,102 +366,37 @@ fn validate_token_with_limits_and_external_functions(
 
     let res = authorizer.authorize_with_limits(run_limits);
     //println!("authorizer world:\n{}", authorizer.print_world());
-    let (_, _, _, policies) = authorizer.dump();
-    let snapshot = authorizer.snapshot().unwrap();
-
-    let symbols = SymbolTable::from_symbols_and_public_keys(
-        snapshot.world.symbols,
-        snapshot
-            .world
-            .public_keys
-            .iter()
-            .map(PublicKeyData::from_proto)
-            .collect(),
-    )
-    .unwrap();
+    let facts_with_origin = authorizer.dump_facts_with_origins();
+    let rules_with_origin = authorizer.dump_rules_with_origins();
+    let checks_with_origin = authorizer.dump_checks_with_origins();
+    let policies = authorizer.dump_policies();
 
     let mut authorizer_facts = Vec::new();
     let mut authorizer_rules = Vec::new();
     let mut authorizer_checks = Vec::new();
-    for (i, block) in snapshot.world.blocks.iter().enumerate() {
-        let mut rules: Vec<String> = Vec::new();
-        for rule in block.rules.iter() {
-            let r =
-                convert::proto_rule_to_token_rule(rule, snapshot.world.version.unwrap()).unwrap();
-            rules.push(symbols.print_rule(&r.0));
-        }
-        if !rules.is_empty() {
-            rules.sort();
-            authorizer_rules.push(Rules {
-                origin: Some(i),
-                rules,
-            });
-        }
 
-        let mut checks = Vec::new();
-        for check in block.checks.iter() {
-            let c = convert::proto_check_to_token_check(check, snapshot.world.version.unwrap())
-                .unwrap();
-            checks.push(symbols.print_check(&c));
-        }
-        if !checks.is_empty() {
-            checks.sort();
-            authorizer_checks.push(Checks {
-                origin: Some(i),
-                checks,
-            });
-        }
-    }
-
-    let mut rules: Vec<String> = Vec::new();
-    for rule in snapshot.world.authorizer_block.rules {
-        let r = convert::proto_rule_to_token_rule(&rule, snapshot.world.version.unwrap()).unwrap();
-
-        rules.push(symbols.print_rule(&r.0));
-    }
-    if !rules.is_empty() {
+    for (origin, rules) in rules_with_origin {
+        let mut rules: Vec<String> = rules.into_iter().map(|r| r.to_string()).collect();
         rules.sort();
         authorizer_rules.push(Rules {
-            origin: Some(usize::MAX),
+            origin: Some(origin.unwrap_or(usize::MAX)),
             rules,
         });
     }
 
-    let mut checks = Vec::new();
-    for check in snapshot.world.authorizer_block.checks {
-        let c =
-            convert::proto_check_to_token_check(&check, snapshot.world.version.unwrap()).unwrap();
-        checks.push(symbols.print_check(&c));
-    }
-    if !checks.is_empty() {
+    for (origin, checks) in checks_with_origin {
+        let mut checks: Vec<String> = checks.into_iter().map(|c| c.to_string()).collect();
         checks.sort();
         authorizer_checks.push(Checks {
-            origin: Some(usize::MAX),
+            origin: Some(origin.unwrap_or(usize::MAX)),
             checks,
         });
     }
 
-    for factset in snapshot.world.generated_facts {
-        use biscuit_auth::format::schema::origin::Content;
-        let mut origin = BTreeSet::new();
-
-        for o in factset.origins {
-            match o.content.unwrap() {
-                Content::Authorizer(_) => origin.insert(None),
-                Content::Origin(i) => origin.insert(Some(i as usize)),
-            };
-        }
-
-        let mut facts = Vec::new();
-
-        for fact in factset.facts {
-            let f = convert::proto_fact_to_token_fact(&fact).unwrap();
-            facts.push(symbols.print_fact(&f));
-        }
-        if !facts.is_empty() {
-            facts.sort();
-            authorizer_facts.push(Facts { origin, facts });
-        }
+    for (origin, facts) in facts_with_origin {
+        let mut facts: Vec<String> = facts.into_iter().map(|f| f.to_string()).collect();
+        facts.sort();
+        authorizer_facts.push(Facts { origin, facts });
     }
     authorizer_facts.sort();
 
@@ -664,8 +593,8 @@ fn invalid_signature_format(target: &str, root: &PrivateKey, test: bool) -> Test
     let data = if test {
         load_testcase(target, &filename)
     } else {
-        let serialized = biscuit2.container();
-        let mut proto = serialized.to_proto();
+        let serialized = biscuit2.to_vec().unwrap();
+        let mut proto = biscuit_proto::Biscuit::decode(&serialized[..]).unwrap();
         proto.authority.signature.truncate(16);
         let mut data = Vec::new();
         proto.encode(&mut data).unwrap();
@@ -715,8 +644,8 @@ fn random_block(target: &str, root: &PrivateKey, test: bool) -> TestResult {
     let data = if test {
         load_testcase(target, &filename)
     } else {
-        let serialized = biscuit2.container();
-        let mut proto = serialized.to_proto();
+        let serialized = biscuit2.to_vec().unwrap();
+        let mut proto = biscuit_proto::Biscuit::decode(&serialized[..]).unwrap();
         let arr: [u8; 32] = rng.gen();
         proto.blocks[0].block = Vec::from(&arr[..]);
         let mut data = Vec::new();
@@ -767,8 +696,8 @@ fn invalid_signature(target: &str, root: &PrivateKey, test: bool) -> TestResult 
     let data = if test {
         load_testcase(target, &filename)
     } else {
-        let serialized = biscuit2.container();
-        let mut proto = serialized.to_proto();
+        let serialized = biscuit2.to_vec().unwrap();
+        let mut proto = biscuit_proto::Biscuit::decode(&serialized[..]).unwrap();
         proto.authority.signature[0] += 1;
         let mut data = Vec::new();
         proto.encode(&mut data).unwrap();

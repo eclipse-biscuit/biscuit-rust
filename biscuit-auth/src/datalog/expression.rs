@@ -8,10 +8,7 @@ use super::{MapKey, SymbolIndex, Term};
 use super::{SymbolTable, TemporarySymbolTable};
 use regex::Regex;
 use std::sync::Arc;
-use std::{
-    collections::HashMap,
-    convert::TryFrom,
-};
+use std::{collections::HashMap, convert::TryFrom};
 
 #[derive(Clone)]
 pub struct ExternFunc(

@@ -24,12 +24,7 @@ use crate::token::RootKeyProvider;
 use crate::token::DATALOG_3_3;
 use crate::token::public_keys::PublicKeyData;
 
-/// Structures generated from the Protobuf schema
-pub mod schema; /*{
-                    include!(concat!(env!("OUT_DIR"), "/biscuit.format.schema.rs"));
-                }*/
-
-pub mod convert;
+pub(crate) mod convert;
 
 use self::convert::*;
 
@@ -85,7 +80,7 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
         slice: &[u8],
         verification_mode: ThirdPartyVerificationMode,
     ) -> Result<Self, error::Format> {
-        let data = schema::Biscuit::decode(slice).map_err(|e| {
+        let data = biscuit_proto::Biscuit::decode(slice).map_err(|e| {
             error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
 
@@ -150,10 +145,10 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
                     "could not find proof".to_string(),
                 ))
             }
-            Some(schema::proof::Content::NextSecret(v)) => {
+            Some(biscuit_proto::proof::Content::NextSecret(v)) => {
                 Proof::Secret(K::from_bytes_and_algorithm(next_key_algorithm, &v)?)
             }
-            Some(schema::proof::Content::FinalSignature(v)) => {
+            Some(biscuit_proto::proof::Content::FinalSignature(v)) => {
                 let signature = Signature::from_vec(v);
 
                 Proof::Seal(signature)
@@ -173,8 +168,8 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
     pub(crate) fn extract_blocks(
         &self,
         symbols: &mut SymbolTable,
-    ) -> Result<(schema::Block, Vec<schema::Block>), error::Token> {
-        let authority = schema::Block::decode(&self.authority.data[..]).map_err(|e| {
+    ) -> Result<(biscuit_proto::Block, Vec<biscuit_proto::Block>), error::Token> {
+        let authority = biscuit_proto::Block::decode(&self.authority.data[..]).map_err(|e| {
             error::Token::Format(error::Format::BlockDeserializationError(format!(
                 "error deserializing authority block: {e:?}"
             )))
@@ -190,7 +185,7 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
         let mut blocks = vec![];
 
         for block in self.blocks.iter() {
-            let deser = schema::Block::decode(&block.data[..]).map_err(|e| {
+            let deser = biscuit_proto::Block::decode(&block.data[..]).map_err(|e| {
                 error::Token::Format(error::Format::BlockDeserializationError(format!(
                     "error deserializing block: {e:?}"
                 )))
@@ -211,8 +206,8 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
     }
 
     /// serializes the token
-    pub fn to_proto(&self) -> schema::Biscuit {
-        let authority = schema::SignedBlock {
+    pub(crate) fn to_proto(&self) -> biscuit_proto::Biscuit {
+        let authority = biscuit_proto::SignedBlock {
             block: self.authority.data.clone(),
             next_key: convert::public_key_to_proto(&self.authority.next_key),
             signature: self.authority.signature.to_bytes().to_vec(),
@@ -226,12 +221,12 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
 
         let mut blocks = Vec::new();
         for block in &self.blocks {
-            let b = schema::SignedBlock {
+            let b = biscuit_proto::SignedBlock {
                 block: block.data.clone(),
                 next_key: convert::public_key_to_proto(&block.next_key),
                 signature: block.signature.to_bytes().to_vec(),
                 external_signature: block.external_signature.as_ref().map(|external_signature| {
-                    schema::ExternalSignature {
+                    biscuit_proto::ExternalSignature {
                         signature: external_signature.signature.to_bytes().to_vec(),
                         public_key: convert::public_key_to_proto(&external_signature.public_key),
                     }
@@ -246,16 +241,16 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
             blocks.push(b);
         }
 
-        schema::Biscuit {
+        biscuit_proto::Biscuit {
             root_key_id: self.root_key_id,
             authority,
             blocks,
-            proof: schema::Proof {
+            proof: biscuit_proto::Proof {
                 content: match &self.proof {
-                    Proof::Seal(signature) => Some(schema::proof::Content::FinalSignature(
+                    Proof::Seal(signature) => Some(biscuit_proto::proof::Content::FinalSignature(
                         signature.to_bytes().to_vec(),
                     )),
-                    Proof::Secret(private) => Some(schema::proof::Content::NextSecret(
+                    Proof::Secret(private) => Some(biscuit_proto::proof::Content::NextSecret(
                         private.to_bytes().to_vec(),
                     )),
                 },
@@ -582,8 +577,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::io::Read;
-
     use crate::{
         builder::Algorithm,
         crypto::{ExternalSignature, Signature},
@@ -591,32 +584,6 @@ mod tests {
         token::{DATALOG_3_1, DATALOG_3_3},
         PrivateKey,
     };
-
-    #[test]
-    fn proto() {
-        // somehow when building under cargo-tarpaulin, OUT_DIR is not set
-        let out_dir = match std::env::var("OUT_DIR") {
-            Ok(dir) => dir,
-            Err(_) => return,
-        };
-        prost_build::compile_protos(&["src/format/schema.proto"], &["src/"]).unwrap();
-        let mut file = std::fs::File::open(format!("{out_dir}/biscuit.format.schema.rs")).unwrap();
-        let mut contents = String::new();
-        file.read_to_string(&mut contents).unwrap();
-
-        let commited_schema = include_str!("schema.rs");
-
-        if contents != commited_schema {
-            println!(
-                "{}",
-                colored_diff::PrettyDifference {
-                    expected: &contents,
-                    actual: commited_schema
-                }
-            );
-            panic!();
-        }
-    }
 
     #[test]
     fn test_block_signature_version() {

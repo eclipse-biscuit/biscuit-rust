@@ -9,7 +9,6 @@ use std::str::FromStr;
 use nom::Finish;
 
 use crate::crypto::SerializePublicKey;
-use crate::format::schema;
 use crate::{Algorithm, error};
 
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
@@ -109,16 +108,16 @@ impl PublicKeyData {
         PublicKeyData { algorithm, key }
     }
 
-    pub fn from_proto(key: &schema::PublicKey) -> PublicKeyData {
+    pub(crate) fn from_proto(key: &biscuit_proto::PublicKey) -> PublicKeyData {
         PublicKeyData {
             algorithm: key.algorithm().into(),
             key: key.key.clone(),
         }
     }
 
-    pub(crate) fn to_proto(&self) -> schema::PublicKey {
-        schema::PublicKey {
-            algorithm: schema::public_key::Algorithm::from(self.algorithm) as i32,
+    pub(crate) fn to_proto(&self) -> biscuit_proto::PublicKey {
+        biscuit_proto::PublicKey {
+            algorithm: biscuit_proto::public_key::Algorithm::from(self.algorithm) as i32,
             key: self.key.clone(),
         }
     }

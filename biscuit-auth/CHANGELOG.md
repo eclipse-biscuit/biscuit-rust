@@ -8,6 +8,9 @@
 - `Term` implements `From<Uuid>` with the `uuid` feature.
 - Scope parameters are `Into<PublicKeyData>` so they can take anything which can be converted into a
   public key (including `&K: SerializePublicKey`).
+- `Authorizer` gains inspection methods that don't require going through a snapshot:
+  `dump_facts_with_origins`, `dump_rules_with_origins`, `dump_checks_with_origins` and
+  `dump_policies`
 
 ## Breaking changes
 
@@ -15,7 +18,7 @@
   keypair are replaced with APIs that take a `PrivateKey` (i.e. `append_with_keypair` ->
   `append_with_key`, `append_third_party_with_keypair` -> `append_third_party_with_key`).
 - `Biscuit` and `UnverifiedBiscuit` are generic over the private key type contained in their
-  proof. These are defaulted to `PrivateKey`, so this change should be transparent for most users
+  proof. These are defaulted to `PrivateKey`, so this change should be transpfarent for most users
   who use the default crypto types.
 - `RootKeyProvider` has an associated `Key` type, which is the type of the root key that is
   provided.
@@ -26,6 +29,11 @@
   for custom types should implement `From<MyType> for Term` instead.
 - The `set_macro_param` and `set_macro_scope_param` methods are removed; macros now call
   `set_lenient` and `set_scope_lenient`.
+- Protobuf generated code is no longer part of the public API of this crate. The protobuf generated
+  schema is now available at the crate `biscuit-proto` and versioned independently of
+  `biscuit-rust`. The `format::schema` and `format::convert` modules are no longer part of the
+  public API of this crate and the protobuf conversion methods are no longer public. Types can still
+  be serialized/deserialized to and from their binary representation.
 
 # `6.0.0`
 

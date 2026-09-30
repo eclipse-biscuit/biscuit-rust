@@ -1,0 +1,16 @@
+[package]
+name = "biscuit-proto"
+version = "0.1.0"
+description = "Protobuf types for biscuits"
+authors = ["Geoffroy Couprie <contact@geoffroycouprie.com>"]
+edition = "2018"
+license = "Apache-2.0"
+homepage = "https://github.com/biscuit-auth/biscuit"
+repository = "https://github.com/biscuit-auth/biscuit-rust"
+
+[dependencies]
+prost = "0.10"
+
+[dev-dependencies]
+prost-build = "0.10"
+colored-diff = "0.2.3"

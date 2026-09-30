@@ -374,10 +374,8 @@ pub unsafe extern "C" fn key_pair_deserialize(
     let input_slice = std::slice::from_raw_parts_mut(buffer_ptr, 32);
 
     let algorithm = match algorithm {
-        SignatureAlgorithm::Ed25519 => biscuit_auth::format::schema::public_key::Algorithm::Ed25519,
-        SignatureAlgorithm::Secp256r1 => {
-            biscuit_auth::format::schema::public_key::Algorithm::Secp256r1
-        }
+        SignatureAlgorithm::Ed25519 => biscuit_auth::builder::Algorithm::Ed25519,
+        SignatureAlgorithm::Secp256r1 => biscuit_auth::builder::Algorithm::Secp256r1,
     };
 
     match biscuit_auth::PrivateKey::from_bytes(input_slice, algorithm.into()).ok() {

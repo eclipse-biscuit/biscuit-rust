@@ -24,7 +24,6 @@ use rand_core::{CryptoRng, RngCore};
 use zeroize::Zeroizing;
 
 use crate::builder::Algorithm;
-use crate::format::schema;
 use crate::format::ThirdPartyVerificationMode;
 
 use super::error;
@@ -306,28 +305,6 @@ impl PublicKey {
     pub fn from_bytes_hex(str: &str, algorithm: Algorithm) -> Result<Self, error::Format> {
         let bytes = hex::decode(str).map_err(|e| error::Format::InvalidKey(e.to_string()))?;
         Self::from_bytes(&bytes, algorithm)
-    }
-
-    pub fn from_proto(key: &schema::PublicKey) -> Result<Self, error::Format> {
-        if key.algorithm == schema::public_key::Algorithm::Ed25519 as i32 {
-            Ok(PublicKey::Ed25519(ed25519::PublicKey::from_bytes(
-                &key.key,
-            )?))
-        } else if key.algorithm == schema::public_key::Algorithm::Secp256r1 as i32 {
-            Ok(PublicKey::P256(p256::PublicKey::from_bytes(&key.key)?))
-        } else {
-            Err(error::Format::DeserializationError(format!(
-                "deserialization error: unexpected key algorithm {}",
-                key.algorithm
-            )))
-        }
-    }
-
-    pub fn to_proto(&self) -> schema::PublicKey {
-        schema::PublicKey {
-            algorithm: self.algorithm() as i32,
-            key: self.to_bytes(),
-        }
     }
 
     #[cfg(feature = "pem")]

@@ -4,6 +4,7 @@
  */
 use std::fmt::{self, Debug, Formatter};
 
+use biscuit_proto::public_key::Algorithm;
 use prost::Message;
 
 use super::{default_symbol_table, Biscuit, Block};
@@ -14,11 +15,7 @@ use crate::{
     crypto::{self, PrivateKey, PublicKey, Signature},
     datalog::SymbolTable,
     error,
-    format::{
-        convert::proto_block_to_token_block,
-        schema::{self, public_key::Algorithm},
-        SerializedBiscuit,
-    },
+    format::{convert::proto_block_to_token_block, SerializedBiscuit},
     token::{ThirdPartyBlockContents, ThirdPartyRequest},
     RootKeyProvider,
 };
@@ -32,8 +29,8 @@ use crate::{
 /// and then used for authorization
 #[derive(Clone)]
 pub struct UnverifiedBiscuit<K: SerializePrivateKey = PrivateKey> {
-    pub(crate) authority: schema::Block,
-    pub(crate) blocks: Vec<schema::Block>,
+    pub(crate) authority: biscuit_proto::Block,
+    pub(crate) blocks: Vec<biscuit_proto::Block>,
     pub(crate) symbols: SymbolTable,
     container: SerializedBiscuit<K>,
 }
@@ -192,7 +189,7 @@ impl UnverifiedBiscuit {
         symbols.extend(&block.symbols)?;
         symbols.public_keys.extend(&block.public_keys)?;
 
-        let deser = schema::Block::decode(
+        let deser = biscuit_proto::Block::decode(
             &container
                 .blocks
                 .last()
@@ -332,7 +329,7 @@ impl UnverifiedBiscuit {
         let ThirdPartyBlockContents {
             payload,
             external_signature,
-        } = schema::ThirdPartyBlockContents::decode(slice).map_err(|e| {
+        } = biscuit_proto::ThirdPartyBlockContents::decode(slice).map_err(|e| {
             error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
 
@@ -353,7 +350,7 @@ impl UnverifiedBiscuit {
 
         let signature = Signature::from_vec(external_signature.signature);
 
-        let block = schema::Block::decode(&payload[..]).map_err(|e| {
+        let block = biscuit_proto::Block::decode(&payload[..]).map_err(|e| {
             error::Token::Format(error::Format::DeserializationError(format!(
                 "deserialization error: {e:?}"
             )))
