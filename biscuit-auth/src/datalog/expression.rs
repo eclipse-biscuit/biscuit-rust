@@ -6,6 +6,7 @@ use crate::{builder, error};
 
 use super::{MapKey, SymbolIndex, Term};
 use super::{SymbolTable, TemporarySymbolTable};
+use crate::time::Instant;
 use regex::Regex;
 use std::sync::Arc;
 use std::{
@@ -178,6 +179,7 @@ pub enum Binary {
 }
 
 impl Binary {
+    #[allow(clippy::too_many_arguments)]
     fn evaluate_with_closure(
         &self,
         left: Term,
@@ -186,12 +188,13 @@ impl Binary {
         values: &mut HashMap<u32, Term>,
         symbols: &mut TemporarySymbolTable,
         extern_func: &HashMap<String, ExternFunc>,
+        deadline: Option<Instant>,
     ) -> Result<Term, error::Expression> {
         match (self, left, params) {
             // try
             (Binary::TryOr, fallback, []) => {
                 let e = Expression { ops: right.clone() };
-                match e.evaluate(values, symbols, extern_func) {
+                match e.evaluate_with_deadline(values, symbols, extern_func, deadline) {
                     Ok(v) => Ok(v),
                     Err(_) => Ok(fallback),
                 }
@@ -200,12 +203,12 @@ impl Binary {
             (Binary::LazyOr, Term::Bool(true), []) => Ok(Term::Bool(true)),
             (Binary::LazyOr, Term::Bool(false), []) => {
                 let e = Expression { ops: right.clone() };
-                e.evaluate(values, symbols, extern_func)
+                e.evaluate_with_deadline(values, symbols, extern_func, deadline)
             }
             (Binary::LazyAnd, Term::Bool(false), []) => Ok(Term::Bool(false)),
             (Binary::LazyAnd, Term::Bool(true), []) => {
                 let e = Expression { ops: right.clone() };
-                e.evaluate(values, symbols, extern_func)
+                e.evaluate_with_deadline(values, symbols, extern_func, deadline)
             }
 
             // set
@@ -213,7 +216,7 @@ impl Binary {
                 let e = Expression { ops: right.clone() };
                 for value in set_values.iter() {
                     values.insert(*param, value.clone());
-                    let result = e.evaluate(values, symbols, extern_func);
+                    let result = e.evaluate_with_deadline(values, symbols, extern_func, deadline);
                     values.remove(param);
                     match result? {
                         Term::Bool(true) => {}
@@ -227,7 +230,7 @@ impl Binary {
                 let e = Expression { ops: right.clone() };
                 for value in set_values.iter() {
                     values.insert(*param, value.clone());
-                    let result = e.evaluate(values, symbols, extern_func);
+                    let result = e.evaluate_with_deadline(values, symbols, extern_func, deadline);
                     values.remove(param);
                     match result? {
                         Term::Bool(false) => {}
@@ -243,7 +246,7 @@ impl Binary {
                 let e = Expression { ops: right.clone() };
                 for value in array.iter() {
                     values.insert(*param, value.clone());
-                    let result = e.evaluate(values, symbols, extern_func);
+                    let result = e.evaluate_with_deadline(values, symbols, extern_func, deadline);
                     values.remove(param);
                     match result? {
                         Term::Bool(true) => {}
@@ -257,7 +260,7 @@ impl Binary {
                 let e = Expression { ops: right.clone() };
                 for value in array.iter() {
                     values.insert(*param, value.clone());
-                    let result = e.evaluate(values, symbols, extern_func);
+                    let result = e.evaluate_with_deadline(values, symbols, extern_func, deadline);
                     values.remove(param);
                     match result? {
                         Term::Bool(false) => {}
@@ -277,7 +280,7 @@ impl Binary {
                         MapKey::Str(i) => Term::Str(*i),
                     };
                     values.insert(*param, Term::Array(vec![key, value.clone()]));
-                    let result = e.evaluate(values, symbols, extern_func);
+                    let result = e.evaluate_with_deadline(values, symbols, extern_func, deadline);
                     values.remove(param);
                     match result? {
                         Term::Bool(true) => {}
@@ -295,7 +298,7 @@ impl Binary {
                         MapKey::Str(i) => Term::Str(*i),
                     };
                     values.insert(*param, Term::Array(vec![key, value.clone()]));
-                    let result = e.evaluate(values, symbols, extern_func);
+                    let result = e.evaluate_with_deadline(values, symbols, extern_func, deadline);
                     values.remove(param);
                     match result? {
                         Term::Bool(false) => {}
@@ -587,6 +590,24 @@ impl Expression {
         symbols: &mut TemporarySymbolTable,
         extern_funcs: &HashMap<String, ExternFunc>,
     ) -> Result<Term, error::Expression> {
+        self.evaluate_with_deadline(values, symbols, extern_funcs, None)
+    }
+
+    /// Same as [`Expression::evaluate`], but aborts with
+    /// [`error::Expression::Timeout`] once `deadline` is reached.
+    pub(crate) fn evaluate_with_deadline(
+        &self,
+        values: &HashMap<u32, Term>,
+        symbols: &mut TemporarySymbolTable,
+        extern_funcs: &HashMap<String, ExternFunc>,
+        deadline: Option<Instant>,
+    ) -> Result<Term, error::Expression> {
+        if let Some(deadline) = deadline {
+            if Instant::now() >= deadline {
+                return Err(error::Expression::Timeout);
+            }
+        }
+
         let mut stack: Vec<StackElem> = Vec::new();
 
         for op in self.ops.iter() {
@@ -634,6 +655,7 @@ impl Expression {
                             &mut values,
                             symbols,
                             extern_funcs,
+                            deadline,
                         )?))
                     }
                     (
@@ -651,6 +673,7 @@ impl Expression {
                             &mut values,
                             symbols,
                             extern_funcs,
+                            deadline,
                         )?))
                     }
 

@@ -287,6 +287,20 @@ pub enum Expression {
     UndefinedExtern(String),
     #[error("Error while evaluating extern func {0}: {1}")]
     ExternEvalError(String, String),
+    #[error("Expression evaluation ran past the time limit")]
+    Timeout,
+}
+
+impl From<Expression> for Execution {
+    fn from(e: Expression) -> Self {
+        match e {
+            // a timeout during expression evaluation is a runtime limit, not a
+            // logic error: surface it as the existing RunLimit::Timeout so it
+            // still maps to Token::RunLimit(Timeout)
+            Expression::Timeout => Execution::RunLimit(RunLimit::Timeout),
+            e => Execution::Expression(e),
+        }
+    }
 }
 
 /// runtime limits errors
