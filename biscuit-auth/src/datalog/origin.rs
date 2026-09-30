@@ -83,18 +83,19 @@ impl Display for Origin {
 }
 
 /// This represents the sets of origins trusted by a rule
-#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TrustedOrigins(Origin);
 
-#[allow(clippy::should_implement_trait)]
-impl TrustedOrigins {
-    pub fn default() -> TrustedOrigins {
+impl Default for TrustedOrigins {
+    fn default() -> TrustedOrigins {
         let mut origins = Origin::default();
         origins.insert(usize::MAX);
         origins.insert(0);
         TrustedOrigins(origins)
     }
+}
 
+impl TrustedOrigins {
     pub fn from_scopes(
         rule_scopes: &[Scope],
         default_origins: &TrustedOrigins,
