@@ -127,7 +127,7 @@ impl UnverifiedBiscuit {
     /// calling this function
     pub fn append(&self, block_builder: BlockBuilder) -> Result<Self, error::Token> {
         let private =
-            PrivateKey::new_with_rng(super::builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
+            PrivateKey::new_with_rng(super::builder::Algorithm::Ed25519, &mut rand::rng());
         self.append_with_key(&private, block_builder)
     }
 
@@ -322,7 +322,7 @@ impl UnverifiedBiscuit {
 
     pub fn append_third_party(&self, slice: &[u8]) -> Result<Self, error::Token> {
         let next_private_key =
-            PrivateKey::new_with_rng(super::builder::Algorithm::Ed25519, &mut rand::rngs::OsRng);
+            PrivateKey::new_with_rng(super::builder::Algorithm::Ed25519, &mut rand::rng());
         self.append_third_party_with_key(slice, next_private_key)
     }
 

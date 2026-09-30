@@ -9,7 +9,7 @@ use crate::token::public_keys::PublicKeyData;
 use crate::datalog::SymbolTable;
 use crate::token::default_symbol_table;
 use crate::{Biscuit, PrivateKey, error};
-use rand::{CryptoRng, RngCore};
+use rand::{CryptoRng, Rng};
 
 use std::fmt;
 use std::marker::PhantomData;
@@ -148,10 +148,10 @@ impl<K: SerializePrivateKey> BiscuitBuilder<K> {
         root_key: &RK,
         symbols: SymbolTable,
     ) -> Result<Biscuit<K>, error::Token> {
-        self.build_with_rng(root_key, symbols, &mut rand::rngs::OsRng)
+        self.build_with_rng(root_key, symbols, &mut rand::rng())
     }
 
-    pub fn build_with_rng<RK: Sign, R: RngCore + CryptoRng>(
+    pub fn build_with_rng<RK: Sign, R: Rng + CryptoRng + ?Sized>(
         self,
         root: &RK,
         symbols: SymbolTable,

@@ -18,7 +18,7 @@ use std::hash::Hash;
 use ed25519_dalek::pkcs8::DecodePrivateKey;
 use ed25519_dalek::Signer;
 use ed25519_dalek::*;
-use rand_core::{CryptoRng, RngCore};
+use rand_core::{CryptoRng, Rng};
 
 use crate::error::Format;
 
@@ -30,7 +30,7 @@ use super::Signature;
 pub struct PrivateKey(pub(crate) ed25519_dalek::SigningKey);
 
 impl PrivateKey {
-    pub fn new_with_rng<T: RngCore + CryptoRng>(rng: &mut T) -> Self {
+    pub fn new_with_rng<T: Rng + CryptoRng + ?Sized>(rng: &mut T) -> Self {
         let kp = ed25519_dalek::SigningKey::generate(rng);
         Self(kp)
     }
