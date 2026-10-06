@@ -367,7 +367,7 @@ mod tests {
 
     #[test]
     fn parens() {
-        use crate::datalog::{SymbolTable, TemporarySymbolTable};
+        use crate::datalog::{StepCounter, SymbolTable, TemporarySymbolTable};
         use builder::{int, Binary, Op, Unary};
         use std::collections::HashMap;
 
@@ -391,6 +391,7 @@ mod tests {
                 &h,
                 &mut TemporarySymbolTable::new(&syms),
                 &Default::default(),
+                &StepCounter::default(),
             )
             .unwrap();
         println!("evaluates to: {result:?}");
@@ -426,6 +427,7 @@ mod tests {
                 &h,
                 &mut TemporarySymbolTable::new(&syms),
                 &Default::default(),
+                &StepCounter::default(),
             )
             .unwrap();
         println!("evaluates to: {result:?}");
