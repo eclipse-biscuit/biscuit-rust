@@ -8,6 +8,7 @@ use crate::error::Execution;
 use crate::time::Instant;
 use crate::token::{Scope, DATALOG_3_1, DATALOG_3_3, MIN_SCHEMA_VERSION};
 use crate::{builder, error};
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::convert::AsRef;
 use std::fmt;
@@ -143,21 +144,23 @@ impl Rule {
         rule_origin: usize,
         symbols: &'a SymbolTable,
         extern_funcs: &'a HashMap<String, ExternFunc>,
-    ) -> impl Iterator<Item = Result<(Origin, Fact), error::Expression>> + 'a
+        steps: &'a StepCounter,
+    ) -> impl Iterator<Item = Result<(Origin, Fact), Execution>> + 'a
     where
         IT: Iterator<Item = (&'a Origin, &'a Fact)> + Clone + 'a,
     {
         let head = self.head.clone();
         let variables = MatchedVariables::new(self.variables_set());
 
-        CombineIt::new(variables, &self.body, facts, symbols)
-        .map(move |(origin, variables)| {
+        CombineIt::new(variables, &self.body, facts, symbols, steps)
+        .map(move |res| {
+                    let (origin, variables) = res?;
                     let mut temporary_symbols = TemporarySymbolTable::new(symbols);
                     for e in self.expressions.iter() {
-                        match e.evaluate(&variables, &mut temporary_symbols, extern_funcs) {
+                        match e.evaluate(&variables, &mut temporary_symbols, extern_funcs, steps) {
                             Ok(Term::Bool(true)) => {}
                             Ok(Term::Bool(false)) => return Ok((origin, variables, false)),
-                            Ok(_) => return Err(error::Expression::InvalidType),
+                            Ok(_) => return Err(Execution::Expression(error::Expression::InvalidType)),
                             Err(e) => {
                                 //println!("expr returned {:?}", res);
                                 return Err(e);
@@ -200,15 +203,16 @@ impl Rule {
         scope: &TrustedOrigins,
         symbols: &SymbolTable,
         extern_funcs: &HashMap<String, ExternFunc>,
+        steps: &StepCounter,
     ) -> Result<bool, Execution> {
         let fact_it = facts.iterator(scope);
-        let mut it = self.apply(fact_it, origin, symbols, extern_funcs);
+        let mut it = self.apply(fact_it, origin, symbols, extern_funcs, steps);
 
         let next = it.next();
         match next {
             None => Ok(false),
             Some(Ok(_)) => Ok(true),
-            Some(Err(e)) => Err(Execution::Expression(e)),
+            Some(Err(e)) => Err(e),
         }
     }
 
@@ -218,17 +222,19 @@ impl Rule {
         scope: &TrustedOrigins,
         symbols: &SymbolTable,
         extern_funcs: &HashMap<String, ExternFunc>,
+        steps: &StepCounter,
     ) -> Result<bool, Execution> {
         let fact_it = facts.iterator(scope);
         let variables = MatchedVariables::new(self.variables_set());
         let mut found = false;
 
-        for (_, variables) in CombineIt::new(variables, &self.body, fact_it, symbols) {
+        for res in CombineIt::new(variables, &self.body, fact_it, symbols, steps) {
+            let (_, variables) = res?;
             found = true;
 
             let mut temporary_symbols = TemporarySymbolTable::new(symbols);
             for e in self.expressions.iter() {
-                match e.evaluate(&variables, &mut temporary_symbols, extern_funcs) {
+                match e.evaluate(&variables, &mut temporary_symbols, extern_funcs, steps) {
                     Ok(Term::Bool(true)) => {}
                     Ok(Term::Bool(false)) => {
                         //println!("expr returned {:?}", res);
@@ -238,7 +244,7 @@ impl Rule {
                         return Err(error::Execution::Expression(error::Expression::InvalidType))
                     }
                     Err(e) => {
-                        return Err(error::Execution::Expression(e));
+                        return Err(e);
                     }
                 }
             }
@@ -330,8 +336,10 @@ pub struct CombineIt<'a, IT> {
     predicates: &'a [Predicate],
     all_facts: IT,
     symbols: &'a SymbolTable,
+    steps: &'a StepCounter,
     current_facts: Box<dyn Iterator<Item = (&'a Origin, &'a Fact)> + 'a>,
-    current_it: Option<Box<dyn Iterator<Item = (Origin, HashMap<u32, Term>)> + 'a>>,
+    current_it:
+        Option<Box<dyn Iterator<Item = Result<(Origin, HashMap<u32, Term>), Execution>> + 'a>>,
 }
 
 impl<'a, IT> CombineIt<'a, IT>
@@ -343,6 +351,7 @@ where
         predicates: &'a [Predicate],
         facts: IT,
         symbols: &'a SymbolTable,
+        steps: &'a StepCounter,
     ) -> Self {
         let current_facts: Box<dyn Iterator<Item = (&'a Origin, &'a Fact)> + 'a> =
             if predicates.is_empty() {
@@ -361,6 +370,7 @@ where
             predicates,
             all_facts: facts,
             symbols,
+            steps,
             current_facts,
             current_it: None,
         }
@@ -372,9 +382,9 @@ where
     IT: Iterator<Item = (&'a Origin, &'a Fact)> + Clone + 'a,
     Self: 'a,
 {
-    type Item = (Origin, HashMap<u32, Term>);
+    type Item = Result<(Origin, HashMap<u32, Term>), Execution>;
 
-    fn next(&mut self) -> Option<(Origin, HashMap<u32, Term>)> {
+    fn next(&mut self) -> Option<Result<(Origin, HashMap<u32, Term>), Execution>> {
         // if we're the last iterator in the recursive chain, stop here
         if self.predicates.is_empty() {
             match self.variables.complete() {
@@ -386,7 +396,7 @@ where
                     // successful calls, we create a set of variables that cannot
                     // possibly be completed, so the next call will fail
                     self.variables = MatchedVariables::new([0].into());
-                    return Some((Origin::default(), variables));
+                    return Some(Ok((Origin::default(), variables)));
                 }
             }
         }
@@ -418,6 +428,12 @@ where
                             continue;
                         }
 
+                        // the fact matches the predicate, given the variables
+                        // bound so far: this counts as one step
+                        if let Err(e) = self.steps.step() {
+                            return Some(Err(e));
+                        }
+
                         if self.predicates.len() == 1 {
                             match vars.complete() {
                                 None => {
@@ -426,7 +442,7 @@ where
                                 }
                                 // we got a complete set of variables, let's test the expressions
                                 Some(variables) => {
-                                    return Some((current_origin.clone(), variables));
+                                    return Some(Ok((current_origin.clone(), variables)));
                                 }
                             }
                         } else {
@@ -438,9 +454,12 @@ where
                                     &self.predicates[1..],
                                     self.all_facts.clone(),
                                     self.symbols,
+                                    self.steps,
                                 )
-                                .map(move |(origin, variables)| {
-                                    (origin.union(current_origin), variables)
+                                .map(move |res| {
+                                    res.map(|(origin, variables)| {
+                                        (origin.union(current_origin), variables)
+                                    })
                                 }),
                             ));
                         }
@@ -455,8 +474,8 @@ where
                 break None;
             }
 
-            if let Some((origin, variables)) = self.current_it.as_mut().and_then(|it| it.next()) {
-                break Some((origin, variables));
+            if let Some(res) = self.current_it.as_mut().and_then(|it| it.next()) {
+                break Some(res);
             } else {
                 self.current_it = None;
             }
@@ -593,6 +612,7 @@ pub struct World {
     pub facts: FactSet,
     pub rules: RuleSet,
     pub iterations: u64,
+    pub steps: StepCounter,
     pub extern_funcs: HashMap<String, ExternFunc>,
 }
 
@@ -620,21 +640,28 @@ impl World {
     ) -> Result<(), crate::error::Execution> {
         let start = Instant::now();
         let time_limit = start + limits.max_time;
+        self.steps = StepCounter::new(limits.max_steps);
         let mut index = 0;
 
-        let res = loop {
+        let res = 'run: loop {
             let mut new_facts = FactSet::default();
 
             for (scope, rules) in self.rules.inner.iter() {
                 let it = self.facts.iterator(scope);
                 for (origin, rule) in rules {
-                    for res in rule.apply(it.clone(), *origin, symbols, &self.extern_funcs) {
+                    for res in rule.apply(
+                        it.clone(),
+                        *origin,
+                        symbols,
+                        &self.extern_funcs,
+                        &self.steps,
+                    ) {
                         match res {
                             Ok((origin, fact)) => {
                                 new_facts.insert(&origin, fact);
                             }
                             Err(e) => {
-                                return Err(Execution::Expression(e));
+                                break 'run Err(e);
                             }
                         }
                     }
@@ -703,15 +730,9 @@ impl World {
         let mut new_facts = FactSet::default();
         let it = self.facts.iterator(scope);
         //new_facts.extend(rule.apply(it, origin, symbols));
-        for res in rule.apply(it.clone(), origin, symbols, &self.extern_funcs) {
-            match res {
-                Ok((origin, fact)) => {
-                    new_facts.insert(&origin, fact);
-                }
-                Err(e) => {
-                    return Err(Execution::Expression(e));
-                }
-            }
+        for res in rule.apply(it.clone(), origin, symbols, &self.extern_funcs, &self.steps) {
+            let (origin, fact) = res?;
+            new_facts.insert(&origin, fact);
         }
 
         Ok(new_facts)
@@ -724,7 +745,14 @@ impl World {
         scope: &TrustedOrigins,
         symbols: &SymbolTable,
     ) -> Result<bool, Execution> {
-        rule.find_match(&self.facts, origin, scope, symbols, &self.extern_funcs)
+        rule.find_match(
+            &self.facts,
+            origin,
+            scope,
+            symbols,
+            &self.extern_funcs,
+            &self.steps,
+        )
     }
 
     pub fn query_match_all(
@@ -733,7 +761,7 @@ impl World {
         scope: &TrustedOrigins,
         symbols: &SymbolTable,
     ) -> Result<bool, Execution> {
-        rule.check_match_all(&self.facts, scope, symbols, &self.extern_funcs)
+        rule.check_match_all(&self.facts, scope, symbols, &self.extern_funcs, &self.steps)
     }
 }
 
@@ -746,15 +774,57 @@ pub struct RunLimits {
     pub max_iterations: u64,
     /// maximum execution time
     pub max_time: Duration,
+    /// maximum number of steps
+    pub max_steps: u64,
 }
 
-impl std::default::Default for RunLimits {
+impl Default for RunLimits {
     fn default() -> Self {
         RunLimits {
             max_facts: 1000,
             max_iterations: 100,
             max_time: Duration::from_millis(1),
+            max_steps: 1000,
         }
+    }
+}
+
+/// tracks the steps the Datalog engine can still take
+///
+/// a step is a fact matching a predicate of a rule body, given the
+/// variables already bound by the previous predicates
+#[derive(Debug, Clone)]
+pub struct StepCounter {
+    remaining: Cell<u64>,
+}
+
+impl StepCounter {
+    pub fn new(max_steps: u64) -> Self {
+        StepCounter {
+            remaining: Cell::new(max_steps),
+        }
+    }
+
+    /// records a step, failing if no steps remain
+    pub fn step(&self) -> Result<(), Execution> {
+        match self.remaining.get().checked_sub(1) {
+            Some(remaining) => {
+                self.remaining.set(remaining);
+                Ok(())
+            }
+            None => Err(Execution::RunLimit(crate::error::RunLimit::TooManySteps)),
+        }
+    }
+
+    /// returns the number of steps that can still be taken
+    pub fn remaining(&self) -> u64 {
+        self.remaining.get()
+    }
+}
+
+impl Default for StepCounter {
+    fn default() -> Self {
+        StepCounter::new(RunLimits::default().max_steps)
     }
 }
 
@@ -1811,5 +1881,57 @@ mod tests {
             println!("\t{}", syms.print_fact(fact));
         }
         assert!(res.is_empty());
+    }
+
+    #[test]
+    fn step_limit() {
+        let mut syms = SymbolTable::new();
+        let a = syms.insert("a");
+        let b = syms.insert("b");
+        let c = syms.insert("c");
+
+        let mut w = World::new();
+        for i in 1..=3 {
+            w.add_fact(&[0].iter().collect(), fact(a, &[&int(i)]));
+        }
+        for i in 1..=2 {
+            w.add_fact(&[0].iter().collect(), fact(b, &[&int(i)]));
+        }
+
+        // each application of the rule takes 3 steps for the `a` facts, then
+        // 2 for the `b` facts matching the bound `$x`. The rule is applied
+        // twice: once to generate the `c` facts, once to find nothing new
+        let x = var(&mut syms, "x");
+        let r = rule(c, &[&x], &[pred(a, &[&x]), pred(b, &[&x])]);
+        w.add_rule(0, &[0].iter().collect(), r);
+
+        let limits = |max_steps| RunLimits {
+            max_time: Duration::from_secs(10),
+            max_steps,
+            ..Default::default()
+        };
+
+        let mut over_limit = w.clone();
+        assert_eq!(
+            over_limit.run_with_limits(&syms, limits(9)),
+            Err(Execution::RunLimit(crate::error::RunLimit::TooManySteps))
+        );
+
+        w.run_with_limits(&syms, limits(12)).unwrap();
+        assert_eq!(w.steps.remaining(), 2);
+
+        // queries take their steps from what remains after the run.
+        // query_match stops at the first match, so this takes 1 step
+        let query = rule(c, &[&x], &[pred(a, &[&x])]);
+        assert!(w
+            .query_match(query.clone(), 0, &[0].iter().collect(), &syms)
+            .unwrap());
+        assert_eq!(w.steps.remaining(), 1);
+
+        // query_rule goes through all 3 `a` facts
+        assert_eq!(
+            w.query_rule(query, 0, &[0].iter().collect(), &syms).err(),
+            Some(Execution::RunLimit(crate::error::RunLimit::TooManySteps))
+        );
     }
 }

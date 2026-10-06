@@ -104,6 +104,7 @@ pub enum ErrorKind {
     Execution,
     UnexpectedQueryResult,
     FormatPKCS8,
+    TooManySteps,
 }
 
 #[no_mangle]
@@ -181,6 +182,7 @@ pub extern "C" fn error_kind() -> ErrorKind {
                     }
                     Token::RunLimit(RunLimit::TooManyFacts) => ErrorKind::TooManyFacts,
                     Token::RunLimit(RunLimit::TooManyIterations) => ErrorKind::TooManyIterations,
+                    Token::RunLimit(RunLimit::TooManySteps) => ErrorKind::TooManySteps,
                     Token::RunLimit(RunLimit::Timeout) => ErrorKind::Timeout,
                     Token::RunLimit(RunLimit::UnexpectedQueryResult(_, _)) => {
                         ErrorKind::UnexpectedQueryResult
