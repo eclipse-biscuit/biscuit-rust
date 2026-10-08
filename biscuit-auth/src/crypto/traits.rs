@@ -1,4 +1,4 @@
-use rand::{CryptoRng, RngCore};
+use rand::{CryptoRng, Rng};
 use zeroize::Zeroizing;
 
 use crate::builder::Algorithm;
@@ -28,7 +28,7 @@ pub trait SerializePublicKey: Verify + Clone + PartialEq + Sized {
 }
 
 pub trait SerializePrivateKey: Sign<PublicKey: SerializePublicKey> + Clone + Sized {
-    fn new_with_rng<R: RngCore + CryptoRng>(algorithm: Algorithm, rng: &mut R) -> Self;
+    fn new_with_rng<R: Rng + CryptoRng + ?Sized>(algorithm: Algorithm, rng: &mut R) -> Self;
     fn from_bytes_and_algorithm(algorithm: Algorithm, bytes: &[u8]) -> Result<Self, error::Format>;
     fn to_bytes(&self) -> Zeroizing<Vec<u8>>;
 }
