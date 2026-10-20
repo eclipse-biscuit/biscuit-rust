@@ -216,8 +216,8 @@ impl super::Authorizer {
         let generated_facts = self
             .world
             .facts
-            .inner
-            .iter()
+            .by_origin()
+            .into_iter()
             .map(|(origin, facts)| {
                 Ok(GeneratedFacts {
                     origins: authorizer_origin_to_proto_origin(origin),

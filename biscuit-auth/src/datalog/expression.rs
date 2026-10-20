@@ -37,7 +37,7 @@ impl ExternFunc {
         Self(f)
     }
 
-    pub fn call(
+    pub(crate) fn call(
         &self,
         symbols: &mut TemporarySymbolTable,
         name: &str,
@@ -129,7 +129,7 @@ impl Unary {
         }
     }
 
-    pub fn print(&self, value: String, symbols: &SymbolTable) -> String {
+    pub(crate) fn print(&self, value: String, symbols: &SymbolTable) -> String {
         match self {
             Unary::Negate => format!("!{value}"),
             Unary::Parens => format!("({value})"),
@@ -564,7 +564,7 @@ impl Binary {
         }
     }
 
-    pub fn print(&self, left: String, right: String, symbols: &SymbolTable) -> String {
+    pub(crate) fn print(&self, left: String, right: String, symbols: &SymbolTable) -> String {
         match self {
             Binary::LessThan => format!("{left} < {right}"),
             Binary::GreaterThan => format!("{left} > {right}"),
@@ -610,7 +610,7 @@ enum StackElem {
 }
 
 impl Expression {
-    pub fn evaluate(
+    pub(crate) fn evaluate(
         &self,
         values: &HashMap<u32, Term>,
         symbols: &mut TemporarySymbolTable,
@@ -738,7 +738,7 @@ impl Expression {
         self.evaluate(values, symbols, extern_funcs, steps)
     }
 
-    pub fn print(&self, symbols: &SymbolTable) -> Option<String> {
+    pub(crate) fn print(&self, symbols: &SymbolTable) -> Option<String> {
         let mut stack: Vec<String> = Vec::new();
 
         for op in self.ops.iter() {

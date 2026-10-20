@@ -10,7 +10,7 @@ use crate::token::default_symbol_table;
 use crate::token::public_keys::PublicKeyData;
 use crate::{error, token::public_keys::PublicKeys};
 
-use super::{Check, Fact, Predicate, Rule, Term, World};
+use super::{Check, Fact, Predicate, Rule, Term};
 
 pub type SymbolIndex = u64;
 
@@ -167,13 +167,12 @@ impl SymbolTable {
             .unwrap_or_else(|| format!("<{i}?>"))
     }
 
-    pub fn print_world(&self, w: &World) -> String {
+    #[cfg(test)]
+    pub(crate) fn print_world(&self, w: &super::World) -> String {
         let facts = w
             .facts
-            .inner
-            .iter()
-            .flat_map(|facts| facts.1.iter())
-            .map(|f| self.print_fact(f))
+            .iter_all()
+            .map(|(_, f)| self.print_fact(f))
             .collect::<Vec<_>>();
         let rules = w
             .rules
@@ -336,14 +335,14 @@ impl Default for SymbolTable {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TemporarySymbolTable<'a> {
+pub(crate) struct TemporarySymbolTable<'a> {
     base: &'a SymbolTable,
     offset: usize,
     symbols: Vec<String>,
 }
 
 impl<'a> TemporarySymbolTable<'a> {
-    pub fn new(base: &'a SymbolTable) -> Self {
+    pub(crate) fn new(base: &'a SymbolTable) -> Self {
         let offset = OFFSET + base.current_offset();
 
         TemporarySymbolTable {
@@ -353,7 +352,7 @@ impl<'a> TemporarySymbolTable<'a> {
         }
     }
 
-    pub fn get_symbol(&self, i: SymbolIndex) -> Option<&str> {
+    pub(crate) fn get_symbol(&self, i: SymbolIndex) -> Option<&str> {
         if i as usize >= self.offset {
             self.symbols
                 .get(i as usize - self.offset)
@@ -363,7 +362,7 @@ impl<'a> TemporarySymbolTable<'a> {
         }
     }
 
-    pub fn insert(&mut self, s: &str) -> SymbolIndex {
+    pub(crate) fn insert(&mut self, s: &str) -> SymbolIndex {
         if let Some(index) = self.base.get(s) {
             return index;
         }
