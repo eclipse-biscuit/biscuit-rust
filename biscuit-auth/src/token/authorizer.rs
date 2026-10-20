@@ -237,10 +237,8 @@ impl Authorizer {
             .world
             .query_rule(rule, usize::MAX, &rule_trusted_origins, &self.symbols)?;
 
-        res.inner
-            .into_iter()
-            .flat_map(|(_, set)| set.into_iter())
-            .map(|f| Fact::convert_from(&f, &self.symbols))
+        res.into_iter()
+            .map(|(_, f)| Fact::convert_from(&f, &self.symbols))
             .map(|fact| {
                 fact.map_err(error::Token::Format)
                     .and_then(|f| f.try_into().map_err(Into::into))
@@ -715,17 +713,14 @@ impl Authorizer {
 
 impl std::fmt::Display for Authorizer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut has_facts = false;
         let mut all_facts = BTreeMap::new();
-        for (origin, factset) in &self.world.facts.inner {
-            let mut facts = HashSet::new();
-            for fact in factset {
-                facts.insert(self.symbols.print_fact(fact));
-            }
-
-            has_facts = has_facts || !facts.is_empty();
-            all_facts.insert(origin, facts);
+        for (origin, fact) in self.world.facts.iter_all() {
+            all_facts
+                .entry(origin)
+                .or_insert_with(HashSet::new)
+                .insert(self.symbols.print_fact(fact));
         }
+        let has_facts = !all_facts.is_empty();
 
         if has_facts {
             writeln!(f, "// Facts:")?;

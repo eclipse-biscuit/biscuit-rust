@@ -117,7 +117,7 @@ pub enum MapKey {
 }
 
 impl Term {
-    pub fn to_datalog(self, symbols: &mut TemporarySymbolTable) -> datalog::Term {
+    pub(crate) fn to_datalog(self, symbols: &mut TemporarySymbolTable) -> datalog::Term {
         match self {
             Term::Variable(s) => datalog::Term::Variable(symbols.insert(&s) as u32),
             Term::Integer(i) => datalog::Term::Integer(i),
@@ -154,7 +154,7 @@ impl Term {
         }
     }
 
-    pub fn from_datalog(
+    pub(crate) fn from_datalog(
         term: datalog::Term,
         symbols: &TemporarySymbolTable,
     ) -> Result<Self, error::Expression> {
