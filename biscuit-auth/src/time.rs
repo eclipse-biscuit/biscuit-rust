@@ -14,11 +14,11 @@ use wasm_bindgen::prelude::*;
 
 pub use std::time::*;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", feature = "wasm")))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Instant(std::time::Instant);
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(all(target_arch = "wasm32", feature = "wasm")))]
 #[allow(dead_code)]
 impl Instant {
     pub fn now() -> Self {
@@ -48,11 +48,11 @@ extern "C" {
     fn performance_now() -> f64;
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Instant(u64);
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
 impl Instant {
     pub fn now() -> Self {
         Self((performance_now() * 1000.0) as u64)
