@@ -366,8 +366,8 @@ pub struct RunLimits {
     pub max_iterations: u64,
     #[prost(uint64, required, tag="3")]
     pub max_time: u64,
-    #[prost(uint64, required, tag="4")]
-    pub max_steps: u64,
+    #[prost(uint64, optional, tag="4")]
+    pub max_steps: ::core::option::Option<u64>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AuthorizerWorld {
