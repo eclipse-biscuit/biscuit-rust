@@ -576,10 +576,10 @@ pub fn rule(input: proc_macro::TokenStream) -> manyhow::Result<proc_macro::Token
         if builder.rules.len() == 1 && builder.facts.is_empty() && builder.checks.is_empty() {
             Item::rule(r)
         } else {
-            bail!("The rule macro only accepts a single rule as input")
+            bail!("The rule macro only accepts a single rule as input");
         }
     } else {
-        bail!("The rule macro only accepts a single rule as input")
+        bail!("The rule macro only accepts a single rule as input");
     };
 
     // here we are only interested in returning the rule, not adding it to a
@@ -650,10 +650,10 @@ pub fn fact(input: proc_macro::TokenStream) -> manyhow::Result<proc_macro::Token
         if builder.facts.len() == 1 && builder.rules.is_empty() && builder.checks.is_empty() {
             Item::fact(f)
         } else {
-            bail!("The fact macro only accepts a single fact as input")
+            bail!("The fact macro only accepts a single fact as input");
         }
     } else {
-        bail!("The fact macro only accepts a single fact as input")
+        bail!("The fact macro only accepts a single fact as input");
     };
 
     // here we are only interested in returning the fact, not adding it to a
@@ -718,10 +718,10 @@ pub fn check(input: proc_macro::TokenStream) -> manyhow::Result<proc_macro::Toke
         if builder.checks.len() == 1 && builder.facts.is_empty() && builder.rules.is_empty() {
             Item::check(c)
         } else {
-            bail!("The check macro only accepts a single check as input")
+            bail!("The check macro only accepts a single check as input");
         }
     } else {
-        bail!("The check macro only accepts a single check as input")
+        bail!("The check macro only accepts a single check as input");
     };
 
     // here we are only interested in returning the check, not adding it to a
@@ -796,10 +796,10 @@ pub fn policy(input: proc_macro::TokenStream) -> manyhow::Result<proc_macro::Tok
         {
             Item::policy(p)
         } else {
-            bail!("The policy macro only accepts a single policy as input")
+            bail!("The policy macro only accepts a single policy as input");
         }
     } else {
-        bail!("The policy macro only accepts a single policy as input")
+        bail!("The policy macro only accepts a single policy as input");
     };
 
     // here we are only interested in returning the policy, not adding it to a
