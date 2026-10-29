@@ -60,7 +60,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 1,
+            "remaining_steps": 999
           },
           "result": {
             "Err": {
@@ -383,7 +385,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 5,
+            "remaining_steps": 995
           },
           "result": {
             "Err": {
@@ -487,7 +491,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 3,
+            "remaining_steps": 997
           },
           "result": {
             "Err": {
@@ -566,7 +572,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 3,
+            "remaining_steps": 997
           },
           "result": {
             "Err": {
@@ -660,7 +668,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 2,
+            "remaining_steps": 998
           },
           "result": {
             "Err": {
@@ -736,7 +746,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 2,
+            "remaining_steps": 998
           },
           "result": {
             "Err": {
@@ -803,7 +815,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 1,
+            "remaining_steps": 999
           },
           "result": {
             "Ok": 0
@@ -837,7 +851,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 1,
+            "remaining_steps": 999
           },
           "result": {
             "Err": {
@@ -943,7 +959,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 14,
+            "remaining_steps": 986
           },
           "result": {
             "Ok": 0
@@ -995,7 +1013,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 5,
+            "remaining_steps": 995
           },
           "result": {
             "Err": {
@@ -1064,7 +1084,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 2,
+            "remaining_steps": 998
           },
           "result": {
             "Err": {
@@ -1114,7 +1136,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 2,
+            "remaining_steps": 998
           },
           "result": {
             "Ok": 0
@@ -1165,7 +1189,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 1,
+            "remaining_steps": 999
           },
           "result": {
             "Ok": 0
@@ -1224,7 +1250,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 0,
+            "remaining_steps": 1000
           },
           "result": {
             "Err": {
@@ -1333,7 +1361,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 53,
+            "remaining_steps": 947
           },
           "result": {
             "Ok": 0
@@ -1450,7 +1480,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 4,
+            "remaining_steps": 996
           },
           "result": {
             "Err": {
@@ -1539,7 +1571,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 3,
+            "remaining_steps": 997
           },
           "result": {
             "Ok": 0
@@ -1591,7 +1625,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 1,
+            "remaining_steps": 999
           },
           "result": {
             "Ok": 0
@@ -1666,7 +1702,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 28,
+            "remaining_steps": 972
           },
           "result": {
             "Ok": 0
@@ -1743,7 +1781,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 1,
+            "remaining_steps": 999
           },
           "result": {
             "Err": {
@@ -1833,7 +1873,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 2,
+            "remaining_steps": 998
           },
           "result": {
             "Ok": 0
@@ -1897,7 +1939,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 6,
+            "remaining_steps": 994
           },
           "result": {
             "Ok": 0
@@ -1939,7 +1983,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 6,
+            "remaining_steps": 994
           },
           "result": {
             "Err": {
@@ -1989,7 +2035,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 0,
+            "remaining_steps": 1000
           },
           "result": {
             "Err": {
@@ -2181,7 +2229,9 @@
               "deny if query(1, 2)",
               "deny if query(0) trusting ed25519/acdd6d5b53bfee478bf689f8e012fe7988bf755e3d7c5152947abc149bc20189",
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 31,
+            "remaining_steps": 969
           },
           "result": {
             "Ok": 3
@@ -2226,7 +2276,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 1,
+            "remaining_steps": 999
           },
           "result": {
             "Err": {
@@ -2276,7 +2328,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 9,
+            "remaining_steps": 991
           },
           "result": {
             "Ok": 0
@@ -2326,7 +2380,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 1,
+            "remaining_steps": 999
           },
           "result": {
             "Ok": 0
@@ -2359,7 +2415,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 1,
+            "remaining_steps": 999
           },
           "result": {
             "Err": {
@@ -2428,7 +2486,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 4,
+            "remaining_steps": 996
           },
           "result": {
             "Ok": 0
@@ -2462,7 +2522,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 4,
+            "remaining_steps": 996
           },
           "result": {
             "Err": {
@@ -2520,7 +2582,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 4,
+            "remaining_steps": 996
           },
           "result": {
             "Err": {
@@ -2578,7 +2642,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 4,
+            "remaining_steps": 996
           },
           "result": {
             "Err": {
@@ -2677,7 +2743,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 23,
+            "remaining_steps": 977
           },
           "result": {
             "Ok": 0
@@ -2737,7 +2805,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 24,
+            "remaining_steps": 976
           },
           "result": {
             "Err": {
@@ -2819,7 +2889,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 61,
+            "remaining_steps": 939
           },
           "result": {
             "Ok": 0
@@ -2852,7 +2924,9 @@
             ],
             "policies": [
               "allow if {\"true\"}.any($p -> {\"true\"}.all($p -> $p))"
-            ]
+            ],
+            "elapsed_steps": 64,
+            "remaining_steps": 936
           },
           "result": {
             "Err": {
@@ -2938,7 +3012,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 42,
+            "remaining_steps": 958
           },
           "result": {
             "Ok": 0
@@ -3014,7 +3090,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 72,
+            "remaining_steps": 928
           },
           "result": {
             "Ok": 0
@@ -3057,7 +3135,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 3,
+            "remaining_steps": 997
           },
           "result": {
             "Ok": 0
@@ -3128,7 +3208,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 3,
+            "remaining_steps": 997
           },
           "result": {
             "Ok": 0
@@ -3218,7 +3300,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 4,
+            "remaining_steps": 996
           },
           "result": {
             "Ok": 0
@@ -3260,7 +3344,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 10,
+            "remaining_steps": 990
           },
           "result": {
             "Ok": 0
@@ -3292,7 +3378,9 @@
             ],
             "policies": [
               "allow if true"
-            ]
+            ],
+            "elapsed_steps": 1,
+            "remaining_steps": 999
           },
           "result": {
             "Err": {
