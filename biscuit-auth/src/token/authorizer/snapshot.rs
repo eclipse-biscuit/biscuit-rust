@@ -34,6 +34,7 @@ impl super::Authorizer {
             max_facts: limits.max_facts,
             max_iterations: limits.max_iterations,
             max_time: Duration::from_nanos(limits.max_time),
+            max_steps: limits.max_steps.unwrap_or(RunLimits::DEFAULT_STEPS),
         };
 
         let execution_time = Duration::from_nanos(execution_time);
@@ -216,8 +217,8 @@ impl super::Authorizer {
         let generated_facts = self
             .world
             .facts
-            .inner
-            .iter()
+            .by_origin()
+            .into_iter()
             .map(|(origin, facts)| {
                 Ok(GeneratedFacts {
                     origins: authorizer_origin_to_proto_origin(origin),
@@ -257,6 +258,7 @@ impl super::Authorizer {
                 max_facts: self.limits.max_facts,
                 max_iterations: self.limits.max_iterations,
                 max_time: self.limits.max_time.as_nanos() as u64,
+                max_steps: Some(self.limits.max_steps),
             },
         })
     }
@@ -334,6 +336,7 @@ mod tests {
                 max_facts: 42,
                 max_iterations: 42,
                 max_time: Duration::from_secs(1),
+                max_steps: 42,
             })
             .code_with_params(
                 r#"
@@ -366,6 +369,7 @@ mod tests {
                 max_facts: 42,
                 max_iterations: 42,
                 max_time: Duration::from_secs(1),
+                max_steps: 42,
             })
             .code_with_params(
                 r#"
@@ -424,6 +428,7 @@ mod tests {
                 max_facts: 42,
                 max_iterations: 42,
                 max_time: Duration::from_secs(1),
+                max_steps: 42,
             })
             .code(
                 r#"
@@ -458,6 +463,7 @@ mod tests {
                 max_facts: 42,
                 max_iterations: 42,
                 max_time: Duration::from_secs(1),
+                max_steps: 42,
             })
             .code(
                 r#"

@@ -564,6 +564,7 @@ impl AuthorizerBuilder {
             max_facts: limits.max_facts,
             max_iterations: limits.max_iterations,
             max_time: Duration::from_nanos(limits.max_time),
+            max_steps: limits.max_steps.unwrap_or(RunLimits::DEFAULT_STEPS),
         };
 
         let version = world.version.unwrap_or(0);
@@ -690,6 +691,7 @@ impl AuthorizerBuilder {
                 max_facts: self.limits.max_facts,
                 max_iterations: self.limits.max_iterations,
                 max_time: self.limits.max_time.as_nanos() as u64,
+                max_steps: Some(self.limits.max_steps),
             },
         })
     }
