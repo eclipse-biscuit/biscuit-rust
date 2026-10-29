@@ -606,16 +606,45 @@ mod tests {
 
         let commited_schema = include_str!("schema.rs");
 
-        if contents != commited_schema {
+        let generated = rustfmt(&contents);
+        let commited = rustfmt(commited_schema);
+
+        if generated != commited {
             println!(
                 "{}",
                 colored_diff::PrettyDifference {
-                    expected: &contents,
-                    actual: commited_schema
+                    expected: &generated,
+                    actual: &commited
                 }
             );
             panic!();
         }
+    }
+
+    fn rustfmt(input: &str) -> String {
+        use std::io::Write;
+        use std::process::{Command, Stdio};
+
+        let mut child = Command::new("rustfmt")
+            .args(["--edition", "2018", "--emit", "stdout"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("failed to spawn rustfmt");
+
+        child
+            .stdin
+            .take()
+            .expect("failed to open rustfmt stdin")
+            .write_all(input.as_bytes())
+            .expect("failed to write to rustfmt stdin");
+
+        let output = child
+            .wait_with_output()
+            .expect("failed to read rustfmt output");
+        assert!(output.status.success(), "rustfmt failed");
+
+        String::from_utf8(output.stdout).expect("rustfmt output was not valid UTF-8")
     }
 
     #[test]
