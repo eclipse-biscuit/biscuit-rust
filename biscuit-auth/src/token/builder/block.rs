@@ -7,10 +7,13 @@ use super::{
     Convert, Expression, Fact, Op, Rule, Scope, Term,
 };
 use crate::builder_ext::BuilderExt;
-use crate::token::public_keys::PublicKeyData;
+use crate::crypto::PublicKey;
 use crate::datalog::{get_schema_version, SymbolTable};
 use crate::error;
+use crate::format::convert::{proto_block_to_token_block, token_block_to_proto_block};
+use crate::token::public_keys::PublicKeyData;
 use biscuit_parser::parser::parse_block_source;
+use prost::Message;
 
 use std::time::SystemTime;
 use std::{collections::HashMap, convert::TryInto, fmt};
@@ -180,6 +183,36 @@ impl BlockBuilder {
     pub fn context(mut self, context: String) -> Self {
         self.context = Some(context);
         self
+    }
+
+    /// serializes the builder
+    ///
+    /// `BlockBuilder` is serialized as a self-contained biscuit block; it will carry its symbols
+    /// and public keys in its internment table.
+    pub fn to_vec(&self) -> Result<Vec<u8>, error::Token> {
+        let block = self.clone().build(SymbolTable::new());
+
+        let mut v = Vec::new();
+        token_block_to_proto_block(&block)
+            .encode(&mut v)
+            .map_err(|e| {
+                error::Format::SerializationError(format!("serialization error: {e:?}"))
+            })?;
+        Ok(v)
+    }
+
+    /// deserializes the builder from its serialization
+    ///
+    /// `BlockBuilder` is serialized as a self-contained biscuit block; it must carry its symbols
+    /// and public keys in its internment table. The block's contents are not authenticated.
+    pub fn from_bytes<T: AsRef<[u8]>>(slice: T) -> Result<Self, error::Token> {
+        let data = crate::format::schema::Block::decode(slice.as_ref()).map_err(|e| {
+            error::Format::DeserializationError(format!("deserialization error: {e:?}"))
+        })?;
+
+        // a standalone block carries its own symbol and public key tables, starting at offset 0
+        let block = proto_block_to_token_block::<PublicKey>(&data, None)?;
+        Ok(BlockBuilder::convert_from(&block, &block.symbols)?)
     }
 
     pub(crate) fn build(self, mut symbols: SymbolTable) -> Block {
@@ -384,5 +417,108 @@ impl BuilderExt for BlockBuilder {
             kind: CheckKind::One,
         });
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::builder::Algorithm;
+
+    fn public_key_data(seed: u64) -> PublicKeyData {
+        let mut rng: rand::rngs::StdRng = rand::SeedableRng::seed_from_u64(seed);
+        PublicKeyData::from(&crate::PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng).public())
+    }
+
+    fn assert_same_content(left: &BlockBuilder, right: &BlockBuilder) {
+        assert_eq!(left.to_string(), right.to_string());
+        assert_eq!(left.scopes, right.scopes);
+        assert_eq!(left.context, right.context);
+        assert_eq!(left.to_vec().unwrap(), right.to_vec().unwrap());
+    }
+
+    #[test]
+    fn roundtrip() {
+        let key = public_key_data(0);
+
+        let builder = BlockBuilder::new()
+            .code(
+                r#"
+                right("file1", "read");
+                right("file2", "write");
+                is_allowed($operation) <- operation($operation), right("file1", $operation);
+                check if resource($resource), $resource.starts_with("file");
+                check all operation($op), ["read", "write"].contains($op);
+                "#,
+            )
+            .unwrap()
+            .scope(Scope::Previous)
+            .scope(Scope::PublicKey(key))
+            .context("test context".to_string());
+
+        let serialized = builder.to_vec().unwrap();
+        let parsed = BlockBuilder::from(&serialized).unwrap();
+
+        assert_same_content(&builder, &parsed);
+        assert_eq!(2, parsed.facts.len());
+        assert_eq!(1, parsed.rules.len());
+        assert_eq!(2, parsed.checks.len());
+        assert_eq!(
+            vec![Scope::Previous, Scope::PublicKey(public_key_data(0))],
+            parsed.scopes
+        );
+        assert_eq!(Some("test context".to_string()), parsed.context);
+    }
+
+    #[test]
+    fn roundtrip_empty() {
+        let builder = BlockBuilder::new();
+
+        let parsed = BlockBuilder::from(builder.to_vec().unwrap()).unwrap();
+
+        assert_same_content(&builder, &parsed);
+    }
+
+    #[test]
+    fn roundtrip_rule_and_check_scopes() {
+        let key1 = public_key_data(1);
+        let key2 = public_key_data(2);
+
+        let builder = BlockBuilder::new()
+            .code(format!(
+                r#"
+                is_allowed($op) <- allowed($op) trusting {key1};
+                check if denied($op) trusting {key2};
+                reject if revoked($op) trusting {key1}, {key2};
+                "#
+            ))
+            .unwrap();
+
+        let parsed = BlockBuilder::from(builder.to_vec().unwrap()).unwrap();
+
+        assert_same_content(&builder, &parsed);
+        assert_eq!(vec![Scope::PublicKey(key1.clone())], parsed.rules[0].scopes);
+        assert_eq!(
+            vec![Scope::PublicKey(key2.clone())],
+            parsed.checks[0].queries[0].scopes
+        );
+        assert_eq!(
+            vec![Scope::PublicKey(key1), Scope::PublicKey(key2)],
+            parsed.checks[1].queries[0].scopes
+        );
+    }
+
+    #[test]
+    fn deserialize_garbage() {
+        let err = BlockBuilder::from([0xff, 0xff, 0xff, 0xff]).unwrap_err();
+
+        assert!(
+            matches!(
+                err,
+                error::Token::Format(error::Format::DeserializationError(_))
+            ),
+            "unexpected error: {:?}",
+            err
+        );
     }
 }
