@@ -274,8 +274,8 @@ impl TestResult {
                 for id in &validation.revocation_ids {
                     writeln!(&mut s, "- `{id}`");
                 }
-                writeln!(&mut s, "\nauthorizer world:\n```\nWorld {{\n  facts: {:#?}\n  rules: {:#?}\n  checks: {:#?}\n  policies: {:#?}\n}}\n```\n",
-                         world.facts, world.rules, world.checks, world.policies);
+                writeln!(&mut s, "\nauthorizer world:\n```\nWorld {{\n  facts: {:#?}\n  rules: {:#?}\n  checks: {:#?}\n  policies: {:#?}\n  elapsed steps: {}\n  remaining steps: {}\n}}\n```\n",
+                         world.facts, world.rules, world.checks, world.policies, world.elapsed_steps, world.remaining_steps);
             }
 
             writeln!(&mut s, "result: `{:?}`", validation.result);
@@ -291,6 +291,8 @@ struct AuthorizerWorld {
     pub rules: Vec<Rules>,
     pub checks: Vec<Checks>,
     pub policies: Vec<String>,
+    pub elapsed_steps: u64,
+    pub remaining_steps: u64,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -477,6 +479,8 @@ fn validate_token_with_limits_and_external_functions(
             rules: authorizer_rules,
             checks: authorizer_checks,
             policies: policies.into_iter().map(|p| p.to_string()).collect(),
+            elapsed_steps: authorizer.elapsed_steps(),
+            remaining_steps: authorizer.remaining_steps(),
         }),
         result: match res {
             Ok(i) => AuthorizerResult::Ok(i),
