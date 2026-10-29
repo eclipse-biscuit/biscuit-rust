@@ -211,6 +211,7 @@ impl Authorizer {
         let execution_time = self.run()?;
         let rule = rule.try_into()?.convert(&mut self.symbols);
 
+        self.world.steps.set_max_steps(limits.max_steps);
         let start = Instant::now();
         let result = self.query_inner(rule, limits);
         self.execution_time = Some(start.elapsed() + execution_time);
@@ -355,6 +356,20 @@ impl Authorizer {
         self.world.iterations
     }
 
+    /// returns the number of Datalog steps taken so far
+    ///
+    /// a step is a fact matching a predicate of a rule body, given the
+    /// variables already bound by the previous predicates
+    pub fn elapsed_steps(&self) -> u64 {
+        self.world.elapsed_steps + self.world.steps.taken()
+    }
+
+    /// returns the number of Datalog steps that can still be taken before
+    /// reaching the step limit of the last run
+    pub fn remaining_steps(&self) -> u64 {
+        self.world.steps.remaining()
+    }
+
     /// returns the number of facts
     pub fn fact_count(&self) -> usize {
         self.world.facts.len()
@@ -386,6 +401,7 @@ impl Authorizer {
         limits: AuthorizerLimits,
     ) -> Result<usize, error::Token> {
         let execution_time = self.run_with_limits(limits.clone())?;
+        self.world.steps.set_max_steps(limits.max_steps);
         let start = Instant::now();
         let result = self.authorize_inner(limits);
         self.execution_time = Some(execution_time + start.elapsed());
