@@ -245,6 +245,7 @@
 //! frequent values with every token.
 
 mod crypto;
+pub mod external;
 pub mod datalog;
 pub mod error;
 pub mod format;
