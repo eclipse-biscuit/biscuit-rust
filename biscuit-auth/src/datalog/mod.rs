@@ -8,10 +8,14 @@ use crate::error::Execution;
 use crate::time::Instant;
 use crate::token::{Scope, DATALOG_3_1, DATALOG_3_3, MIN_SCHEMA_VERSION};
 use crate::{builder, error};
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::convert::AsRef;
 use std::fmt;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::rc::Rc;
+use std::time::Duration;
+#[cfg(test)]
+use std::time::{SystemTime, UNIX_EPOCH};
 
 mod expression;
 mod origin;
@@ -137,27 +141,30 @@ impl Rule {
             .collect::<HashSet<_>>()
     }
 
-    pub fn apply<'a, IT>(
+    pub(crate) fn apply<'a>(
         &'a self,
-        facts: IT,
+        facts: &'a FactSet,
         rule_origin: usize,
+        scope: &TrustedOrigins,
         symbols: &'a SymbolTable,
         extern_funcs: &'a HashMap<String, ExternFunc>,
-    ) -> impl Iterator<Item = Result<(Origin, Fact), error::Expression>> + 'a
-    where
-        IT: Iterator<Item = (&'a Origin, &'a Fact)> + Clone + 'a,
-    {
+        steps: &'a StepCounter,
+    ) -> impl Iterator<Item = Result<(Origin, Fact), Execution>> + 'a {
         let head = self.head.clone();
         let variables = MatchedVariables::new(self.variables_set());
-
-        CombineIt::new(variables, &self.body, facts, symbols)
-        .map(move |(origin, variables)| {
+        let candidates = self.body
+            .iter()
+            .map(|predicate| facts.candidates_for(predicate, scope))
+            .collect();
+        CombineIt::new(variables, &self.body, candidates, 0, symbols, steps)
+        .map(move |res| {
+                    let (origin, variables) = res?;
                     let mut temporary_symbols = TemporarySymbolTable::new(symbols);
                     for e in self.expressions.iter() {
-                        match e.evaluate(&variables, &mut temporary_symbols, extern_funcs) {
+                        match e.evaluate(&variables, &mut temporary_symbols, extern_funcs, steps) {
                             Ok(Term::Bool(true)) => {}
                             Ok(Term::Bool(false)) => return Ok((origin, variables, false)),
-                            Ok(_) => return Err(error::Expression::InvalidType),
+                            Ok(_) => return Err(Execution::Expression(error::Expression::InvalidType)),
                             Err(e) => {
                                 //println!("expr returned {:?}", res);
                                 return Err(e);
@@ -193,42 +200,46 @@ impl Rule {
         })
     }
 
-    pub fn find_match(
+    pub(crate) fn find_match(
         &self,
         facts: &FactSet,
         origin: usize,
         scope: &TrustedOrigins,
         symbols: &SymbolTable,
         extern_funcs: &HashMap<String, ExternFunc>,
+        steps: &StepCounter,
     ) -> Result<bool, Execution> {
-        let fact_it = facts.iterator(scope);
-        let mut it = self.apply(fact_it, origin, symbols, extern_funcs);
+        let mut it = self.apply(facts, origin, scope, symbols, extern_funcs, steps);
 
         let next = it.next();
         match next {
             None => Ok(false),
             Some(Ok(_)) => Ok(true),
-            Some(Err(e)) => Err(Execution::Expression(e)),
+            Some(Err(e)) => Err(e),
         }
     }
 
-    pub fn check_match_all(
+    pub(crate) fn check_match_all(
         &self,
         facts: &FactSet,
         scope: &TrustedOrigins,
         symbols: &SymbolTable,
         extern_funcs: &HashMap<String, ExternFunc>,
+        steps: &StepCounter,
     ) -> Result<bool, Execution> {
-        let fact_it = facts.iterator(scope);
         let variables = MatchedVariables::new(self.variables_set());
         let mut found = false;
-
-        for (_, variables) in CombineIt::new(variables, &self.body, fact_it, symbols) {
+        let candidates = self.body
+            .iter()
+            .map(|predicate| facts.candidates_for(predicate, scope))
+            .collect();
+        for res in CombineIt::new(variables, &self.body, candidates, 0, symbols, steps) {
+            let (_, variables) = res?;
             found = true;
 
             let mut temporary_symbols = TemporarySymbolTable::new(symbols);
             for e in self.expressions.iter() {
-                match e.evaluate(&variables, &mut temporary_symbols, extern_funcs) {
+                match e.evaluate(&variables, &mut temporary_symbols, extern_funcs, steps) {
                     Ok(Term::Bool(true)) => {}
                     Ok(Term::Bool(false)) => {
                         //println!("expr returned {:?}", res);
@@ -238,7 +249,7 @@ impl Rule {
                         return Err(error::Execution::Expression(error::Expression::InvalidType))
                     }
                     Err(e) => {
-                        return Err(error::Execution::Expression(e));
+                        return Err(e);
                     }
                 }
             }
@@ -251,7 +262,7 @@ impl Rule {
     // to a builder Rule first, because the builder Rule can contain a public key, so we would
     // need to loo up then retranslate that key, while the datalog rule does not need to know about
     // the key (the scope is driven by the authorizer's side)
-    pub fn translate(
+    pub(crate) fn translate(
         &self,
         origin_symbols: &SymbolTable,
         target_symbols: &mut SymbolTable,
@@ -286,7 +297,7 @@ impl Rule {
         })
     }
 
-    pub fn validate_variables(&self, symbols: &SymbolTable) -> Result<(), String> {
+    pub(crate) fn validate_variables(&self, symbols: &SymbolTable) -> Result<(), String> {
         let mut head_variables: std::collections::HashSet<u32> = self
             .head
             .terms
@@ -325,56 +336,47 @@ impl Rule {
 
 /// recursive iterator for rule application
 #[allow(clippy::type_complexity)]
-pub struct CombineIt<'a, IT> {
+pub(crate) struct CombineIt<'a> {
     variables: MatchedVariables,
     predicates: &'a [Predicate],
-    all_facts: IT,
+    /// candidates for each body predicate, shared by the whole recursive chain
+    candidates: Rc<[Vec<(&'a Origin, &'a Fact)>]>,
+    /// index of `predicates[0]` in the rule body
+    depth: usize,
+    /// next candidate to try for `predicates[0]`
+    position: usize,
     symbols: &'a SymbolTable,
-    current_facts: Box<dyn Iterator<Item = (&'a Origin, &'a Fact)> + 'a>,
-    current_it: Option<Box<dyn Iterator<Item = (Origin, HashMap<u32, Term>)> + 'a>>,
+    steps: &'a StepCounter,
+    current_it:
+        Option<Box<dyn Iterator<Item = Result<(Origin, HashMap<u32, Term>), Execution>> + 'a>>,
 }
 
-impl<'a, IT> CombineIt<'a, IT>
-where
-    IT: Iterator<Item = (&'a Origin, &'a Fact)> + Clone + 'a,
-{
-    pub fn new(
+impl<'a> CombineIt<'a> {
+    fn new(
         variables: MatchedVariables,
         predicates: &'a [Predicate],
-        facts: IT,
+        candidates: Rc<[Vec<(&'a Origin, &'a Fact)>]>,
+        depth: usize,
         symbols: &'a SymbolTable,
+        steps: &'a StepCounter,
     ) -> Self {
-        let current_facts: Box<dyn Iterator<Item = (&'a Origin, &'a Fact)> + 'a> =
-            if predicates.is_empty() {
-                Box::new(facts.clone())
-            } else {
-                let p = predicates[0].clone();
-                Box::new(
-                    facts
-                        .clone()
-                        .filter(move |fact| match_preds(&p, &fact.1.predicate)),
-                )
-            };
-
         CombineIt {
             variables,
             predicates,
-            all_facts: facts,
+            candidates,
+            depth,
+            position: 0,
             symbols,
-            current_facts,
+            steps,
             current_it: None,
         }
     }
 }
 
-impl<'a, IT> Iterator for CombineIt<'a, IT>
-where
-    IT: Iterator<Item = (&'a Origin, &'a Fact)> + Clone + 'a,
-    Self: 'a,
-{
-    type Item = (Origin, HashMap<u32, Term>);
+impl<'a> Iterator for CombineIt<'a> {
+    type Item = Result<(Origin, HashMap<u32, Term>), Execution>;
 
-    fn next(&mut self) -> Option<(Origin, HashMap<u32, Term>)> {
+    fn next(&mut self) -> Option<Result<(Origin, HashMap<u32, Term>), Execution>> {
         // if we're the last iterator in the recursive chain, stop here
         if self.predicates.is_empty() {
             match self.variables.complete() {
@@ -386,7 +388,7 @@ where
                     // successful calls, we create a set of variables that cannot
                     // possibly be completed, so the next call will fail
                     self.variables = MatchedVariables::new([0].into());
-                    return Some((Origin::default(), variables));
+                    return Some(Ok((Origin::default(), variables)));
                 }
             }
         }
@@ -396,55 +398,60 @@ where
                 //fix the first predicate
                 let pred = &self.predicates[0];
 
-                loop {
-                    if let Some((current_origin, current_fact)) = self.current_facts.next() {
+                'facts: loop {
+                    let candidate = self.candidates[self.depth].get(self.position).copied();
+                    if let Some((current_origin, current_fact)) = candidate {
+                        self.position += 1;
+
+                        if let Err(e) = self.steps.step() {
+                            return Some(Err(e));
+                        }
+
+                        if !match_preds(pred, &current_fact.predicate) {
+                            continue 'facts;
+                        }
+
                         // create a new MatchedVariables in which we fix variables we could unify
                         // from our first predicate and the current fact
                         let mut vars = self.variables.clone();
-                        let mut match_terms = true;
                         for (key, id) in pred.terms.iter().zip(&current_fact.predicate.terms) {
                             if let (Term::Variable(k), id) = (key, id) {
                                 if !vars.insert(*k, id) {
-                                    match_terms = false;
-                                }
-
-                                if !match_terms {
-                                    break;
+                                    continue 'facts;
                                 }
                             }
-                        }
-
-                        if !match_terms {
-                            continue;
                         }
 
                         if self.predicates.len() == 1 {
                             match vars.complete() {
                                 None => {
-                                    //println!("variables not complete, continue");
-                                    continue;
+                                    continue 'facts;
                                 }
                                 // we got a complete set of variables, let's test the expressions
                                 Some(variables) => {
-                                    return Some((current_origin.clone(), variables));
+                                    return Some(Ok((current_origin.clone(), variables)));
                                 }
                             }
                         } else {
                             // create a new iterator with the matched variables, the rest of the predicates,
-                            // and all of the facts
+                            // and their candidates
                             self.current_it = Some(Box::new(
                                 CombineIt::new(
                                     vars,
                                     &self.predicates[1..],
-                                    self.all_facts.clone(),
+                                    self.candidates.clone(),
+                                    self.depth + 1,
                                     self.symbols,
+                                    self.steps,
                                 )
-                                .map(move |(origin, variables)| {
-                                    (origin.union(current_origin), variables)
+                                .map(move |res| {
+                                    res.map(|(origin, variables)| {
+                                        (origin.union(current_origin), variables)
+                                    })
                                 }),
                             ));
                         }
-                        break;
+                        break 'facts;
                     } else {
                         return None;
                     }
@@ -455,8 +462,8 @@ where
                 break None;
             }
 
-            if let Some((origin, variables)) = self.current_it.as_mut().and_then(|it| it.next()) {
-                break Some((origin, variables));
+            if let Some(res) = self.current_it.as_mut().and_then(|it| it.next()) {
+                break Some(res);
             } else {
                 self.current_it = None;
             }
@@ -465,18 +472,18 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MatchedVariables {
-    pub variables: HashMap<u32, Option<Term>>,
+pub(crate) struct MatchedVariables {
+    pub(crate) variables: HashMap<u32, Option<Term>>,
 }
 
 impl MatchedVariables {
-    pub fn new(import: HashSet<u32>) -> Self {
+    pub(crate) fn new(import: HashSet<u32>) -> Self {
         MatchedVariables {
             variables: import.iter().map(|key| (*key, None)).collect(),
         }
     }
 
-    pub fn insert(&mut self, key: u32, value: &Term) -> bool {
+    pub(crate) fn insert(&mut self, key: u32, value: &Term) -> bool {
         match self.variables.get(&key) {
             Some(None) => {
                 self.variables.insert(key, Some(value.clone()));
@@ -487,11 +494,7 @@ impl MatchedVariables {
         }
     }
 
-    pub fn is_complete(&self) -> bool {
-        self.variables.values().all(|v| v.is_some())
-    }
-
-    pub fn complete(&self) -> Option<HashMap<u32, Term>> {
+    pub(crate) fn complete(&self) -> Option<HashMap<u32, Term>> {
         let mut result = HashMap::new();
         for (k, v) in self.variables.iter() {
             match v {
@@ -503,7 +506,8 @@ impl MatchedVariables {
     }
 }
 
-pub fn fact<I: AsRef<Term>>(name: SymbolIndex, terms: &[I]) -> Fact {
+#[cfg(test)]
+pub(crate) fn fact<I: AsRef<Term>>(name: SymbolIndex, terms: &[I]) -> Fact {
     Fact {
         predicate: Predicate {
             name,
@@ -512,14 +516,16 @@ pub fn fact<I: AsRef<Term>>(name: SymbolIndex, terms: &[I]) -> Fact {
     }
 }
 
-pub fn pred<I: AsRef<Term>>(name: SymbolIndex, terms: &[I]) -> Predicate {
+#[cfg(test)]
+pub(crate) fn pred<I: AsRef<Term>>(name: SymbolIndex, terms: &[I]) -> Predicate {
     Predicate {
         name,
         terms: terms.iter().map(|id| id.as_ref().clone()).collect(),
     }
 }
 
-pub fn rule<I: AsRef<Term>, P: AsRef<Predicate>>(
+#[cfg(test)]
+pub(crate) fn rule<I: AsRef<Term>, P: AsRef<Predicate>>(
     head_name: SymbolIndex,
     head_terms: &[I],
     predicates: &[P],
@@ -532,7 +538,8 @@ pub fn rule<I: AsRef<Term>, P: AsRef<Predicate>>(
     }
 }
 
-pub fn expressed_rule<I: AsRef<Term>, P: AsRef<Predicate>, C: AsRef<Expression>>(
+#[cfg(test)]
+pub(crate) fn expressed_rule<I: AsRef<Term>, P: AsRef<Predicate>, C: AsRef<Expression>>(
     head_name: SymbolIndex,
     head_terms: &[I],
     predicates: &[P],
@@ -546,7 +553,8 @@ pub fn expressed_rule<I: AsRef<Term>, P: AsRef<Predicate>, C: AsRef<Expression>>
     }
 }
 
-pub fn int(i: i64) -> Term {
+#[cfg(test)]
+pub(crate) fn int(i: i64) -> Term {
     Term::Integer(i)
 }
 
@@ -554,17 +562,19 @@ pub fn int(i: i64) -> Term {
     Term::Str(s.to_string())
 }*/
 
-pub fn date(t: &SystemTime) -> Term {
+#[cfg(test)]
+pub(crate) fn date(t: &SystemTime) -> Term {
     let dur = t.duration_since(UNIX_EPOCH).unwrap();
     Term::Date(dur.as_secs())
 }
 
-pub fn var(syms: &mut SymbolTable, name: &str) -> Term {
+#[cfg(test)]
+pub(crate) fn var(syms: &mut SymbolTable, name: &str) -> Term {
     let id = syms.insert(name);
     Term::Variable(id as u32)
 }
 
-pub fn match_preds(rule_pred: &Predicate, fact_pred: &Predicate) -> bool {
+pub(crate) fn match_preds(rule_pred: &Predicate, fact_pred: &Predicate) -> bool {
     rule_pred.name == fact_pred.name
         && rule_pred.terms.len() == fact_pred.terms.len()
         && rule_pred
@@ -589,52 +599,65 @@ pub fn match_preds(rule_pred: &Predicate, fact_pred: &Predicate) -> bool {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct World {
-    pub facts: FactSet,
-    pub rules: RuleSet,
-    pub iterations: u64,
-    pub extern_funcs: HashMap<String, ExternFunc>,
+pub(crate) struct World {
+    pub(crate) facts: FactSet,
+    pub(crate) rules: RuleSet,
+    pub(crate) iterations: u64,
+    pub(crate) elapsed_steps: u64,
+    pub(crate) steps: StepCounter,
+    pub(crate) extern_funcs: HashMap<String, ExternFunc>,
 }
 
 impl World {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         World::default()
     }
 
-    pub fn add_fact(&mut self, origin: &Origin, fact: Fact) {
+    #[cfg(test)]
+    pub(crate) fn add_fact(&mut self, origin: &Origin, fact: Fact) {
         self.facts.insert(origin, fact);
     }
 
-    pub fn add_rule(&mut self, origin: usize, scope: &TrustedOrigins, rule: Rule) {
+    #[cfg(test)]
+    pub(crate) fn add_rule(&mut self, origin: usize, scope: &TrustedOrigins, rule: Rule) {
         self.rules.insert(origin, scope, rule);
     }
 
-    pub fn run(&mut self, symbols: &SymbolTable) -> Result<(), crate::error::Execution> {
+    #[cfg(test)]
+    pub(crate) fn run(&mut self, symbols: &SymbolTable) -> Result<(), crate::error::Execution> {
         self.run_with_limits(symbols, RunLimits::default())
     }
 
-    pub fn run_with_limits(
+    pub(crate) fn run_with_limits(
         &mut self,
         symbols: &SymbolTable,
         limits: RunLimits,
     ) -> Result<(), crate::error::Execution> {
         let start = Instant::now();
         let time_limit = start + limits.max_time;
+        self.elapsed_steps += self.steps.taken();
+        self.steps = StepCounter::new(limits.max_steps);
         let mut index = 0;
 
-        let res = loop {
+        let res = 'run: loop {
             let mut new_facts = FactSet::default();
 
             for (scope, rules) in self.rules.inner.iter() {
-                let it = self.facts.iterator(scope);
                 for (origin, rule) in rules {
-                    for res in rule.apply(it.clone(), *origin, symbols, &self.extern_funcs) {
+                    for res in rule.apply(
+                        &self.facts,
+                        *origin,
+                        scope,
+                        symbols,
+                        &self.extern_funcs,
+                        &self.steps,
+                    ) {
                         match res {
                             Ok((origin, fact)) => {
                                 new_facts.insert(&origin, fact);
                             }
                             Err(e) => {
-                                return Err(Execution::Expression(e));
+                                break 'run Err(e);
                             }
                         }
                     }
@@ -693,7 +716,7 @@ impl World {
             .collect::<Vec<_>>()
     }*/
 
-    pub fn query_rule(
+    pub(crate) fn query_rule(
         &self,
         rule: Rule,
         origin: usize,
@@ -701,39 +724,45 @@ impl World {
         symbols: &SymbolTable,
     ) -> Result<FactSet, Execution> {
         let mut new_facts = FactSet::default();
-        let it = self.facts.iterator(scope);
-        //new_facts.extend(rule.apply(it, origin, symbols));
-        for res in rule.apply(it.clone(), origin, symbols, &self.extern_funcs) {
-            match res {
-                Ok((origin, fact)) => {
-                    new_facts.insert(&origin, fact);
-                }
-                Err(e) => {
-                    return Err(Execution::Expression(e));
-                }
-            }
+        for res in rule.apply(
+            &self.facts,
+            origin,
+            scope,
+            symbols,
+            &self.extern_funcs,
+            &self.steps,
+        ) {
+            let (origin, fact) = res?;
+            new_facts.insert(&origin, fact);
         }
 
         Ok(new_facts)
     }
 
-    pub fn query_match(
+    pub(crate) fn query_match(
         &self,
         rule: Rule,
         origin: usize,
         scope: &TrustedOrigins,
         symbols: &SymbolTable,
     ) -> Result<bool, Execution> {
-        rule.find_match(&self.facts, origin, scope, symbols, &self.extern_funcs)
+        rule.find_match(
+            &self.facts,
+            origin,
+            scope,
+            symbols,
+            &self.extern_funcs,
+            &self.steps,
+        )
     }
 
-    pub fn query_match_all(
+    pub(crate) fn query_match_all(
         &self,
         rule: Rule,
         scope: &TrustedOrigins,
         symbols: &SymbolTable,
     ) -> Result<bool, Execution> {
-        rule.check_match_all(&self.facts, scope, symbols, &self.extern_funcs)
+        rule.check_match_all(&self.facts, scope, symbols, &self.extern_funcs, &self.steps)
     }
 }
 
@@ -746,30 +775,98 @@ pub struct RunLimits {
     pub max_iterations: u64,
     /// maximum execution time
     pub max_time: Duration,
+    /// maximum number of steps
+    pub max_steps: u64,
 }
 
-impl std::default::Default for RunLimits {
+impl Default for RunLimits {
     fn default() -> Self {
         RunLimits {
             max_facts: 1000,
             max_iterations: 100,
             max_time: Duration::from_millis(1),
+            max_steps: Self::DEFAULT_STEPS,
         }
     }
 }
 
+impl RunLimits {
+    pub(crate) const DEFAULT_STEPS: u64 = 1000;
+}
+
+/// tracks the steps the Datalog engine takes within a single run
+///
+/// a step is a fact matching a predicate of a rule body, given the
+/// variables already bound by the previous predicates
+#[derive(Debug, Clone)]
+pub(crate) struct StepCounter {
+    count: Cell<u64>,
+    max_steps: u64,
+}
+
+impl StepCounter {
+    pub(crate) fn new(max_steps: u64) -> Self {
+        StepCounter {
+            count: Cell::new(0),
+            max_steps,
+        }
+    }
+
+    /// records a step, failing if the step budget is exceeded
+    pub(crate) fn step(&self) -> Result<(), Execution> {
+        let count = self.count.get() + 1;
+        self.count.set(count);
+        if count > self.max_steps {
+            Err(Execution::RunLimit(crate::error::RunLimit::TooManySteps))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// updates the step budget without discarding the steps already taken
+    ///
+    pub(crate) fn set_max_steps(&mut self, max_steps: u64) {
+        self.max_steps = max_steps;
+    }
+
+    /// returns the number of steps taken so far
+    pub(crate) fn taken(&self) -> u64 {
+        self.count.get()
+    }
+
+    /// returns the number of steps that can still be taken
+    #[cfg(test)]
+    pub(crate) fn remaining(&self) -> u64 {
+        self.max_steps.saturating_sub(self.count.get())
+    }
+}
+
+impl Default for StepCounter {
+    fn default() -> Self {
+        StepCounter::new(RunLimits::default().max_steps)
+    }
+}
+
+/// facts grouped by predicate name and arity, then by origin
 #[derive(Clone, Debug, Default)]
-pub struct FactSet {
-    pub(crate) inner: HashMap<Origin, HashSet<Fact>>,
+pub(crate) struct FactSet {
+    pub(crate) inner: BTreeMap<(SymbolIndex, usize), BTreeMap<Origin, BTreeSet<Fact>>>,
 }
 
 impl FactSet {
-    pub fn insert(&mut self, origin: &Origin, fact: Fact) {
-        match self.inner.get_mut(origin) {
+    fn group_mut(&mut self, fact: &Fact) -> &mut BTreeMap<Origin, BTreeSet<Fact>> {
+        self.inner
+            .entry((fact.predicate.name, fact.predicate.terms.len()))
+            .or_default()
+    }
+
+    pub(crate) fn insert(&mut self, origin: &Origin, fact: Fact) {
+        let group = self.group_mut(&fact);
+        match group.get_mut(origin) {
             None => {
-                let mut set = HashSet::new();
+                let mut set = BTreeSet::new();
                 set.insert(fact);
-                self.inner.insert(origin.clone(), set);
+                group.insert(origin.clone(), set);
             }
             Some(set) => {
                 set.insert(fact);
@@ -777,20 +874,43 @@ impl FactSet {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.inner.values().fold(0, |acc, set| acc + set.len())
+    pub(crate) fn len(&self) -> usize {
+        self.inner
+            .values()
+            .flat_map(|group| group.values())
+            .fold(0, |acc, set| acc + set.len())
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.inner.values().all(|set| set.is_empty())
+    #[cfg(test)]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.inner
+            .values()
+            .flat_map(|group| group.values())
+            .all(|set| set.is_empty())
     }
 
-    pub fn iterator<'a>(
+    fn candidates_for<'a>(
+        &'a self,
+        predicate: &Predicate,
+        block_ids: &TrustedOrigins,
+    ) -> Vec<(&'a Origin, &'a Fact)> {
+        self.inner
+            .get(&(predicate.name, predicate.terms.len()))
+            .into_iter()
+            .flatten()
+            .filter(|(ids, _)| block_ids.contains(ids))
+            .flat_map(|(ids, facts)| facts.iter().map(move |fact| (ids, fact)))
+            .collect()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn iterator<'a>(
         &'a self,
         block_ids: &'a TrustedOrigins,
     ) -> impl Iterator<Item = (&'a Origin, &'a Fact)> + Clone {
         self.inner
-            .iter()
+            .values()
+            .flatten()
             .filter_map(move |(ids, facts)| {
                 if block_ids.contains(ids) {
                     Some(facts.iter().map(move |fact| (ids, fact)))
@@ -801,16 +921,28 @@ impl FactSet {
             .flatten()
     }
 
-    pub fn iter_all(&self) -> impl Iterator<Item = (&Origin, &Fact)> + Clone {
+    pub(crate) fn iter_all(&self) -> impl Iterator<Item = (&Origin, &Fact)> + Clone {
         self.inner
-            .iter()
+            .values()
+            .flatten()
             .flat_map(move |(ids, facts)| facts.iter().map(move |fact| (ids, fact)))
     }
 
-    pub fn merge(&mut self, other: FactSet) {
-        for (origin, facts) in other.inner {
-            let entry = self.inner.entry(origin).or_default();
-            entry.extend(facts.into_iter());
+    /// all facts, grouped by origin
+    pub(crate) fn by_origin(&self) -> HashMap<&Origin, Vec<&Fact>> {
+        let mut origins: HashMap<&Origin, Vec<&Fact>> = HashMap::new();
+        for (origin, fact) in self.iter_all() {
+            origins.entry(origin).or_default().push(fact);
+        }
+        origins
+    }
+
+    pub(crate) fn merge(&mut self, other: FactSet) {
+        for (key, group) in other.inner {
+            let entry = self.inner.entry(key).or_default();
+            for (origin, facts) in group {
+                entry.entry(origin).or_default().extend(facts);
+            }
         }
     }
 }
@@ -818,7 +950,7 @@ impl FactSet {
 impl Extend<(Origin, Fact)> for FactSet {
     fn extend<T: IntoIterator<Item = (Origin, Fact)>>(&mut self, iter: T) {
         for (origin, fact) in iter {
-            let entry = self.inner.entry(origin).or_default();
+            let entry = self.group_mut(&fact).entry(origin).or_default();
             entry.insert(fact);
         }
     }
@@ -831,20 +963,23 @@ impl IntoIterator for FactSet {
 
     fn into_iter(self) -> Self::IntoIter {
         Box::new(
-            self.inner.into_iter().flat_map(move |(ids, facts)| {
-                facts.into_iter().map(move |fact| (ids.clone(), fact))
-            }),
+            self.inner
+                .into_values()
+                .flatten()
+                .flat_map(move |(ids, facts)| {
+                    facts.into_iter().map(move |fact| (ids.clone(), fact))
+                }),
         )
     }
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct RuleSet {
-    pub inner: HashMap<TrustedOrigins, Vec<(usize, Rule)>>,
+pub(crate) struct RuleSet {
+    pub(crate) inner: HashMap<TrustedOrigins, Vec<(usize, Rule)>>,
 }
 
 impl RuleSet {
-    pub fn insert(&mut self, origin: usize, scope: &TrustedOrigins, rule: Rule) {
+    pub(crate) fn insert(&mut self, origin: usize, scope: &TrustedOrigins, rule: Rule) {
         match self.inner.get_mut(scope) {
             None => {
                 self.inner.insert(scope.clone(), vec![(origin, rule)]);
@@ -855,14 +990,14 @@ impl RuleSet {
         }
     }
 
-    pub fn iter_all(&self) -> impl Iterator<Item = (&TrustedOrigins, &Rule)> + Clone {
+    pub(crate) fn iter_all(&self) -> impl Iterator<Item = (&TrustedOrigins, &Rule)> + Clone {
         self.inner
             .iter()
             .flat_map(move |(ids, rules)| rules.iter().map(move |(_, rule)| (ids, rule)))
     }
 }
 
-pub struct SchemaVersion {
+pub(crate) struct SchemaVersion {
     contains_scopes: bool,
     contains_v3_1: bool,
     contains_check_all: bool,
@@ -870,7 +1005,7 @@ pub struct SchemaVersion {
 }
 
 impl SchemaVersion {
-    pub fn version(&self) -> u32 {
+    pub(crate) fn version(&self) -> u32 {
         if self.contains_v3_3 {
             DATALOG_3_3
         } else if self.contains_scopes || self.contains_v3_1 || self.contains_check_all {
@@ -880,7 +1015,7 @@ impl SchemaVersion {
         }
     }
 
-    pub fn check_compatibility(&self, version: u32) -> Result<(), error::Format> {
+    pub(crate) fn check_compatibility(&self, version: u32) -> Result<(), error::Format> {
         if version < DATALOG_3_1 {
             if self.contains_scopes {
                 Err(error::Format::DeserializationError(
@@ -908,7 +1043,7 @@ impl SchemaVersion {
 }
 
 /// Determine the schema version given the elements of a block.
-pub fn get_schema_version(
+pub(crate) fn get_schema_version(
     facts: &[Fact],
     rules: &[Rule],
     checks: &[Check],
@@ -968,7 +1103,7 @@ pub fn get_schema_version(
 
 /// Determine whether any of the expression contain a v3.1 operator.
 /// Bitwise operators and != are only supported in biscuits v3.1+
-pub fn contains_v3_1_op(expressions: &[Expression]) -> bool {
+pub(crate) fn contains_v3_1_op(expressions: &[Expression]) -> bool {
     expressions.iter().any(|expression| {
         expression.ops.iter().any(|op| {
             if let Op::Binary(binary) = op {
@@ -1811,5 +1946,85 @@ mod tests {
             println!("\t{}", syms.print_fact(fact));
         }
         assert!(res.is_empty());
+    }
+
+    #[test]
+    fn step_limit() {
+        let mut syms = SymbolTable::new();
+        let a = syms.insert("a");
+        let b = syms.insert("b");
+        let c = syms.insert("c");
+
+        let mut w = World::new();
+        for i in 1..=3 {
+            w.add_fact(&[0].iter().collect(), fact(a, &[&int(i)]));
+        }
+        for i in 1..=2 {
+            w.add_fact(&[0].iter().collect(), fact(b, &[&int(i)]));
+        }
+
+        // each application of the rule takes 3 steps for the `a` facts, then
+        // 2 for the `b` facts after each `a` fact, whether or not they match
+        // the bound `$x`: 9 steps. The rule is applied twice: once to generate
+        // the `c` facts, once to find nothing new
+        let x = var(&mut syms, "x");
+        let r = rule(c, &[&x], &[pred(a, &[&x]), pred(b, &[&x])]);
+        w.add_rule(0, &[0].iter().collect(), r);
+
+        let limits = |max_steps| RunLimits {
+            max_time: Duration::from_secs(10),
+            max_steps,
+            ..Default::default()
+        };
+
+        let mut over_limit = w.clone();
+        assert_eq!(
+            over_limit.run_with_limits(&syms, limits(17)),
+            Err(Execution::RunLimit(crate::error::RunLimit::TooManySteps))
+        );
+
+        w.run_with_limits(&syms, limits(20)).unwrap();
+        assert_eq!(w.steps.remaining(), 2);
+
+        // queries take their steps from what remains after the run.
+        // query_match stops at the first match, so this takes 1 step
+        let query = rule(c, &[&x], &[pred(a, &[&x])]);
+        assert!(w
+            .query_match(query.clone(), 0, &[0].iter().collect(), &syms)
+            .unwrap());
+        assert_eq!(w.steps.remaining(), 1);
+
+        // query_rule goes through all 3 `a` facts
+        assert_eq!(
+            w.query_rule(query, 0, &[0].iter().collect(), &syms).err(),
+            Some(Execution::RunLimit(crate::error::RunLimit::TooManySteps))
+        );
+    }
+
+    #[test]
+    fn step_limit_candidates() {
+        let mut syms = SymbolTable::new();
+        let a = syms.insert("a");
+        let b = syms.insert("b");
+
+        let mut w = World::new();
+        let origin: Origin = [0].iter().collect();
+        let scope: TrustedOrigins = [0].iter().collect();
+        w.add_fact(&origin, fact(b, &[&int(1), &int(2)]));
+        w.add_fact(&origin, fact(b, &[&int(3), &int(1)]));
+        // different arity or name: not candidates for `b($x, 1)`
+        w.add_fact(&origin, fact(b, &[&int(1)]));
+        w.add_fact(&origin, fact(a, &[&int(1), &int(1)]));
+        // not visible from `scope`
+        w.add_fact(&[1].iter().collect(), fact(b, &[&int(4), &int(1)]));
+
+        // both visible `b` facts of arity 2 take a step, including `b(1, 2)`,
+        // whose constant does not match
+        let x = var(&mut syms, "x");
+        let query = rule(a, &[&x], &[pred(b, &[&x, &int(1)])]);
+        w.steps = StepCounter::new(10);
+        let res = w.query_rule(query, 0, &scope, &syms).unwrap();
+        assert_eq!(res.len(), 1);
+        assert_eq!(w.steps.remaining(), 8);
     }
 }

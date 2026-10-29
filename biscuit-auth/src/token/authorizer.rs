@@ -211,6 +211,7 @@ impl Authorizer {
         let execution_time = self.run()?;
         let rule = rule.try_into()?.convert(&mut self.symbols);
 
+        self.world.steps.set_max_steps(limits.max_steps);
         let start = Instant::now();
         let result = self.query_inner(rule, limits);
         self.execution_time = Some(start.elapsed() + execution_time);
@@ -237,10 +238,8 @@ impl Authorizer {
             .world
             .query_rule(rule, usize::MAX, &rule_trusted_origins, &self.symbols)?;
 
-        res.inner
-            .into_iter()
-            .flat_map(|(_, set)| set.into_iter())
-            .map(|f| Fact::convert_from(&f, &self.symbols))
+        res.into_iter()
+            .map(|(_, f)| Fact::convert_from(&f, &self.symbols))
             .map(|fact| {
                 fact.map_err(error::Token::Format)
                     .and_then(|f| f.try_into().map_err(Into::into))
@@ -357,6 +356,20 @@ impl Authorizer {
         self.world.iterations
     }
 
+    /// returns the number of Datalog steps taken so far
+    ///
+    /// a step is a fact matching a predicate of a rule body, given the
+    /// variables already bound by the previous predicates
+    pub fn elapsed_steps(&self) -> u64 {
+        self.world.elapsed_steps + self.world.steps.taken()
+    }
+
+    /// returns the number of Datalog steps that can still be taken before
+    /// reaching the step limit of the last run
+    pub fn remaining_steps(&self) -> u64 {
+        self.world.steps.remaining()
+    }
+
     /// returns the number of facts
     pub fn fact_count(&self) -> usize {
         self.world.facts.len()
@@ -388,6 +401,7 @@ impl Authorizer {
         limits: AuthorizerLimits,
     ) -> Result<usize, error::Token> {
         let execution_time = self.run_with_limits(limits.clone())?;
+        self.world.steps.set_max_steps(limits.max_steps);
         let start = Instant::now();
         let result = self.authorize_inner(limits);
         self.execution_time = Some(execution_time + start.elapsed());
@@ -715,17 +729,14 @@ impl Authorizer {
 
 impl std::fmt::Display for Authorizer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut has_facts = false;
         let mut all_facts = BTreeMap::new();
-        for (origin, factset) in &self.world.facts.inner {
-            let mut facts = HashSet::new();
-            for fact in factset {
-                facts.insert(self.symbols.print_fact(fact));
-            }
-
-            has_facts = has_facts || !facts.is_empty();
-            all_facts.insert(origin, facts);
+        for (origin, fact) in self.world.facts.iter_all() {
+            all_facts
+                .entry(origin)
+                .or_insert_with(HashSet::new)
+                .insert(self.symbols.print_fact(fact));
         }
+        let has_facts = !all_facts.is_empty();
 
         if has_facts {
             writeln!(f, "// Facts:")?;

@@ -302,6 +302,8 @@ pub enum RunLimit {
     TooManyFacts,
     #[error("too many engine iterations")]
     TooManyIterations,
+    #[error("too many engine steps")]
+    TooManySteps,
     #[error("spent too much time verifying")]
     Timeout,
     #[error("Unexpected query results, expected {0} got {1}")]

@@ -34,6 +34,7 @@ impl super::Authorizer {
             max_facts: limits.max_facts,
             max_iterations: limits.max_iterations,
             max_time: Duration::from_nanos(limits.max_time),
+            max_steps: limits.max_steps.unwrap_or(RunLimits::DEFAULT_STEPS),
         };
 
         let execution_time = Duration::from_nanos(execution_time);
@@ -216,8 +217,8 @@ impl super::Authorizer {
         let generated_facts = self
             .world
             .facts
-            .inner
-            .iter()
+            .by_origin()
+            .into_iter()
             .map(|(origin, facts)| {
                 Ok(GeneratedFacts {
                     origins: authorizer_origin_to_proto_origin(origin),
@@ -257,6 +258,7 @@ impl super::Authorizer {
                 max_facts: self.limits.max_facts,
                 max_iterations: self.limits.max_iterations,
                 max_time: self.limits.max_time.as_nanos() as u64,
+                max_steps: Some(self.limits.max_steps),
             },
         })
     }
@@ -334,6 +336,7 @@ mod tests {
                 max_facts: 42,
                 max_iterations: 42,
                 max_time: Duration::from_secs(1),
+                max_steps: 42,
             })
             .code_with_params(
                 r#"
@@ -366,6 +369,7 @@ mod tests {
                 max_facts: 42,
                 max_iterations: 42,
                 max_time: Duration::from_secs(1),
+                max_steps: 42,
             })
             .code_with_params(
                 r#"
@@ -424,6 +428,7 @@ mod tests {
                 max_facts: 42,
                 max_iterations: 42,
                 max_time: Duration::from_secs(1),
+                max_steps: 42,
             })
             .code(
                 r#"
@@ -458,6 +463,7 @@ mod tests {
                 max_facts: 42,
                 max_iterations: 42,
                 max_time: Duration::from_secs(1),
+                max_steps: 42,
             })
             .code(
                 r#"
@@ -482,5 +488,47 @@ mod tests {
         let parsed = Authorizer::from_snapshot(snapshot).unwrap();
         assert_eq!(parsed.dump_code(), authorizer_post_run.dump_code());
         assert_eq!(parsed.limits(), authorizer_post_run.limits());
+    }
+
+    #[test]
+    fn restored_snapshot_enforces_step_limit() {
+        // checks and policies that take more than one step to re-evaluate
+        let authorizer = AuthorizerBuilder::new()
+            .code(
+                r#"
+                fact(true);
+                check if fact(true);
+                allow if fact(true);
+            "#,
+            )
+            .unwrap()
+            .build_unauthenticated()
+            .unwrap();
+
+        // evaluate before snapshotting, so the restored authorizer's saturation
+        // run is memoized and the step counter is not reset on re-authorization
+        let mut evaluated = authorizer.clone();
+        let _ = evaluated.run();
+        let snapshot = evaluated.snapshot().unwrap();
+
+        let limits = |max_steps| RunLimits {
+            max_steps,
+            max_time: Duration::from_secs(1),
+            ..Default::default()
+        };
+
+        // a generous budget authorizes the restored snapshot
+        let mut parsed = Authorizer::from_snapshot(snapshot.clone()).unwrap();
+        assert!(parsed.authorize_with_limits(limits(100)).is_ok());
+
+        // a tight budget is now enforced on the restored (memoized) authorizer,
+        // instead of silently falling back to the default budget
+        let mut parsed = Authorizer::from_snapshot(snapshot).unwrap();
+        assert!(matches!(
+            parsed.authorize_with_limits(limits(1)),
+            Err(crate::error::Token::RunLimit(
+                crate::error::RunLimit::TooManySteps
+            ))
+        ));
     }
 }
