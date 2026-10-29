@@ -84,6 +84,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 1
+  remaining steps: 999
 }
 ```
 
@@ -119,7 +121,7 @@ check if resource($0), operation("read"), right($0, "read");
 
 ### validation
 
-result: `Err(Format(Signature(InvalidSignature("signature error: Verification equation was not satisfied"))))`
+result: `Err(Format(Signature(InvalidSignature("signature error"))))`
 
 
 ------------------------------
@@ -187,7 +189,7 @@ check if resource($0), operation("read"), right($0, "read");
 
 ### validation
 
-result: `Err(Format(Signature(InvalidSignature("signature error: Verification equation was not satisfied"))))`
+result: `Err(Format(Signature(InvalidSignature("signature error"))))`
 
 
 ------------------------------
@@ -221,7 +223,7 @@ check if resource($0), operation("read"), right($0, "read");
 
 ### validation
 
-result: `Err(Format(Signature(InvalidSignature("signature error: Verification equation was not satisfied"))))`
+result: `Err(Format(Signature(InvalidSignature("signature error"))))`
 
 
 ------------------------------
@@ -266,7 +268,7 @@ check if resource("file1");
 
 ### validation
 
-result: `Err(Format(Signature(InvalidSignature("signature error: Verification equation was not satisfied"))))`
+result: `Err(Format(Signature(InvalidSignature("signature error"))))`
 
 
 ------------------------------
@@ -382,6 +384,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 5
+  remaining steps: 995
 }
 ```
 
@@ -489,6 +493,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 3
+  remaining steps: 997
 }
 ```
 
@@ -567,6 +573,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 3
+  remaining steps: 997
 }
 ```
 
@@ -664,6 +672,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 2
+  remaining steps: 998
 }
 ```
 
@@ -739,6 +749,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 2
+  remaining steps: 998
 }
 ```
 
@@ -802,6 +814,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 1
+  remaining steps: 999
 }
 ```
 
@@ -847,6 +861,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 1
+  remaining steps: 999
 }
 ```
 
@@ -957,6 +973,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 14
+  remaining steps: 986
 }
 ```
 
@@ -1024,6 +1042,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 5
+  remaining steps: 995
 }
 ```
 
@@ -1085,6 +1105,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 2
+  remaining steps: 998
 }
 ```
 
@@ -1128,6 +1150,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 2
+  remaining steps: 998
 }
 ```
 
@@ -1191,6 +1215,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 1
+  remaining steps: 999
 }
 ```
 
@@ -1264,6 +1290,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 0
+  remaining steps: 1000
 }
 ```
 
@@ -1390,6 +1418,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 53
+  remaining steps: 947
 }
 ```
 
@@ -1515,6 +1545,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 4
+  remaining steps: 996
 }
 ```
 
@@ -1604,6 +1636,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 3
+  remaining steps: 997
 }
 ```
 
@@ -1667,6 +1701,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 1
+  remaining steps: 999
 }
 ```
 
@@ -1784,6 +1820,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 28
+  remaining steps: 972
 }
 ```
 
@@ -1881,6 +1919,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 1
+  remaining steps: 999
 }
 ```
 
@@ -1976,6 +2016,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 2
+  remaining steps: 998
 }
 ```
 
@@ -2050,6 +2092,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 6
+  remaining steps: 994
 }
 ```
 
@@ -2105,6 +2149,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 6
+  remaining steps: 994
 }
 ```
 
@@ -2148,6 +2194,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 0
+  remaining steps: 1000
 }
 ```
 
@@ -2387,6 +2435,8 @@ World {
     "deny if query(0) trusting ed25519/acdd6d5b53bfee478bf689f8e012fe7988bf755e3d7c5152947abc149bc20189",
     "allow if true",
 ]
+  elapsed steps: 31
+  remaining steps: 969
 }
 ```
 
@@ -2441,6 +2491,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 1
+  remaining steps: 999
 }
 ```
 
@@ -2503,6 +2555,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 9
+  remaining steps: 991
 }
 ```
 
@@ -2564,6 +2618,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 1
+  remaining steps: 999
 }
 ```
 
@@ -2607,6 +2663,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 1
+  remaining steps: 999
 }
 ```
 
@@ -2670,6 +2728,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 4
+  remaining steps: 996
 }
 ```
 
@@ -2714,6 +2774,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 4
+  remaining steps: 996
 }
 ```
 
@@ -2758,6 +2820,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 4
+  remaining steps: 996
 }
 ```
 
@@ -2802,6 +2866,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 4
+  remaining steps: 996
 }
 ```
 
@@ -2905,6 +2971,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 23
+  remaining steps: 977
 }
 ```
 
@@ -2980,6 +3048,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 24
+  remaining steps: 976
 }
 ```
 
@@ -3048,6 +3118,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 61
+  remaining steps: 939
 }
 ```
 
@@ -3089,6 +3161,8 @@ World {
   policies: [
     "allow if {\"true\"}.any($p -> {\"true\"}.all($p -> $p))",
 ]
+  elapsed steps: 64
+  remaining steps: 936
 }
 ```
 
@@ -3197,6 +3271,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 42
+  remaining steps: 958
 }
 ```
 
@@ -3278,8 +3354,8 @@ World {
             "check if [1, 2, 3].all($p -> $p > 0)",
             "check if [1, 2, 3].any($p -> $p > 2)",
             "check if [1, 2, 3].starts_with([1, 2])",
-            "check if [1, 2].get(3) == null",
             "check if [1, 2].get(-1) == null",
+            "check if [1, 2].get(3) == null",
             "check if [4, 5, 6].ends_with([6])",
             "check if {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}.contains(\"d\")",
             "check if {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}.length() == 4",
@@ -3301,6 +3377,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 72
+  remaining steps: 928
 }
 ```
 
@@ -3351,6 +3429,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 3
+  remaining steps: 997
 }
 ```
 
@@ -3440,6 +3520,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 3
+  remaining steps: 997
 }
 ```
 
@@ -3551,6 +3633,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 4
+  remaining steps: 996
 }
 ```
 
@@ -3605,6 +3689,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 10
+  remaining steps: 990
 }
 ```
 
@@ -3649,6 +3735,8 @@ World {
   policies: [
     "allow if true",
 ]
+  elapsed steps: 1
+  remaining steps: 999
 }
 ```
 

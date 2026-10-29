@@ -835,7 +835,6 @@ impl StepCounter {
     }
 
     /// returns the number of steps that can still be taken
-    #[cfg(test)]
     pub(crate) fn remaining(&self) -> u64 {
         self.max_steps.saturating_sub(self.count.get())
     }
