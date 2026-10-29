@@ -168,6 +168,7 @@ impl super::Authorizer {
         }
 
         authorizer.world.iterations = world.iterations;
+        authorizer.world.elapsed_steps = world.elapsed_steps.unwrap_or(0);
 
         Ok(authorizer)
     }
@@ -249,6 +250,7 @@ impl super::Authorizer {
             authorizer_policies,
             generated_facts,
             iterations: self.world.iterations,
+            elapsed_steps: Some(self.elapsed_steps()),
         };
 
         Ok(schema::AuthorizerSnapshot {
@@ -419,6 +421,9 @@ mod tests {
         let parsed = Authorizer::from_snapshot(snapshot).unwrap();
         assert_eq!(parsed.dump_code(), authorizer_post_run.dump_code());
         assert_eq!(parsed.limits(), authorizer_post_run.limits());
+        // the number of elapsed steps survives the snapshot round-trip
+        assert!(authorizer_post_run.elapsed_steps() > 0);
+        assert_eq!(parsed.elapsed_steps(), authorizer_post_run.elapsed_steps());
     }
 
     #[test]

@@ -682,6 +682,7 @@ impl AuthorizerBuilder {
             authorizer_policies,
             generated_facts,
             iterations: 0,
+            elapsed_steps: Some(0),
         };
 
         Ok(schema::AuthorizerSnapshot {
