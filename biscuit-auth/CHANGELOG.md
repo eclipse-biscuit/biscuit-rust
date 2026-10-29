@@ -26,6 +26,8 @@
   for custom types should implement `From<MyType> for Term` instead.
 - The `set_macro_param` and `set_macro_scope_param` methods are removed; macros now call
   `set_lenient` and `set_scope_lenient`.
+- `TrustedOrigin`'s `Default` implementation changed to match its previous inherent `default`
+  function (#327)
 
 # `6.0.0`
 
