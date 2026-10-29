@@ -603,6 +603,7 @@ pub(crate) struct World {
     pub(crate) facts: FactSet,
     pub(crate) rules: RuleSet,
     pub(crate) iterations: u64,
+    pub(crate) elapsed_steps: u64,
     pub(crate) steps: StepCounter,
     pub(crate) extern_funcs: HashMap<String, ExternFunc>,
 }
@@ -634,6 +635,7 @@ impl World {
     ) -> Result<(), crate::error::Execution> {
         let start = Instant::now();
         let time_limit = start + limits.max_time;
+        self.elapsed_steps += self.steps.taken();
         self.steps = StepCounter::new(limits.max_steps);
         let mut index = 0;
 
@@ -792,37 +794,50 @@ impl RunLimits {
     pub(crate) const DEFAULT_STEPS: u64 = 1000;
 }
 
-/// tracks the steps the Datalog engine can still take
+/// tracks the steps the Datalog engine takes within a single run
 ///
 /// a step is a fact matching a predicate of a rule body, given the
 /// variables already bound by the previous predicates
 #[derive(Debug, Clone)]
 pub(crate) struct StepCounter {
-    remaining: Cell<u64>,
+    count: Cell<u64>,
+    max_steps: u64,
 }
 
 impl StepCounter {
     pub(crate) fn new(max_steps: u64) -> Self {
         StepCounter {
-            remaining: Cell::new(max_steps),
+            count: Cell::new(0),
+            max_steps,
         }
     }
 
-    /// records a step, failing if no steps remain
+    /// records a step, failing if the step budget is exceeded
     pub(crate) fn step(&self) -> Result<(), Execution> {
-        match self.remaining.get().checked_sub(1) {
-            Some(remaining) => {
-                self.remaining.set(remaining);
-                Ok(())
-            }
-            None => Err(Execution::RunLimit(crate::error::RunLimit::TooManySteps)),
+        let count = self.count.get() + 1;
+        self.count.set(count);
+        if count > self.max_steps {
+            Err(Execution::RunLimit(crate::error::RunLimit::TooManySteps))
+        } else {
+            Ok(())
         }
+    }
+
+    /// updates the step budget without discarding the steps already taken
+    ///
+    pub(crate) fn set_max_steps(&mut self, max_steps: u64) {
+        self.max_steps = max_steps;
+    }
+
+    /// returns the number of steps taken so far
+    pub(crate) fn taken(&self) -> u64 {
+        self.count.get()
     }
 
     /// returns the number of steps that can still be taken
     #[cfg(test)]
     pub(crate) fn remaining(&self) -> u64 {
-        self.remaining.get()
+        self.max_steps.saturating_sub(self.count.get())
     }
 }
 
@@ -835,11 +850,11 @@ impl Default for StepCounter {
 /// facts grouped by predicate name and arity, then by origin
 #[derive(Clone, Debug, Default)]
 pub(crate) struct FactSet {
-    pub(crate) inner: HashMap<(SymbolIndex, usize), HashMap<Origin, HashSet<Fact>>>,
+    pub(crate) inner: BTreeMap<(SymbolIndex, usize), BTreeMap<Origin, BTreeSet<Fact>>>,
 }
 
 impl FactSet {
-    fn group_mut(&mut self, fact: &Fact) -> &mut HashMap<Origin, HashSet<Fact>> {
+    fn group_mut(&mut self, fact: &Fact) -> &mut BTreeMap<Origin, BTreeSet<Fact>> {
         self.inner
             .entry((fact.predicate.name, fact.predicate.terms.len()))
             .or_default()
@@ -849,7 +864,7 @@ impl FactSet {
         let group = self.group_mut(&fact);
         match group.get_mut(origin) {
             None => {
-                let mut set = HashSet::new();
+                let mut set = BTreeSet::new();
                 set.insert(fact);
                 group.insert(origin.clone(), set);
             }
