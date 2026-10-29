@@ -783,9 +783,13 @@ impl Default for RunLimits {
             max_facts: 1000,
             max_iterations: 100,
             max_time: Duration::from_millis(1),
-            max_steps: 1000,
+            max_steps: Self::DEFAULT_STEPS,
         }
     }
+}
+
+impl RunLimits {
+    pub(crate) const DEFAULT_STEPS: u64 = 1000;
 }
 
 /// tracks the steps the Datalog engine can still take
