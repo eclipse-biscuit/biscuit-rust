@@ -6,10 +6,10 @@
 //!
 //! code from <https://github.com/rust-lang/rust/issues/48564#issuecomment-698712971>
 
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use std::convert::TryInto;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
-#[cfg(feature = "wasm")]
+#[cfg(feature = "wasm-bindgen")]
 use wasm_bindgen::prelude::*;
 
 pub use std::time::*;
@@ -39,23 +39,28 @@ impl Instant {
 }
 
 #[cfg(target_arch = "wasm32")]
-#[cfg(feature = "wasm")]
-#[wasm_bindgen(inline_js = r#"
-export function performance_now() {
-  return performance.now();
-}"#)]
-extern "C" {
-    fn performance_now() -> f64;
-}
-
-#[cfg(target_arch = "wasm32")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Instant(u64);
 
 #[cfg(target_arch = "wasm32")]
 impl Instant {
+    #[cfg(feature = "wasm-bindgen")]
     pub fn now() -> Self {
+        #[wasm_bindgen(inline_js = r#"
+        export function performance_now() {
+          return performance.now();
+        }"#)]
+        extern "C" {
+            fn performance_now() -> f64;
+        }
         Self((performance_now() * 1000.0) as u64)
+    }
+    #[cfg(not(feature = "wasm-bindgen"))]
+    pub fn now() -> Self {
+        extern "C" {
+            fn instant_now() -> u64;
+        }
+        Self(unsafe { instant_now() })
     }
     pub fn duration_since(&self, earlier: Instant) -> Duration {
         Duration::from_micros(self.0 - earlier.0)

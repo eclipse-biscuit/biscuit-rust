@@ -13,7 +13,7 @@ repository = "https://github.com/biscuit-auth/biscuit-rust"
 [features]
 default = ["regex-full", "datalog-macro", "pem"]
 regex-full = ["regex/perf", "regex/unicode"]
-wasm = ["wasm-bindgen"]
+wasm-bindgen = ["dep:wasm-bindgen"]
 # used by biscuit-wasm to serialize errors to JSON
 serde-error = ["serde", "biscuit-parser/serde-error"]
 # used by biscuit-quote to parse datalog at compile-time
