@@ -233,6 +233,7 @@ message AuthorizerSnapshot {
   required RunLimits limits = 1;
   required uint64 executionTime = 2;
   required AuthorizerWorld world = 3;
+  optional uint64 elapsedSteps = 4;
 }
 
 message RunLimits {
@@ -251,7 +252,6 @@ message AuthorizerWorld {
   repeated Policy authorizerPolicies = 6;
   repeated GeneratedFacts generatedFacts = 7;
   required uint64 iterations = 8;
-  optional uint64 elapsedSteps = 9;
 }
 
 message Origin {

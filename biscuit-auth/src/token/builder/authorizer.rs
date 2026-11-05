@@ -19,7 +19,7 @@ use crate::token::public_keys::PublicKeyData;
 use crate::{
     builder::Convert,
     builder_ext::{AuthorizerExt, BuilderExt},
-    datalog::{ExternFunc, Origin, RunLimits, SymbolTable, TrustedOrigins, World},
+    datalog::{ExternFunc, Origin, RunLimits, StepCounter, SymbolTable, TrustedOrigins, World},
     error,
     format::{
         convert::{
@@ -434,6 +434,7 @@ impl AuthorizerBuilder {
             public_key_to_block_id,
             limits: self.limits,
             execution_time: None,
+            steps: StepCounter::default(),
         })
     }
 }
@@ -558,6 +559,7 @@ impl AuthorizerBuilder {
             limits,
             execution_time,
             world,
+            elapsed_steps,
         } = input;
 
         let limits = RunLimits {
@@ -603,6 +605,14 @@ impl AuthorizerBuilder {
         if execution_time != 0 {
             return Err(error::Format::DeserializationError(
                 "cannot deserialize an AuthorizerBuilder from a snapshot with non-zero execution time".to_string(),
+            )
+            .into());
+        }
+
+        if elapsed_steps.unwrap_or(0) != 0 {
+            return Err(error::Format::DeserializationError(
+                "cannot deserialize an AuthorizerBuilder from a snapshot with non-zero elapsed steps"
+                    .to_string(),
             )
             .into());
         }
@@ -682,12 +692,12 @@ impl AuthorizerBuilder {
             authorizer_policies,
             generated_facts,
             iterations: 0,
-            elapsed_steps: Some(0),
         };
 
         Ok(schema::AuthorizerSnapshot {
             world,
             execution_time: 0u64,
+            elapsed_steps: Some(0),
             limits: schema::RunLimits {
                 max_facts: self.limits.max_facts,
                 max_iterations: self.limits.max_iterations,

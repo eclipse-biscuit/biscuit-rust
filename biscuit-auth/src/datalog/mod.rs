@@ -148,7 +148,7 @@ impl Rule {
         scope: &TrustedOrigins,
         symbols: &'a SymbolTable,
         extern_funcs: &'a HashMap<String, ExternFunc>,
-        steps: &'a StepCounter,
+        steps: StepBudget<'a>,
     ) -> impl Iterator<Item = Result<(Origin, Fact), Execution>> + 'a {
         let head = self.head.clone();
         let variables = MatchedVariables::new(self.variables_set());
@@ -207,7 +207,7 @@ impl Rule {
         scope: &TrustedOrigins,
         symbols: &SymbolTable,
         extern_funcs: &HashMap<String, ExternFunc>,
-        steps: &StepCounter,
+        steps: StepBudget<'_>,
     ) -> Result<bool, Execution> {
         let mut it = self.apply(facts, origin, scope, symbols, extern_funcs, steps);
 
@@ -225,7 +225,7 @@ impl Rule {
         scope: &TrustedOrigins,
         symbols: &SymbolTable,
         extern_funcs: &HashMap<String, ExternFunc>,
-        steps: &StepCounter,
+        steps: StepBudget<'_>,
     ) -> Result<bool, Execution> {
         let variables = MatchedVariables::new(self.variables_set());
         let mut found = false;
@@ -346,7 +346,7 @@ pub(crate) struct CombineIt<'a> {
     /// next candidate to try for `predicates[0]`
     position: usize,
     symbols: &'a SymbolTable,
-    steps: &'a StepCounter,
+    steps: StepBudget<'a>,
     current_it:
         Option<Box<dyn Iterator<Item = Result<(Origin, HashMap<u32, Term>), Execution>> + 'a>>,
 }
@@ -358,7 +358,7 @@ impl<'a> CombineIt<'a> {
         candidates: Rc<[Vec<(&'a Origin, &'a Fact)>]>,
         depth: usize,
         symbols: &'a SymbolTable,
-        steps: &'a StepCounter,
+        steps: StepBudget<'a>,
     ) -> Self {
         CombineIt {
             variables,
@@ -603,8 +603,6 @@ pub(crate) struct World {
     pub(crate) facts: FactSet,
     pub(crate) rules: RuleSet,
     pub(crate) iterations: u64,
-    pub(crate) elapsed_steps: u64,
-    pub(crate) steps: StepCounter,
     pub(crate) extern_funcs: HashMap<String, ExternFunc>,
 }
 
@@ -625,18 +623,22 @@ impl World {
 
     #[cfg(test)]
     pub(crate) fn run(&mut self, symbols: &SymbolTable) -> Result<(), crate::error::Execution> {
-        self.run_with_limits(symbols, RunLimits::default())
+        let steps = StepCounter::default();
+        self.run_with_limits(symbols, RunLimits::default(), steps.default_budget())
     }
 
+    /// generates facts until saturation
+    ///
+    /// `steps` should be computed by the wrapping `Authorizer` based on `limits.max_steps`
+    /// and its internal counter, so `limits.max_steps` is not directly used
     pub(crate) fn run_with_limits(
         &mut self,
         symbols: &SymbolTable,
         limits: RunLimits,
+        steps: StepBudget<'_>,
     ) -> Result<(), crate::error::Execution> {
         let start = Instant::now();
         let time_limit = start + limits.max_time;
-        self.elapsed_steps += self.steps.taken();
-        self.steps = StepCounter::new(limits.max_steps);
         let mut index = 0;
 
         let res = 'run: loop {
@@ -650,7 +652,7 @@ impl World {
                         scope,
                         symbols,
                         &self.extern_funcs,
-                        &self.steps,
+                        steps,
                     ) {
                         match res {
                             Ok((origin, fact)) => {
@@ -722,6 +724,7 @@ impl World {
         origin: usize,
         scope: &TrustedOrigins,
         symbols: &SymbolTable,
+        steps: StepBudget<'_>,
     ) -> Result<FactSet, Execution> {
         let mut new_facts = FactSet::default();
         for res in rule.apply(
@@ -730,7 +733,7 @@ impl World {
             scope,
             symbols,
             &self.extern_funcs,
-            &self.steps,
+            steps,
         ) {
             let (origin, fact) = res?;
             new_facts.insert(&origin, fact);
@@ -745,6 +748,7 @@ impl World {
         origin: usize,
         scope: &TrustedOrigins,
         symbols: &SymbolTable,
+        steps: StepBudget<'_>,
     ) -> Result<bool, Execution> {
         rule.find_match(
             &self.facts,
@@ -752,7 +756,7 @@ impl World {
             scope,
             symbols,
             &self.extern_funcs,
-            &self.steps,
+            steps,
         )
     }
 
@@ -761,8 +765,9 @@ impl World {
         rule: Rule,
         scope: &TrustedOrigins,
         symbols: &SymbolTable,
+        steps: StepBudget<'_>,
     ) -> Result<bool, Execution> {
-        rule.check_match_all(&self.facts, scope, symbols, &self.extern_funcs, &self.steps)
+        rule.check_match_all(&self.facts, scope, symbols, &self.extern_funcs, steps)
     }
 }
 
@@ -794,39 +799,21 @@ impl RunLimits {
     pub(crate) const DEFAULT_STEPS: u64 = 1000;
 }
 
-/// tracks the steps the Datalog engine takes within a single run
+/// counts the steps the Datalog engine takes over the lifetime of an authorizer
 ///
 /// a step is a fact matching a predicate of a rule body, given the
 /// variables already bound by the previous predicates
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct StepCounter {
     count: Cell<u64>,
-    max_steps: u64,
 }
 
 impl StepCounter {
-    pub(crate) fn new(max_steps: u64) -> Self {
+    /// creates a counter that already took `taken` steps
+    pub(crate) fn with_taken(taken: u64) -> Self {
         StepCounter {
-            count: Cell::new(0),
-            max_steps,
+            count: Cell::new(taken),
         }
-    }
-
-    /// records a step, failing if the step budget is exceeded
-    pub(crate) fn step(&self) -> Result<(), Execution> {
-        let count = self.count.get() + 1;
-        self.count.set(count);
-        if count > self.max_steps {
-            Err(Execution::RunLimit(crate::error::RunLimit::TooManySteps))
-        } else {
-            Ok(())
-        }
-    }
-
-    /// updates the step budget without discarding the steps already taken
-    ///
-    pub(crate) fn set_max_steps(&mut self, max_steps: u64) {
-        self.max_steps = max_steps;
     }
 
     /// returns the number of steps taken so far
@@ -834,15 +821,38 @@ impl StepCounter {
         self.count.get()
     }
 
-    /// returns the number of steps that can still be taken
-    pub(crate) fn remaining(&self) -> u64 {
-        self.max_steps.saturating_sub(self.count.get())
+    /// returns a handle recording steps in this counter, up to a total of `max_steps`
+    pub(crate) fn budget(&self, max_steps: u64) -> StepBudget<'_> {
+        StepBudget {
+            counter: self,
+            max_steps,
+        }
+    }
+
+    /// returns a handle recording steps in this counter, up to the default step limit
+    #[cfg(test)]
+    pub(crate) fn default_budget(&self) -> StepBudget<'_> {
+        self.budget(RunLimits::DEFAULT_STEPS)
     }
 }
 
-impl Default for StepCounter {
-    fn default() -> Self {
-        StepCounter::new(RunLimits::default().max_steps)
+/// a step counter, along with the maximum total it can reach
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct StepBudget<'a> {
+    counter: &'a StepCounter,
+    max_steps: u64,
+}
+
+impl StepBudget<'_> {
+    /// records a step, failing if the count goes over `max_steps`
+    pub(crate) fn step(&self) -> Result<(), Execution> {
+        let count = self.counter.count.get() + 1;
+        self.counter.count.set(count);
+        if count > self.max_steps {
+            Err(Execution::RunLimit(crate::error::RunLimit::TooManySteps))
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -1190,7 +1200,13 @@ mod tests {
 
         println!("symbols: {syms:?}");
         println!("testing r1: {}", syms.print_rule(&r1));
-        let query_rule_result = w.query_rule(r1, 0, &[0].iter().collect(), &syms);
+        let query_rule_result = w.query_rule(
+            r1,
+            0,
+            &[0].iter().collect(),
+            &syms,
+            StepCounter::default().default_budget(),
+        );
         println!("grandparents query_rules: {query_rule_result:?}");
         println!("current facts: {:?}", w.facts);
 
@@ -1218,6 +1234,7 @@ mod tests {
                 max_time: Duration::from_secs(10),
                 ..Default::default()
             },
+            StepCounter::default().default_budget(),
         )
         .unwrap();
 
@@ -1235,6 +1252,7 @@ mod tests {
                 0,
                 &[0].iter().collect(),
                 &syms,
+                StepCounter::default().default_budget(),
             )
             .unwrap();
 
@@ -1253,6 +1271,7 @@ mod tests {
                 0,
                 &[0].iter().collect(),
                 &syms,
+                StepCounter::default().default_budget(),
             )
         );
         println!(
@@ -1269,6 +1288,7 @@ mod tests {
                 0,
                 &[0].iter().collect(),
                 &syms,
+                StepCounter::default().default_budget(),
             )
         );
         w.add_fact(&[0].iter().collect(), fact(parent, &[&c, &e]));
@@ -1286,6 +1306,7 @@ mod tests {
                 0,
                 &[0].iter().collect(),
                 &syms,
+                StepCounter::default().default_budget(),
             )
             .unwrap();
         println!("grandparents after inserting parent(C, E): {res:?}");
@@ -1361,6 +1382,7 @@ mod tests {
                 0,
                 &[0].iter().collect(),
                 &syms,
+                StepCounter::default().default_budget(),
             )
             .unwrap();
 
@@ -1410,6 +1432,7 @@ mod tests {
                 0,
                 &[0].iter().collect(),
                 &syms,
+                StepCounter::default().default_budget(),
             )
             .unwrap();
 
@@ -1496,6 +1519,7 @@ mod tests {
                 0,
                 &[0].iter().collect(),
                 syms,
+                StepCounter::default().default_budget(),
             )
             .unwrap()
             .iter_all()
@@ -1576,7 +1600,15 @@ mod tests {
         );
 
         println!("testing r1: {}", syms.print_rule(&r1));
-        let res = w.query_rule(r1, 0, &[0].iter().collect(), &syms).unwrap();
+        let res = w
+            .query_rule(
+                r1,
+                0,
+                &[0].iter().collect(),
+                &syms,
+                StepCounter::default().default_budget(),
+            )
+            .unwrap();
         for (_, fact) in res.iter_all() {
             println!("\t{}", syms.print_fact(fact));
         }
@@ -1614,7 +1646,15 @@ mod tests {
         );
 
         println!("testing r2: {}", syms.print_rule(&r2));
-        let res = w.query_rule(r2, 0, &[0].iter().collect(), &syms).unwrap();
+        let res = w
+            .query_rule(
+                r2,
+                0,
+                &[0].iter().collect(),
+                &syms,
+                StepCounter::default().default_budget(),
+            )
+            .unwrap();
         for (_, fact) in res.iter_all() {
             println!("\t{}", syms.print_fact(fact));
         }
@@ -1677,6 +1717,7 @@ mod tests {
                 0,
                 &[0].iter().collect(),
                 &syms,
+                StepCounter::default().default_budget(),
             )
             .unwrap();
 
@@ -1728,6 +1769,7 @@ mod tests {
                 0,
                 &[0].iter().collect(),
                 &syms,
+                StepCounter::default().default_budget(),
             )
             .unwrap();
 
@@ -1773,6 +1815,7 @@ mod tests {
                 0,
                 &[0].iter().collect(),
                 &syms,
+                StepCounter::default().default_budget(),
             )
             .unwrap();
 
@@ -1818,6 +1861,7 @@ mod tests {
                 0,
                 &[0].iter().collect(),
                 &syms,
+                StepCounter::default().default_budget(),
             )
             .unwrap();
 
@@ -1841,6 +1885,7 @@ mod tests {
                 0,
                 &[0].iter().collect(),
                 &syms,
+                StepCounter::default().default_budget(),
             )
             .unwrap();
 
@@ -1883,7 +1928,15 @@ mod tests {
 
         println!("world:\n{}\n", syms.print_world(&w));
         println!("\ntesting r1: {}\n", syms.print_rule(&r1));
-        let res = w.query_rule(r1, 0, &[0].iter().collect(), &syms).unwrap();
+        let res = w
+            .query_rule(
+                r1,
+                0,
+                &[0].iter().collect(),
+                &syms,
+                StepCounter::default().default_budget(),
+            )
+            .unwrap();
         for (_, fact) in res.iter_all() {
             println!("\t{}", syms.print_fact(fact));
         }
@@ -1922,7 +1975,15 @@ mod tests {
         );
         println!("world:\n{}\n", syms.print_world(&w));
         println!("\ntesting r1: {}\n", syms.print_rule(&r1));
-        let res = w.query_rule(r1, 0, &[0].iter().collect(), &syms).unwrap();
+        let res = w
+            .query_rule(
+                r1,
+                0,
+                &[0].iter().collect(),
+                &syms,
+                StepCounter::default().default_budget(),
+            )
+            .unwrap();
 
         println!("generated facts:");
         for (_, fact) in res.iter_all() {
@@ -1938,7 +1999,15 @@ mod tests {
         let r2 = rule(check, &[&read], &[pred(operation, &[&read])]);
         println!("world:\n{}\n", syms.print_world(&w));
         println!("\ntesting r2: {}\n", syms.print_rule(&r2));
-        let res = w.query_rule(r2, 0, &[0].iter().collect(), &syms).unwrap();
+        let res = w
+            .query_rule(
+                r2,
+                0,
+                &[0].iter().collect(),
+                &syms,
+                StepCounter::default().default_budget(),
+            )
+            .unwrap();
 
         println!("generated facts:");
         for (_, fact) in res.iter_all() {
@@ -1977,25 +2046,36 @@ mod tests {
         };
 
         let mut over_limit = w.clone();
+        let steps = StepCounter::default();
         assert_eq!(
-            over_limit.run_with_limits(&syms, limits(17)),
+            over_limit.run_with_limits(&syms, limits(17), steps.budget(17)),
             Err(Execution::RunLimit(crate::error::RunLimit::TooManySteps))
         );
 
-        w.run_with_limits(&syms, limits(20)).unwrap();
-        assert_eq!(w.steps.remaining(), 2);
+        let steps = StepCounter::default();
+        w.run_with_limits(&syms, limits(20), steps.budget(20))
+            .unwrap();
+        assert_eq!(steps.taken(), 18);
 
-        // queries take their steps from what remains after the run.
+        // queries sharing the counter and the budget take their steps from
+        // what remains after the run.
         // query_match stops at the first match, so this takes 1 step
         let query = rule(c, &[&x], &[pred(a, &[&x])]);
         assert!(w
-            .query_match(query.clone(), 0, &[0].iter().collect(), &syms)
+            .query_match(
+                query.clone(),
+                0,
+                &[0].iter().collect(),
+                &syms,
+                steps.budget(20),
+            )
             .unwrap());
-        assert_eq!(w.steps.remaining(), 1);
+        assert_eq!(steps.taken(), 19);
 
         // query_rule goes through all 3 `a` facts
         assert_eq!(
-            w.query_rule(query, 0, &[0].iter().collect(), &syms).err(),
+            w.query_rule(query, 0, &[0].iter().collect(), &syms, steps.budget(20))
+                .err(),
             Some(Execution::RunLimit(crate::error::RunLimit::TooManySteps))
         );
     }
@@ -2021,9 +2101,11 @@ mod tests {
         // whose constant does not match
         let x = var(&mut syms, "x");
         let query = rule(a, &[&x], &[pred(b, &[&x, &int(1)])]);
-        w.steps = StepCounter::new(10);
-        let res = w.query_rule(query, 0, &scope, &syms).unwrap();
+        let steps = StepCounter::default();
+        let res = w
+            .query_rule(query, 0, &scope, &syms, steps.budget(10))
+            .unwrap();
         assert_eq!(res.len(), 1);
-        assert_eq!(w.steps.remaining(), 8);
+        assert_eq!(steps.taken(), 2);
     }
 }

@@ -391,7 +391,7 @@ mod tests {
                 &h,
                 &mut TemporarySymbolTable::new(&syms),
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap();
         println!("evaluates to: {result:?}");
@@ -427,7 +427,7 @@ mod tests {
                 &h,
                 &mut TemporarySymbolTable::new(&syms),
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap();
         println!("evaluates to: {result:?}");
