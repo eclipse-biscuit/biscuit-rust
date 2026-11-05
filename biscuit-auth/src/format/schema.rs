@@ -602,6 +602,8 @@ pub struct AuthorizerSnapshot {
     pub execution_time: u64,
     #[prost(message, required, tag = "3")]
     pub world: AuthorizerWorld,
+    #[prost(uint64, optional, tag = "4")]
+    pub elapsed_steps: ::core::option::Option<u64>,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RunLimits {
@@ -632,8 +634,6 @@ pub struct AuthorizerWorld {
     pub generated_facts: ::prost::alloc::vec::Vec<GeneratedFacts>,
     #[prost(uint64, required, tag = "8")]
     pub iterations: u64,
-    #[prost(uint64, optional, tag = "9")]
-    pub elapsed_steps: ::core::option::Option<u64>,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Origin {

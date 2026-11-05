@@ -4,7 +4,7 @@
  */
 use crate::{builder, error};
 
-use super::{MapKey, StepCounter, SymbolIndex, Term};
+use super::{MapKey, StepBudget, SymbolIndex, Term};
 use super::{SymbolTable, TemporarySymbolTable};
 use regex::Regex;
 use std::sync::Arc;
@@ -187,7 +187,7 @@ impl Binary {
         values: &mut HashMap<u32, Term>,
         symbols: &mut TemporarySymbolTable,
         extern_func: &HashMap<String, ExternFunc>,
-        steps: &StepCounter,
+        steps: StepBudget<'_>,
     ) -> Result<Term, error::Execution> {
         match (self, left, params) {
             // try
@@ -615,7 +615,7 @@ impl Expression {
         values: &HashMap<u32, Term>,
         symbols: &mut TemporarySymbolTable,
         extern_funcs: &HashMap<String, ExternFunc>,
-        steps: &StepCounter,
+        steps: StepBudget<'_>,
     ) -> Result<Term, error::Execution> {
         let mut stack: Vec<StackElem> = Vec::new();
 
@@ -732,7 +732,7 @@ impl Expression {
         values: &HashMap<u32, Term>,
         symbols: &mut TemporarySymbolTable,
         extern_funcs: &HashMap<String, ExternFunc>,
-        steps: &StepCounter,
+        steps: StepBudget<'_>,
     ) -> Result<Term, error::Execution> {
         steps.step()?;
         self.evaluate(values, symbols, extern_funcs, steps)
@@ -787,7 +787,7 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
     use super::*;
-    use crate::datalog::{MapKey, SymbolTable, TemporarySymbolTable};
+    use crate::datalog::{MapKey, StepCounter, SymbolTable, TemporarySymbolTable};
 
     #[test]
     fn negate() {
@@ -816,7 +816,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Bool(true)));
     }
@@ -851,7 +851,7 @@ mod tests {
                 &HashMap::new(),
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             );
             assert_eq!(res, Ok(Term::Integer(expected)));
         }
@@ -873,7 +873,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(
             res,
@@ -894,7 +894,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(
             res,
@@ -913,7 +913,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(
             res,
@@ -932,7 +932,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(
             res,
@@ -1007,7 +1007,7 @@ mod tests {
                 &values,
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             );
             assert_eq!(res, Ok(Term::Bool(true)));
         }
@@ -1036,7 +1036,7 @@ mod tests {
                 &values,
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             );
             assert_eq!(res, Ok(Term::Bool(false)));
         }
@@ -1065,7 +1065,7 @@ mod tests {
                 &values,
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             );
             assert_eq!(res, Ok(Term::Bool(result)));
         }
@@ -1114,7 +1114,7 @@ mod tests {
                         &values,
                         &mut tmp_symbols,
                         &Default::default(),
-                        &StepCounter::default(),
+                        StepCounter::default().default_budget(),
                     );
                     assert_eq!(res, Ok(Term::Bool(*result)));
                 }
@@ -1158,7 +1158,7 @@ mod tests {
                         &values,
                         &mut tmp_symbols,
                         &Default::default(),
-                        &StepCounter::default(),
+                        StepCounter::default().default_budget(),
                     )
                     .unwrap_err();
                 }
@@ -1190,7 +1190,7 @@ mod tests {
                 &HashMap::new(),
                 &mut symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap();
         assert_eq!(res2, Term::Bool(true));
@@ -1215,7 +1215,7 @@ mod tests {
                 &HashMap::new(),
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap();
         assert_eq!(res1, Term::Bool(true));
@@ -1240,7 +1240,7 @@ mod tests {
                 &HashMap::new(),
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap();
         assert_eq!(res2, Term::Bool(false));
@@ -1258,7 +1258,7 @@ mod tests {
                 &HashMap::new(),
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap_err();
         assert_eq!(
@@ -1293,7 +1293,7 @@ mod tests {
                 &HashMap::new(),
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap();
         assert_eq!(res1, Term::Bool(true));
@@ -1318,7 +1318,7 @@ mod tests {
                 &HashMap::new(),
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap();
         assert_eq!(res2, Term::Bool(false));
@@ -1336,7 +1336,7 @@ mod tests {
                 &HashMap::new(),
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap_err();
         assert_eq!(
@@ -1392,7 +1392,7 @@ mod tests {
                 &HashMap::new(),
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap();
         assert_eq!(res1, Term::Bool(true));
@@ -1425,7 +1425,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(
             res1,
@@ -1477,7 +1477,7 @@ mod tests {
             &HashMap::new(),
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(
             res2,
@@ -1503,7 +1503,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Bool(true)));
 
@@ -1519,7 +1519,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Bool(false)));
 
@@ -1535,7 +1535,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Bool(true)));
 
@@ -1551,7 +1551,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Bool(false)));
 
@@ -1571,7 +1571,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Bool(true)));
 
@@ -1591,7 +1591,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Bool(false)));
 
@@ -1611,7 +1611,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Bool(true)));
 
@@ -1631,7 +1631,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Bool(false)));
 
@@ -1652,7 +1652,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Integer(1)));
 
@@ -1673,7 +1673,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Null));
 
@@ -1699,7 +1699,7 @@ mod tests {
                 &HashMap::new(),
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap();
         assert_eq!(res1, Term::Bool(true));
@@ -1725,7 +1725,7 @@ mod tests {
                 &HashMap::new(),
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap();
         assert_eq!(res1, Term::Bool(false));
@@ -1765,7 +1765,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Bool(true)));
 
@@ -1794,7 +1794,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Bool(false)));
 
@@ -1818,7 +1818,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Bool(true)));
 
@@ -1842,7 +1842,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Bool(false)));
 
@@ -1867,7 +1867,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Integer(0)));
 
@@ -1891,7 +1891,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Integer(1)));
 
@@ -1916,7 +1916,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Null));
 
@@ -1940,7 +1940,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &Default::default(),
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Null));
 
@@ -1975,7 +1975,7 @@ mod tests {
                 &HashMap::new(),
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap();
         assert_eq!(res1, Term::Bool(true));
@@ -2011,7 +2011,7 @@ mod tests {
                 &HashMap::new(),
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap();
         assert_eq!(res1, Term::Bool(true));
@@ -2158,7 +2158,7 @@ mod tests {
             &values,
             &mut tmp_symbols,
             &extern_funcs,
-            &StepCounter::default(),
+            StepCounter::default().default_budget(),
         );
         assert_eq!(res, Ok(Term::Bool(true)));
     }
@@ -2193,7 +2193,7 @@ mod tests {
                 &HashMap::new(),
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap();
         assert_eq!(res1, Term::Bool(false));
@@ -2219,7 +2219,7 @@ mod tests {
                 &HashMap::new(),
                 &mut tmp_symbols,
                 &Default::default(),
-                &StepCounter::default(),
+                StepCounter::default().default_budget(),
             )
             .unwrap();
         assert_eq!(res2, Term::Bool(true));
@@ -2234,14 +2234,14 @@ mod tests {
         // evaluates with a step limit, returning the result and the steps taken
         let run = |ops: &[Op], max_steps: u64| {
             let mut tmp_symbols = TemporarySymbolTable::new(&symbols);
-            let steps = StepCounter::new(max_steps);
+            let steps = StepCounter::default();
             let res = Expression { ops: ops.to_vec() }.evaluate(
                 &HashMap::new(),
                 &mut tmp_symbols,
                 &Default::default(),
-                &steps,
+                steps.budget(max_steps),
             );
-            (res, max_steps - steps.remaining())
+            (res, steps.taken())
         };
 
         // 1 + 2 * 3: one step per operator
