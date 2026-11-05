@@ -54,7 +54,13 @@ impl Authorizer {
             None => {
                 let start = Instant::now();
                 let steps = self.steps.budget(max_steps);
-                self.world.run_with_limits(&self.symbols, limits, steps)?;
+                self.world.run_with_limits(
+                    &self.symbols,
+                    limits.max_facts,
+                    limits.max_iterations,
+                    limits.max_time,
+                    steps,
+                )?;
                 let execution_time = start.elapsed();
                 self.execution_time = Some(execution_time);
                 Ok(execution_time)
