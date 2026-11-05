@@ -623,22 +623,31 @@ impl World {
 
     #[cfg(test)]
     pub(crate) fn run(&mut self, symbols: &SymbolTable) -> Result<(), crate::error::Execution> {
+        let limits = RunLimits::default();
         let steps = StepCounter::default();
-        self.run_with_limits(symbols, RunLimits::default(), steps.default_budget())
+        self.run_with_limits(
+            symbols,
+            limits.max_facts,
+            limits.max_iterations,
+            limits.max_time,
+            steps.default_budget(),
+        )
     }
 
     /// generates facts until saturation
     ///
-    /// `steps` should be computed by the wrapping `Authorizer` based on `limits.max_steps`
-    /// and its internal counter, so `limits.max_steps` is not directly used
+    /// `steps` should be computed by the wrapping `Authorizer` based on its step limit
+    /// and its internal counter
     pub(crate) fn run_with_limits(
         &mut self,
         symbols: &SymbolTable,
-        limits: RunLimits,
+        max_facts: u64,
+        max_iterations: u64,
+        max_time: Duration,
         steps: StepBudget<'_>,
     ) -> Result<(), crate::error::Execution> {
         let start = Instant::now();
-        let time_limit = start + limits.max_time;
+        let time_limit = start + max_time;
         let mut index = 0;
 
         let res = 'run: loop {
@@ -674,13 +683,13 @@ impl World {
             }
 
             index += 1;
-            if index == limits.max_iterations {
+            if index == max_iterations {
                 break Err(Execution::RunLimit(
                     crate::error::RunLimit::TooManyIterations,
                 ));
             }
 
-            if self.facts.len() >= limits.max_facts as usize {
+            if self.facts.len() >= max_facts as usize {
                 break Err(Execution::RunLimit(crate::error::RunLimit::TooManyFacts));
             }
 
@@ -1228,12 +1237,12 @@ mod tests {
         println!("adding r2: {}", syms.print_rule(&r2));
         w.add_rule(0, &[0].iter().collect(), r2);
 
+        let limits = RunLimits::default();
         w.run_with_limits(
             &syms,
-            RunLimits {
-                max_time: Duration::from_secs(10),
-                ..Default::default()
-            },
+            limits.max_facts,
+            limits.max_iterations,
+            Duration::from_secs(10),
             StepCounter::default().default_budget(),
         )
         .unwrap();
@@ -2039,22 +2048,26 @@ mod tests {
         let r = rule(c, &[&x], &[pred(a, &[&x]), pred(b, &[&x])]);
         w.add_rule(0, &[0].iter().collect(), r);
 
-        let limits = |max_steps| RunLimits {
-            max_time: Duration::from_secs(10),
-            max_steps,
-            ..Default::default()
+        let limits = RunLimits::default();
+        let run = |w: &mut World, steps| {
+            w.run_with_limits(
+                &syms,
+                limits.max_facts,
+                limits.max_iterations,
+                Duration::from_secs(10),
+                steps,
+            )
         };
 
         let mut over_limit = w.clone();
         let steps = StepCounter::default();
         assert_eq!(
-            over_limit.run_with_limits(&syms, limits(17), steps.budget(17)),
+            run(&mut over_limit, steps.budget(17)),
             Err(Execution::RunLimit(crate::error::RunLimit::TooManySteps))
         );
 
         let steps = StepCounter::default();
-        w.run_with_limits(&syms, limits(20), steps.budget(20))
-            .unwrap();
+        run(&mut w, steps.budget(20)).unwrap();
         assert_eq!(steps.taken(), 18);
 
         // queries sharing the counter and the budget take their steps from
