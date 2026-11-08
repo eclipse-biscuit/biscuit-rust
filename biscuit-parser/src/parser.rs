@@ -939,7 +939,7 @@ fn term_in_fact(i: &str) -> IResult<&str, builder::Term, Error> {
         space0,
         error(
             alt((
-                parameter, string, date, integer, bytes, boolean, null, set, array, parse_map,
+                parameter, string, date, integer, bytes, boolean, null, array, parse_map, set,
             )),
             |input| match input.chars().next() {
                 None | Some(',') | Some(')') => "missing term".to_string(),
@@ -2618,6 +2618,39 @@ mod tests {
         assert_eq!(
             super::expr("{}").map(|(i, o)| (i, o.opcodes())),
             Ok(("", vec![Op::Value(map(Default::default()))],))
+        );
+    }
+
+    #[test]
+    fn empty_set_map_in_fact() {
+        use builder::{int, map, set};
+
+        assert_eq!(
+            super::fact("f({,})"),
+            Ok(("", builder::fact("f", &[set(Default::default())])))
+        );
+        assert_eq!(
+            super::fact("f({})"),
+            Ok(("", builder::fact("f", &[map(Default::default())])))
+        );
+        assert_eq!(
+            super::fact("f({1, 2})"),
+            Ok((
+                "",
+                builder::fact("f", &[set([int(1), int(2)].into_iter().collect())])
+            ))
+        );
+        assert_eq!(
+            super::fact("f({\"a\": 1})"),
+            Ok((
+                "",
+                builder::fact(
+                    "f",
+                    &[map([(builder::MapKey::Str("a".to_string()), int(1))]
+                        .into_iter()
+                        .collect())]
+                )
+            ))
         );
     }
 
