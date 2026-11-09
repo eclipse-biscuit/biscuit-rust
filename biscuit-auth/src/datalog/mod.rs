@@ -8,11 +8,11 @@ use crate::error::Execution;
 use crate::time::Instant;
 use crate::token::{Scope, DATALOG_3_1, DATALOG_3_3, MIN_SCHEMA_VERSION};
 use crate::{builder, error};
-use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::convert::AsRef;
 use std::fmt;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -812,22 +812,30 @@ impl RunLimits {
 ///
 /// a step is a fact matching a predicate of a rule body, given the
 /// variables already bound by the previous predicates
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub(crate) struct StepCounter {
-    count: Cell<u64>,
+    count: AtomicU64,
+}
+
+impl Clone for StepCounter {
+    fn clone(&self) -> Self {
+        StepCounter::with_taken(self.taken())
+    }
 }
 
 impl StepCounter {
     /// creates a counter that already took `taken` steps
     pub(crate) fn with_taken(taken: u64) -> Self {
         StepCounter {
-            count: Cell::new(taken),
+            count: AtomicU64::new(taken),
         }
     }
 
     /// returns the number of steps taken so far
     pub(crate) fn taken(&self) -> u64 {
-        self.count.get()
+        // there is no concurrent modification or synchronization required
+        // so a relaxed order is fine
+        self.count.load(Ordering::Relaxed)
     }
 
     /// returns a handle recording steps in this counter, up to a total of `max_steps`
@@ -855,8 +863,9 @@ pub(crate) struct StepBudget<'a> {
 impl StepBudget<'_> {
     /// records a step, failing if the count goes over `max_steps`
     pub(crate) fn step(&self) -> Result<(), Execution> {
-        let count = self.counter.count.get() + 1;
-        self.counter.count.set(count);
+        // there is no concurrent modification or synchronization required
+        // so a relaxed order is fine
+        let count = self.counter.count.fetch_add(1, Ordering::Relaxed) + 1;
         if count > self.max_steps {
             Err(Execution::RunLimit(crate::error::RunLimit::TooManySteps))
         } else {

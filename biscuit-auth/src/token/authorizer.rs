@@ -982,6 +982,15 @@ mod tests {
 
     use super::*;
 
+    // `Send + Sync` is required by biscuit-python. This test enforces
+    // it to catch regressions faster
+    #[test]
+    fn authorizer_is_send_and_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Authorizer>();
+        assert_send_sync::<AuthorizerBuilder>();
+    }
+
     #[test]
     fn empty_authorizer() {
         let mut authorizer = AuthorizerBuilder::new()
