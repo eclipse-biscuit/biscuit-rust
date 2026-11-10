@@ -9,6 +9,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use base64::prelude::*;
 use biscuit_parser::parser::parse_source;
 use prost::Message;
 
@@ -18,7 +19,7 @@ use crate::token::public_keys::PublicKeyData;
 use crate::{
     builder::Convert,
     builder_ext::{AuthorizerExt, BuilderExt},
-    datalog::{ExternFunc, Origin, RunLimits, SymbolTable, TrustedOrigins, World},
+    datalog::{ExternFunc, Origin, RunLimits, StepCounter, SymbolTable, TrustedOrigins, World},
     error,
     format::{
         convert::{
@@ -433,6 +434,7 @@ impl AuthorizerBuilder {
             public_key_to_block_id,
             limits: self.limits,
             execution_time: None,
+            steps: StepCounter::default(),
         })
     }
 }
@@ -557,12 +559,14 @@ impl AuthorizerBuilder {
             limits,
             execution_time,
             world,
+            elapsed_steps,
         } = input;
 
         let limits = RunLimits {
             max_facts: limits.max_facts,
             max_iterations: limits.max_iterations,
             max_time: Duration::from_nanos(limits.max_time),
+            max_steps: limits.max_steps.unwrap_or(RunLimits::DEFAULT_STEPS),
         };
 
         let version = world.version.unwrap_or(0);
@@ -605,6 +609,14 @@ impl AuthorizerBuilder {
             .into());
         }
 
+        if elapsed_steps.unwrap_or(0) != 0 {
+            return Err(error::Format::DeserializationError(
+                "cannot deserialize an AuthorizerBuilder from a snapshot with non-zero elapsed steps"
+                    .to_string(),
+            )
+            .into());
+        }
+
         let mut symbols = default_symbol_table();
         for symbol in world.symbols {
             symbols.insert(&symbol);
@@ -640,7 +652,7 @@ impl AuthorizerBuilder {
     }
 
     pub fn from_base64_snapshot(input: &str) -> Result<Self, error::Token> {
-        let bytes = base64::decode_config(input, base64::URL_SAFE)?;
+        let bytes = BASE64_URL_SAFE.decode(input)?;
         Self::from_raw_snapshot(&bytes)
     }
 
@@ -685,10 +697,12 @@ impl AuthorizerBuilder {
         Ok(schema::AuthorizerSnapshot {
             world,
             execution_time: 0u64,
+            elapsed_steps: Some(0),
             limits: schema::RunLimits {
                 max_facts: self.limits.max_facts,
                 max_iterations: self.limits.max_iterations,
                 max_time: self.limits.max_time.as_nanos() as u64,
+                max_steps: Some(self.limits.max_steps),
             },
         })
     }
@@ -704,6 +718,6 @@ impl AuthorizerBuilder {
 
     pub fn to_base64_snapshot(&self) -> Result<String, error::Format> {
         let snapshot_bytes = self.to_raw_snapshot()?;
-        Ok(base64::encode_config(snapshot_bytes, base64::URL_SAFE))
+        Ok(BASE64_URL_SAFE.encode(snapshot_bytes))
     }
 }

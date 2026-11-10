@@ -104,6 +104,7 @@ pub enum ErrorKind {
     Execution,
     UnexpectedQueryResult,
     FormatPKCS8,
+    TooManySteps,
 }
 
 #[no_mangle]
@@ -181,6 +182,7 @@ pub extern "C" fn error_kind() -> ErrorKind {
                     }
                     Token::RunLimit(RunLimit::TooManyFacts) => ErrorKind::TooManyFacts,
                     Token::RunLimit(RunLimit::TooManyIterations) => ErrorKind::TooManyIterations,
+                    Token::RunLimit(RunLimit::TooManySteps) => ErrorKind::TooManySteps,
                     Token::RunLimit(RunLimit::Timeout) => ErrorKind::Timeout,
                     Token::RunLimit(RunLimit::UnexpectedQueryResult(_, _)) => {
                         ErrorKind::UnexpectedQueryResult
@@ -706,6 +708,7 @@ pub unsafe extern "C" fn biscuit_builder_build(
 
     let slice = std::slice::from_raw_parts(seed_ptr, seed_len);
     if slice.len() != 32 {
+        update_last_error(Error::InvalidArgument);
         return None;
     }
 
@@ -720,6 +723,7 @@ pub unsafe extern "C" fn biscuit_builder_build(
         .build_with_rng(&key_pair.0, SymbolTable::default(), &mut rng)
         .map(Biscuit)
         .map(Box::new)
+        .map_err(|e| update_last_error(Error::Biscuit(e)))
         .ok()
 }
 
@@ -742,6 +746,7 @@ pub unsafe extern "C" fn biscuit_from(
     biscuit_auth::Biscuit::from(biscuit, root.0)
         .map(Biscuit)
         .map(Box::new)
+        .map_err(|e| update_last_error(Error::Biscuit(e)))
         .ok()
 }
 
@@ -979,7 +984,13 @@ pub unsafe extern "C" fn biscuit_authorizer(biscuit: Option<&Biscuit>) -> Option
     }
     let biscuit = biscuit?;
 
-    biscuit.0.authorizer().map(Authorizer).map(Box::new).ok()
+    biscuit
+        .0
+        .authorizer()
+        .map(Authorizer)
+        .map(Box::new)
+        .map_err(|e| update_last_error(Error::Biscuit(e)))
+        .ok()
 }
 
 #[no_mangle]
@@ -1251,6 +1262,7 @@ pub unsafe extern "C" fn authorizer_builder_build(
         .build(&token.0)
         .map(Authorizer)
         .map(Box::new)
+        .map_err(|e| update_last_error(Error::Biscuit(e)))
         .ok()
 }
 
@@ -1272,6 +1284,7 @@ pub unsafe extern "C" fn authorizer_builder_build_unauthenticated(
         .build_unauthenticated()
         .map(Authorizer)
         .map(Box::new)
+        .map_err(|e| update_last_error(Error::Biscuit(e)))
         .ok()
 }
 
@@ -1317,7 +1330,7 @@ pub unsafe extern "C" fn authorizer_free(_authorizer: Option<Box<Authorizer>>) {
 
 #[no_mangle]
 pub unsafe extern "C" fn string_free(ptr: *mut c_char) {
-    if ptr.is_null() {
+    if !ptr.is_null() {
         drop(CString::from_raw(ptr));
     }
 }

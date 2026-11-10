@@ -12,11 +12,11 @@ repository = "https://github.com/biscuit-auth/biscuit-rust"
 
 [dependencies]
 hex = "0.4.3"
-nom = "7.1.1"
+nom = "8.0.0"
 proc-macro2 = "1"
 quote = "1.0.21"
 serde = { version = "1.0.132", optional = true, features = ["derive"] }
-thiserror = "1.0.32"
+thiserror = "2.0.18"
 time = {version = "0.3.7", features = ["formatting", "parsing"]}
 
 [features]

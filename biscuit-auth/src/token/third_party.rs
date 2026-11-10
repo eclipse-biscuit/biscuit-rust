@@ -4,6 +4,7 @@
  */
 use std::cmp::max;
 
+use base64::prelude::*;
 use prost::Message;
 
 use crate::Sign;
@@ -63,7 +64,7 @@ impl ThirdPartyRequest {
     }
 
     pub fn serialize_base64(&self) -> Result<String, error::Token> {
-        Ok(base64::encode_config(self.serialize()?, base64::URL_SAFE))
+        Ok(BASE64_URL_SAFE.encode(self.serialize()?))
     }
 
     pub fn deserialize(slice: &[u8]) -> Result<Self, error::Token> {
@@ -92,7 +93,7 @@ impl ThirdPartyRequest {
     where
         T: AsRef<[u8]>,
     {
-        let decoded = base64::decode_config(slice, base64::URL_SAFE)?;
+        let decoded = BASE64_URL_SAFE.decode(slice)?;
         Self::deserialize(&decoded)
     }
 
@@ -152,7 +153,7 @@ impl ThirdPartyBlock {
     }
 
     pub fn serialize_base64(&self) -> Result<String, error::Token> {
-        Ok(base64::encode_config(self.serialize()?, base64::URL_SAFE))
+        Ok(BASE64_URL_SAFE.encode(self.serialize()?))
     }
 }
 

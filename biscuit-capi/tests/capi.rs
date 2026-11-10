@@ -216,3 +216,45 @@ gSEAou4Yi/AQUWXCun1Je7PArhkbH9XCgBMLpoWkGYSGfzs=
 "#,
     );
 }
+
+#[test]
+fn errors_are_reported() {
+    (assert_c! {
+        #include <stdio.h>
+        #include <string.h>
+        #include "biscuit_auth.h"
+
+        int main() {
+            char *seed = "abcdefghabcdefghabcdefghabcdefgh";
+            PrivateKey * root_kp = key_pair_new((const uint8_t *) seed, strlen(seed), 0);
+            PublicKey * root = key_pair_public(root_kp);
+
+            const char * garbage = "not a biscuit";
+            Biscuit * biscuit = biscuit_from((const uint8_t *) garbage, strlen(garbage), root);
+            if (biscuit == NULL) {
+                printf("biscuit_from error(code = %d): %s\n", error_kind(), error_message());
+            } else {
+                printf("biscuit_from unexpectedly succeeded\n");
+            }
+
+            BiscuitBuilder * b = biscuit_builder();
+            Biscuit * b2 = biscuit_builder_build(b, root_kp, (const uint8_t *) seed, 4);
+            if (b2 == NULL) {
+                printf("biscuit_builder_build error(code = %d): %s\n", error_kind(), error_message());
+            } else {
+                printf("biscuit_builder_build unexpectedly succeeded\n");
+            }
+
+            biscuit_builder_free(b);
+            public_key_free(root);
+            key_pair_free(root_kp);
+            return 0;
+        }
+    })
+    .success()
+    .stdout(
+        r#"biscuit_from error(code = 8): error deserializing or verifying the token
+biscuit_builder_build error(code = 1): invalid argument
+"#,
+    );
+}
