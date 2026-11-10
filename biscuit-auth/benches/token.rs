@@ -13,10 +13,9 @@ use biscuit::{
     AuthorizerLimits, Biscuit, PrivateKey, UnverifiedBiscuit,
 };
 use codspeed_bencher_compat::{benchmark_group, benchmark_main, Bencher};
-use rand::rngs::OsRng;
 
 fn create_block_1(b: &mut Bencher) {
-    let mut rng = OsRng;
+    let mut rng = rand::rng();
     let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
     let token = Biscuit::builder()
@@ -47,7 +46,7 @@ fn create_block_1(b: &mut Bencher) {
 }
 
 fn append_block_2(b: &mut Bencher) {
-    let mut rng: OsRng = OsRng;
+    let mut rng = rand::rng();
     let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
@@ -83,7 +82,7 @@ fn append_block_2(b: &mut Bencher) {
 }
 
 fn append_block_5(b: &mut Bencher) {
-    let mut rng: OsRng = OsRng;
+    let mut rng = rand::rng();
     let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let keypair3 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
@@ -144,7 +143,7 @@ fn append_block_5(b: &mut Bencher) {
 }
 
 fn unverified_append_block_2(b: &mut Bencher) {
-    let mut rng: OsRng = OsRng;
+    let mut rng = rand::rng();
     let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
@@ -180,7 +179,7 @@ fn unverified_append_block_2(b: &mut Bencher) {
 }
 
 fn unverified_append_block_5(b: &mut Bencher) {
-    let mut rng: OsRng = OsRng;
+    let mut rng = rand::rng();
     let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let keypair3 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
@@ -241,7 +240,7 @@ fn unverified_append_block_5(b: &mut Bencher) {
 }
 
 fn verify_block_2(b: &mut Bencher) {
-    let mut rng: OsRng = OsRng;
+    let mut rng = rand::rng();
     let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
@@ -301,7 +300,7 @@ fn verify_block_2(b: &mut Bencher) {
 }
 
 fn verify_block_5(b: &mut Bencher) {
-    let mut rng: OsRng = OsRng;
+    let mut rng = rand::rng();
     let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let keypair3 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
@@ -389,7 +388,7 @@ fn verify_block_5(b: &mut Bencher) {
 }
 
 fn check_signature_2(b: &mut Bencher) {
-    let mut rng: OsRng = OsRng;
+    let mut rng = rand::rng();
     let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
@@ -436,7 +435,7 @@ fn check_signature_2(b: &mut Bencher) {
 }
 
 fn check_signature_5(b: &mut Bencher) {
-    let mut rng: OsRng = OsRng;
+    let mut rng = rand::rng();
     let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let keypair3 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
@@ -509,7 +508,7 @@ fn check_signature_5(b: &mut Bencher) {
 }
 
 fn checks_block_2(b: &mut Bencher) {
-    let mut rng: OsRng = OsRng;
+    let mut rng = rand::rng();
     let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
@@ -570,7 +569,7 @@ fn checks_block_2(b: &mut Bencher) {
 }
 
 fn checks_block_create_verifier2(b: &mut Bencher) {
-    let mut rng: OsRng = OsRng;
+    let mut rng = rand::rng();
     let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 
@@ -618,7 +617,7 @@ fn checks_block_create_verifier2(b: &mut Bencher) {
 }
 
 fn checks_block_verify_only2(b: &mut Bencher) {
-    let mut rng: OsRng = OsRng;
+    let mut rng = rand::rng();
     let root = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
     let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
 

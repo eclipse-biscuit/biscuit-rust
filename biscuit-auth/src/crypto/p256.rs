@@ -3,11 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #![allow(non_snake_case)]
-use std::hash::Hash;
+use std::{convert::TryInto, hash::Hash};
 
 use p256::ecdsa::{signature::Signer, signature::Verifier, SigningKey, VerifyingKey};
-use p256::elliptic_curve::rand_core::{CryptoRng, RngCore};
-use p256::NistP256;
+use p256::elliptic_curve::{
+    rand_core::{CryptoRng, Rng},
+    Generate,
+};
 
 use crate::error::Format;
 
@@ -19,28 +21,27 @@ use super::Signature;
 pub struct PrivateKey(SigningKey);
 
 impl PrivateKey {
-    pub fn new_with_rng<T: RngCore + CryptoRng>(rng: &mut T) -> Self {
-        let kp = SigningKey::random(rng);
+    pub fn new_with_rng<T: Rng + CryptoRng + ?Sized>(rng: &mut T) -> Self {
+        let kp = SigningKey::generate_from_rng(rng);
 
         Self(kp)
     }
 
     /// deserializes from a big endian byte array
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, error::Format> {
-        // the version of generic-array used by p256 panics if the input length
-        // is incorrect (including when using `.try_into()`)
-        if bytes.len() != 32 {
-            return Err(Format::InvalidKeySize(bytes.len()));
-        }
-        let kp = SigningKey::from_bytes(bytes.into())
-            .map_err(|s| s.to_string())
-            .map_err(Format::InvalidKey)?;
+        let kp = SigningKey::from_bytes(
+            bytes
+                .try_into()
+                .map_err(|_| Format::InvalidKeySize(bytes.len()))?,
+        )
+        .map_err(|s| s.to_string())
+        .map_err(Format::InvalidKey)?;
 
         Ok(Self(kp))
     }
 
     pub fn sign(&self, data: &[u8]) -> Result<Signature, error::Format> {
-        let signature: ecdsa::Signature<NistP256> = self
+        let signature: p256::ecdsa::Signature = self
             .0
             .try_sign(data)
             .map_err(|s| s.to_string())
@@ -163,7 +164,7 @@ pub struct PublicKey(VerifyingKey);
 impl PublicKey {
     /// serializes to a byte array
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_encoded_point(true).to_bytes().into()
+        self.0.to_sec1_point(true).to_bytes().into()
     }
 
     /// serializes to an hex-encoded string
@@ -260,13 +261,11 @@ impl Hash for PublicKey {
 
 #[cfg(test)]
 mod tests {
-    use p256::elliptic_curve::rand_core::OsRng;
-
     use super::*;
 
     #[test]
     fn serialization() {
-        let private = PrivateKey::new_with_rng(&mut OsRng);
+        let private = PrivateKey::new_with_rng(&mut rand::rng());
         let public = private.public();
         let private_hex = private.to_bytes_hex();
         let public_hex = public.to_bytes_hex();

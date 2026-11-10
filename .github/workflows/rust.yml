@@ -25,6 +25,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ hashFiles('Cargo.toml') }}
             ${{ runner.os }}-
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
       - name: Build
         run: cargo build --verbose
       - name: Run tests
@@ -42,6 +46,10 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
       - name: Install cargo-c
         env:
           LINK: https://github.com/lu-zero/cargo-c/releases/download
@@ -51,6 +59,20 @@ jobs:
           curl -L $LINK/$CARGO_C_VERSION/$CARGO_C_FILE | tar xz -C ~/.cargo/bin
       - name: Run cargo-c tests
         run: cargo ctest --release
+
+  wasi:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: wasm32-wasip1
+      - name: Check biscuit-auth
+        run: cargo check -p biscuit-auth --target wasm32-wasip1
+      - name: Check biscuit-capi
+        run: cargo check -p biscuit-capi --target wasm32-wasip1
 
   coverage:
     name: Coverage
@@ -75,7 +97,10 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: tarpaulin
-          args: --output-dir coverage --out xml --workspace --features serde-error --tests --example testcases --example third_party
+          # biscuit-quote only has a trybuild compile-fail test, which exceeds
+          # tarpaulin's per-test timeout and yields no coverage (proc macros run
+          # inside rustc, outside the traced test binary).
+          args: --output-dir coverage --out xml --workspace --exclude biscuit-quote --features serde-error --tests --example testcases --example third_party
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:

@@ -16,17 +16,17 @@ pub struct Origin {
 }
 
 impl Origin {
-    pub fn insert(&mut self, i: usize) {
+    pub(crate) fn insert(&mut self, i: usize) {
         self.inner.insert(i);
     }
 
-    pub fn union(&self, other: &Self) -> Self {
+    pub(crate) fn union(&self, other: &Self) -> Self {
         Origin {
             inner: self.inner.union(&other.inner).cloned().collect(),
         }
     }
 
-    pub fn is_superset(&self, other: &Self) -> bool {
+    pub(crate) fn is_superset(&self, other: &Self) -> bool {
         self.inner.is_superset(&other.inner)
     }
 }
@@ -96,7 +96,7 @@ impl Default for TrustedOrigins {
 }
 
 impl TrustedOrigins {
-    pub fn from_scopes(
+    pub(crate) fn from_scopes(
         rule_scopes: &[Scope],
         default_origins: &TrustedOrigins,
         current_block: usize,
@@ -134,7 +134,7 @@ impl TrustedOrigins {
         TrustedOrigins(origins)
     }
 
-    pub fn contains(&self, fact_origin: &Origin) -> bool {
+    pub(crate) fn contains(&self, fact_origin: &Origin) -> bool {
         self.0.is_superset(fact_origin)
     }
 }

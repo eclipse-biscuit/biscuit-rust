@@ -37,19 +37,30 @@ pub struct Authorizer {
     pub(crate) public_key_to_block_id: HashMap<usize, Vec<usize>>,
     pub(crate) limits: AuthorizerLimits,
     pub(crate) execution_time: Option<Duration>,
+    pub(crate) steps: datalog::StepCounter,
 }
 
 impl Authorizer {
     pub fn run(&mut self) -> Result<Duration, error::Token> {
-        self.run_with_limits(self.limits.clone())
+        let mut limits = self.limits.clone();
+        limits.max_steps = limits.max_steps.saturating_sub(self.steps.taken());
+        self.run_with_limits(limits)
     }
 
     pub fn run_with_limits(&mut self, limits: AuthorizerLimits) -> Result<Duration, error::Token> {
+        let max_steps = self.max_steps(&limits);
         match self.execution_time {
             Some(execution_time) => Ok(execution_time),
             None => {
                 let start = Instant::now();
-                self.world.run_with_limits(&self.symbols, limits)?;
+                let steps = self.steps.budget(max_steps);
+                self.world.run_with_limits(
+                    &self.symbols,
+                    limits.max_facts,
+                    limits.max_iterations,
+                    limits.max_time,
+                    steps,
+                )?;
                 let execution_time = start.elapsed();
                 self.execution_time = Some(execution_time);
                 Ok(execution_time)
@@ -85,7 +96,16 @@ impl Authorizer {
             public_key_to_block_id: HashMap::new(),
             limits: AuthorizerLimits::default(),
             execution_time: None,
+            steps: datalog::StepCounter::default(),
         }
+    }
+
+    /// total step count the authorizer can reach in a call using `limits`
+    ///
+    /// this must be computed when entering the call, so that the saturation
+    /// run and the following checks or queries share the same budget
+    fn max_steps(&self, limits: &AuthorizerLimits) -> u64 {
+        self.steps.taken().saturating_add(limits.max_steps)
     }
 
     /// creates an `Authorizer` from a serialized [crate::format::schema::AuthorizerPolicies]
@@ -158,6 +178,7 @@ impl Authorizer {
             return Err(error::Token::RunLimit(error::RunLimit::Timeout));
         }
         limits.max_time -= execution_time;
+        limits.max_steps = limits.max_steps.saturating_sub(self.steps.taken());
 
         self.query_with_limits(rule, limits)
     }
@@ -208,11 +229,12 @@ impl Authorizer {
     where
         error::Token: From<<R as TryInto<Rule>>::Error>,
     {
-        let execution_time = self.run()?;
+        let max_steps = self.max_steps(&limits);
+        let execution_time = self.run_with_limits(limits.clone())?;
         let rule = rule.try_into()?.convert(&mut self.symbols);
 
         let start = Instant::now();
-        let result = self.query_inner(rule, limits);
+        let result = self.query_inner(rule, limits, max_steps);
         self.execution_time = Some(start.elapsed() + execution_time);
 
         result
@@ -222,6 +244,7 @@ impl Authorizer {
         &mut self,
         rule: datalog::Rule,
         _limits: AuthorizerLimits,
+        max_steps: u64,
     ) -> Result<Vec<T>, error::Token> {
         let rule_trusted_origins = TrustedOrigins::from_scopes(
             &rule.scopes,
@@ -233,14 +256,16 @@ impl Authorizer {
             &self.public_key_to_block_id,
         );
 
-        let res = self
-            .world
-            .query_rule(rule, usize::MAX, &rule_trusted_origins, &self.symbols)?;
+        let res = self.world.query_rule(
+            rule,
+            usize::MAX,
+            &rule_trusted_origins,
+            &self.symbols,
+            self.steps.budget(max_steps),
+        )?;
 
-        res.inner
-            .into_iter()
-            .flat_map(|(_, set)| set.into_iter())
-            .map(|f| Fact::convert_from(&f, &self.symbols))
+        res.into_iter()
+            .map(|(_, f)| Fact::convert_from(&f, &self.symbols))
             .map(|fact| {
                 fact.map_err(error::Token::Format)
                     .and_then(|f| f.try_into().map_err(Into::into))
@@ -282,6 +307,7 @@ impl Authorizer {
             return Err(error::Token::RunLimit(error::RunLimit::Timeout));
         }
         limits.max_time -= execution_time;
+        limits.max_steps = limits.max_steps.saturating_sub(self.steps.taken());
 
         self.query_all_with_limits(rule, limits)
     }
@@ -303,11 +329,12 @@ impl Authorizer {
     where
         error::Token: From<<R as TryInto<Rule>>::Error>,
     {
-        let execution_time = self.run()?;
+        let max_steps = self.max_steps(&limits);
+        let execution_time = self.run_with_limits(limits.clone())?;
         let rule = rule.try_into()?.convert(&mut self.symbols);
 
         let start = Instant::now();
-        let result = self.query_all_inner(rule, limits);
+        let result = self.query_all_inner(rule, limits, max_steps);
         self.execution_time = Some(execution_time + start.elapsed());
 
         result
@@ -317,6 +344,7 @@ impl Authorizer {
         &mut self,
         rule: datalog::Rule,
         _limits: AuthorizerLimits,
+        max_steps: u64,
     ) -> Result<Vec<T>, error::Token> {
         let rule_trusted_origins = if rule.scopes.is_empty() {
             self.token_origins.clone()
@@ -332,9 +360,13 @@ impl Authorizer {
             )
         };
 
-        let res = self
-            .world
-            .query_rule(rule, 0, &rule_trusted_origins, &self.symbols)?;
+        let res = self.world.query_rule(
+            rule,
+            0,
+            &rule_trusted_origins,
+            &self.symbols,
+            self.steps.budget(max_steps),
+        )?;
 
         let r: HashSet<_> = res.into_iter().map(|(_, fact)| fact).collect();
 
@@ -357,6 +389,14 @@ impl Authorizer {
         self.world.iterations
     }
 
+    /// returns the number of Datalog steps taken so far
+    ///
+    /// a step is a fact matching a predicate of a rule body, given the
+    /// variables already bound by the previous predicates
+    pub fn elapsed_steps(&self) -> u64 {
+        self.steps.taken()
+    }
+
     /// returns the number of facts
     pub fn fact_count(&self) -> usize {
         self.world.facts.len()
@@ -374,6 +414,7 @@ impl Authorizer {
             return Err(error::Token::RunLimit(error::RunLimit::Timeout));
         }
         limits.max_time -= execution_time;
+        limits.max_steps = limits.max_steps.saturating_sub(self.steps.taken());
 
         self.authorize_with_limits(limits)
     }
@@ -387,15 +428,20 @@ impl Authorizer {
         &mut self,
         limits: AuthorizerLimits,
     ) -> Result<usize, error::Token> {
+        let max_steps = self.max_steps(&limits);
         let execution_time = self.run_with_limits(limits.clone())?;
         let start = Instant::now();
-        let result = self.authorize_inner(limits);
+        let result = self.authorize_inner(limits, max_steps);
         self.execution_time = Some(execution_time + start.elapsed());
 
         result
     }
 
-    fn authorize_inner(&mut self, limits: AuthorizerLimits) -> Result<usize, error::Token> {
+    fn authorize_inner(
+        &mut self,
+        limits: AuthorizerLimits,
+        max_steps: u64,
+    ) -> Result<usize, error::Token> {
         let start = Instant::now();
         let time_limit = start + limits.max_time;
 
@@ -420,6 +466,8 @@ impl Authorizer {
             &self.public_key_to_block_id,
         );
 
+        let steps = self.steps.budget(max_steps);
+
         for (i, check) in self.authorizer_block_builder.checks.iter().enumerate() {
             let c = check.convert(&mut self.symbols);
             let mut successful = false;
@@ -438,16 +486,20 @@ impl Authorizer {
                         usize::MAX,
                         &rule_trusted_origins,
                         &self.symbols,
+                        steps,
                     )?,
-                    CheckKind::All => {
-                        self.world
-                            .query_match_all(query, &rule_trusted_origins, &self.symbols)?
-                    }
+                    CheckKind::All => self.world.query_match_all(
+                        query,
+                        &rule_trusted_origins,
+                        &self.symbols,
+                        steps,
+                    )?,
                     CheckKind::Reject => !self.world.query_match(
                         query,
                         usize::MAX,
                         &rule_trusted_origins,
                         &self.symbols,
+                        steps,
                     )?,
                 };
 
@@ -496,17 +548,20 @@ impl Authorizer {
                             0,
                             &rule_trusted_origins,
                             &self.symbols,
+                            steps,
                         )?,
                         CheckKind::All => self.world.query_match_all(
                             query.clone(),
                             &rule_trusted_origins,
                             &self.symbols,
+                            steps,
                         )?,
                         CheckKind::Reject => !self.world.query_match(
                             query.clone(),
                             0,
                             &rule_trusted_origins,
                             &self.symbols,
+                            steps,
                         )?,
                     };
 
@@ -546,6 +601,7 @@ impl Authorizer {
                     usize::MAX,
                     &rule_trusted_origins,
                     &self.symbols,
+                    steps,
                 )?;
 
                 let now = Instant::now();
@@ -589,17 +645,20 @@ impl Authorizer {
                                 i + 1,
                                 &rule_trusted_origins,
                                 &self.symbols,
+                                steps,
                             )?,
                             CheckKind::All => self.world.query_match_all(
                                 query.clone(),
                                 &rule_trusted_origins,
                                 &self.symbols,
+                                steps,
                             )?,
                             CheckKind::Reject => !self.world.query_match(
                                 query.clone(),
                                 i + 1,
                                 &rule_trusted_origins,
                                 &self.symbols,
+                                steps,
                             )?,
                         };
 
@@ -715,17 +774,14 @@ impl Authorizer {
 
 impl std::fmt::Display for Authorizer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut has_facts = false;
         let mut all_facts = BTreeMap::new();
-        for (origin, factset) in &self.world.facts.inner {
-            let mut facts = HashSet::new();
-            for fact in factset {
-                facts.insert(self.symbols.print_fact(fact));
-            }
-
-            has_facts = has_facts || !facts.is_empty();
-            all_facts.insert(origin, facts);
+        for (origin, fact) in self.world.facts.iter_all() {
+            all_facts
+                .entry(origin)
+                .or_insert_with(HashSet::new)
+                .insert(self.symbols.print_fact(fact));
         }
+        let has_facts = !all_facts.is_empty();
 
         if has_facts {
             writeln!(f, "// Facts:")?;
@@ -926,6 +982,15 @@ mod tests {
 
     use super::*;
 
+    // `Send + Sync` is required by biscuit-python. This test enforces
+    // it to catch regressions faster
+    #[test]
+    fn authorizer_is_send_and_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Authorizer>();
+        assert_send_sync::<AuthorizerBuilder>();
+    }
+
     #[test]
     fn empty_authorizer() {
         let mut authorizer = AuthorizerBuilder::new()
@@ -1062,7 +1127,13 @@ mod tests {
 
         let mut authorizer = biscuit.authorizer().unwrap();
         let res: Vec<(String, i64)> = authorizer
-            .query("data($name, $id) <- user($name, $id)")
+            .query_with_limits(
+                "data($name, $id) <- user($name, $id)",
+                AuthorizerLimits {
+                    max_time: Duration::from_secs(10),
+                    ..Default::default()
+                },
+            )
             .unwrap();
 
         assert_eq!(res.len(), 1);
@@ -1082,7 +1153,15 @@ mod tests {
             .unwrap();
 
         let mut authorizer = biscuit.authorizer().unwrap();
-        let res: Vec<(String,)> = authorizer.query("data($name) <- user($name)").unwrap();
+        let res: Vec<(String,)> = authorizer
+            .query_with_limits(
+                "data($name) <- user($name)",
+                AuthorizerLimits {
+                    max_time: Duration::from_secs(10),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
 
         assert_eq!(res.len(), 1);
         assert_eq!(res[0].0, "John Doe");
@@ -1460,13 +1539,124 @@ allow if true;
             .build_unauthenticated()
             .unwrap();
         let res: Vec<(String,)> = authorizer
-            .query(builder::rule(
-                "output",
-                &[builder::string("x")],
-                &[builder::pred("test", &[builder::var("any")])],
-            ))
+            .query_with_limits(
+                builder::rule(
+                    "output",
+                    &[builder::string("x")],
+                    &[builder::pred("test", &[builder::var("any")])],
+                ),
+                AuthorizerLimits {
+                    max_time: Duration::from_secs(10),
+                    ..Default::default()
+                },
+            )
             .unwrap();
 
         assert_eq!(res, vec![]);
+    }
+
+    fn step_limits(max_steps: u64) -> AuthorizerLimits {
+        AuthorizerLimits {
+            max_time: Duration::from_secs(10),
+            max_steps,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn query_all_with_limits_enforces_step_limit() {
+        let biscuit = BiscuitBuilder::new()
+            .code("a(1); a(2); a(3);")
+            .unwrap()
+            .build(&PrivateKey::new())
+            .unwrap();
+        let authorizer = AuthorizerBuilder::new()
+            .code("allow if true;")
+            .unwrap()
+            .set_limits(step_limits(1000))
+            .build(&biscuit)
+            .unwrap();
+
+        let mut tight = authorizer.clone();
+        let res: Result<Vec<(i64,)>, _> =
+            tight.query_all_with_limits("b($x) <- a($x)", step_limits(2));
+        assert_eq!(
+            res.unwrap_err(),
+            error::Token::RunLimit(error::RunLimit::TooManySteps)
+        );
+
+        let mut enough = authorizer.clone();
+        let res: Vec<(i64,)> = enough
+            .query_all_with_limits("b($x) <- a($x)", step_limits(3))
+            .unwrap();
+        assert_eq!(res.len(), 3);
+        assert_eq!(enough.elapsed_steps(), 3);
+    }
+
+    #[test]
+    fn step_budget_is_shared_across_calls() {
+        let mut authorizer = AuthorizerBuilder::new()
+            .code("a(1); a(2); a(3); allow if a(1);")
+            .unwrap()
+            .set_limits(step_limits(1000))
+            .build_unauthenticated()
+            .unwrap();
+        authorizer.authorize().unwrap();
+        let after_authorize = authorizer.elapsed_steps();
+        assert!(after_authorize > 0);
+
+        let mut tight = authorizer.clone();
+        tight.limits.max_steps = after_authorize + 2;
+        let res: Result<Vec<(i64,)>, _> = tight.query("b($x) <- a($x)");
+        assert_eq!(
+            res.unwrap_err(),
+            error::Token::RunLimit(error::RunLimit::TooManySteps)
+        );
+
+        let mut enough = authorizer.clone();
+        enough.limits.max_steps = after_authorize + 3;
+        let res: Vec<(i64,)> = enough.query("b($x) <- a($x)").unwrap();
+        assert_eq!(res.len(), 3);
+        assert_eq!(enough.elapsed_steps(), after_authorize + 3);
+
+        let res: Vec<(i64,)> = enough
+            .query_with_limits("b($x) <- a($x)", step_limits(3))
+            .unwrap();
+        assert_eq!(res.len(), 3);
+        assert_eq!(enough.elapsed_steps(), after_authorize + 6);
+    }
+
+    #[test]
+    fn query_with_limits_uses_the_override_for_saturation() {
+        let biscuit = BiscuitBuilder::new()
+            .code("a(1); a(2); a(3);")
+            .unwrap()
+            .build(&PrivateKey::new())
+            .unwrap();
+        let authorizer = AuthorizerBuilder::new()
+            .code("b($x) <- a($x); allow if true;")
+            .unwrap()
+            .set_limits(step_limits(1))
+            .build(&biscuit)
+            .unwrap();
+
+        let mut query = authorizer.clone();
+        let res: Vec<(i64,)> = query
+            .query_with_limits("c($x) <- b($x)", step_limits(1000))
+            .unwrap();
+        assert_eq!(res.len(), 3);
+
+        let mut query_all = authorizer.clone();
+        let res: Vec<(i64,)> = query_all
+            .query_all_with_limits("c($x) <- b($x)", step_limits(1000))
+            .unwrap();
+        assert_eq!(res.len(), 3);
+
+        let mut default_limits = authorizer.clone();
+        let res: Result<Vec<(i64,)>, _> = default_limits.query("c($x) <- b($x)");
+        assert_eq!(
+            res.unwrap_err(),
+            error::Token::RunLimit(error::RunLimit::TooManySteps)
+        );
     }
 }
