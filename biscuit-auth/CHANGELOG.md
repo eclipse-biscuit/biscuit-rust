@@ -8,6 +8,8 @@
 - `Term` implements `From<Uuid>` with the `uuid` feature.
 - Scope parameters are `Into<PublicKeyData>` so they can take anything which can be converted into a
   public key (including `&K: SerializePublicKey`).
+- `BlockBuilder` can be serialized to and deserialized from the binary representation of the
+  protobuf `Block` message with `to_vec` and `from_bytes`.
 - `biscuit-auth` and `biscuit-capi` compile for `wasm32-wasip1`: the `Instant` shim based on
   `performance.now()` is now limited to `wasm32-unknown-unknown`, other wasm targets use
   `std::time::Instant`.
