@@ -176,6 +176,8 @@ fn run(target: String, root_key: Option<String>, test: bool, json: bool) {
 
     add_test_result(&mut results, try_op(&target, &root, test));
 
+    add_test_result(&mut results, forward_symbol_reference(&target, &root, test));
+
     if json {
         let s = serde_json::to_string_pretty(&TestCases {
             root_private_key: hex::encode(root.to_bytes()),
@@ -394,7 +396,7 @@ fn validate_token_with_limits_and_external_functions(
         let mut rules: Vec<String> = Vec::new();
         for rule in block.rules.iter() {
             let r =
-                convert::proto_rule_to_token_rule(rule, snapshot.world.version.unwrap()).unwrap();
+                convert::proto_rule_to_token_rule(rule, snapshot.world.version.unwrap(), &symbols).unwrap();
             rules.push(symbols.print_rule(&r.0));
         }
         if !rules.is_empty() {
@@ -407,7 +409,7 @@ fn validate_token_with_limits_and_external_functions(
 
         let mut checks = Vec::new();
         for check in block.checks.iter() {
-            let c = convert::proto_check_to_token_check(check, snapshot.world.version.unwrap())
+            let c = convert::proto_check_to_token_check(check, snapshot.world.version.unwrap(), &symbols)
                 .unwrap();
             checks.push(symbols.print_check(&c));
         }
@@ -422,7 +424,7 @@ fn validate_token_with_limits_and_external_functions(
 
     let mut rules: Vec<String> = Vec::new();
     for rule in snapshot.world.authorizer_block.rules {
-        let r = convert::proto_rule_to_token_rule(&rule, snapshot.world.version.unwrap()).unwrap();
+        let r = convert::proto_rule_to_token_rule(&rule, snapshot.world.version.unwrap(), &symbols).unwrap();
 
         rules.push(symbols.print_rule(&r.0));
     }
@@ -437,7 +439,7 @@ fn validate_token_with_limits_and_external_functions(
     let mut checks = Vec::new();
     for check in snapshot.world.authorizer_block.checks {
         let c =
-            convert::proto_check_to_token_check(&check, snapshot.world.version.unwrap()).unwrap();
+            convert::proto_check_to_token_check(&check, snapshot.world.version.unwrap(), &symbols).unwrap();
         checks.push(symbols.print_check(&c));
     }
     if !checks.is_empty() {
@@ -462,7 +464,7 @@ fn validate_token_with_limits_and_external_functions(
         let mut facts = Vec::new();
 
         for fact in factset.facts {
-            let f = convert::proto_fact_to_token_fact(&fact).unwrap();
+            let f = convert::proto_fact_to_token_fact(&fact, &symbols).unwrap();
             facts.push(symbols.print_fact(&f));
         }
         if !facts.is_empty() {
@@ -2498,6 +2500,65 @@ fn try_op(target: &str, root: &PrivateKey, test: bool) -> TestResult {
             check if true.try_or(true === 12);
             allow if true;"#,
         ),
+    );
+
+    TestResult {
+        title,
+        filename,
+        token,
+        validations,
+    }
+}
+
+fn forward_symbol_reference(target: &str, root: &PrivateKey, test: bool) -> TestResult {
+    let mut rng: StdRng = SeedableRng::seed_from_u64(1234);
+    let title = "block referencing a symbol defined in a later block".to_string();
+    let filename = "test039_forward_symbol_reference".to_string();
+
+    let biscuit1 = biscuit!(r#"right("file1", "read");"#)
+        .build_with_rng(root, SymbolTable::default(), &mut rng)
+        .unwrap();
+
+    // the same block is appended twice: the first time it defines the "file2" symbol, the
+    // second time it reuses it
+    let attenuation = block!(r#"check if resource("file2");"#);
+    let keypair2 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let biscuit2 = biscuit1
+        .append_with_key(&keypair2, attenuation.clone())
+        .unwrap();
+    let keypair3 = PrivateKey::new_with_rng(Algorithm::Ed25519, &mut rng);
+    let biscuit3 = biscuit2.append_with_key(&keypair3, attenuation).unwrap();
+
+    // the symbol definition is then moved from the first attenuation to the second one, so
+    // that the first attenuation references a symbol from a later block. The token is signed
+    // again with the modified blocks
+    let mut token = print_blocks(&biscuit3);
+    token[2].symbols = std::mem::take(&mut token[1].symbols);
+
+    let data = if test {
+        load_testcase(target, &filename)
+    } else {
+        let defining_block = biscuit3.container().to_proto().blocks[0].block.clone();
+        let mut referencing_block =
+            biscuit::format::schema::Block::decode(&defining_block[..]).unwrap();
+        referencing_block.symbols.clear();
+
+        let data = biscuit1
+            .container()
+            .append_serialized(&keypair2, referencing_block.encode_to_vec(), None)
+            .unwrap()
+            .append_serialized(&keypair3, defining_block, None)
+            .unwrap()
+            .to_vec()
+            .unwrap();
+        write_testcase(target, &filename, &data[..]);
+        data
+    };
+
+    let mut validations = BTreeMap::new();
+    validations.insert(
+        "".to_string(),
+        validate_token(root, &data[..], r#"resource("file2"); allow if true"#),
     );
 
     TestResult {

@@ -211,7 +211,7 @@ impl BlockBuilder {
         })?;
 
         // a standalone block carries its own symbol and public key tables, starting at offset 0
-        let block = proto_block_to_token_block::<PublicKey>(&data, None)?;
+        let block = proto_block_to_token_block::<PublicKey>(&data, None, None)?;
         Ok(BlockBuilder::convert_from(&block, &block.symbols)?)
     }
 

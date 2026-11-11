@@ -10,14 +10,13 @@ use prost::{Message, UnknownEnumValue};
 
 use super::{default_symbol_table, Biscuit, Block};
 use crate::crypto::SerializePrivateKey;
-use crate::token::public_keys::PublicKeyData;
 use crate::{
     builder::BlockBuilder,
     crypto::{self, PrivateKey, PublicKey, Signature},
     datalog::SymbolTable,
     error,
     format::{
-        convert::proto_block_to_token_block,
+        parse_block,
         schema::{self, public_key::Algorithm},
         SerializedBiscuit,
     },
@@ -34,8 +33,8 @@ use crate::{
 /// and then used for authorization
 #[derive(Clone)]
 pub struct UnverifiedBiscuit<K: SerializePrivateKey = PrivateKey> {
-    pub(crate) authority: schema::Block,
-    pub(crate) blocks: Vec<schema::Block>,
+    pub(crate) authority: Block,
+    pub(crate) blocks: Vec<Block>,
     pub(crate) symbols: SymbolTable,
     container: SerializedBiscuit<K>,
 }
@@ -191,22 +190,14 @@ impl UnverifiedBiscuit {
 
         let container = self.container.append(key, &block, None)?;
 
-        symbols.extend(&block.symbols)?;
-        symbols.public_keys.extend(&block.public_keys)?;
-
-        let deser = schema::Block::decode(
-            &container
+        blocks.push(parse_block(
+            container
                 .blocks
                 .last()
-                .expect("a new block was just added so the list is not empty")
-                .data[..],
-        )
-        .map_err(|e| {
-            error::Token::Format(error::Format::BlockDeserializationError(format!(
-                "error deserializing block: {e:?}"
-            )))
-        })?;
-        blocks.push(deser);
+                .expect("a new block was just added so the list is not empty"),
+            &mut symbols,
+            "block",
+        )?);
 
         Ok(UnverifiedBiscuit {
             authority,
@@ -274,30 +265,12 @@ impl UnverifiedBiscuit {
 
     pub(crate) fn block(&self, index: usize) -> Result<Block, error::Token> {
         let mut block = if index == 0 {
-            proto_block_to_token_block(
-                &self.authority,
-                self.container
-                    .authority
-                    .external_signature
-                    .as_ref()
-                    .map(|ex| &ex.public_key),
-            )
-            .map_err(error::Token::Format)?
+            self.authority.clone()
         } else {
-            if index > self.blocks.len() + 1 {
-                return Err(error::Token::Format(
-                    error::Format::BlockDeserializationError("invalid block index".to_string()),
-                ));
-            }
-
-            proto_block_to_token_block(
-                &self.blocks[index - 1],
-                self.container.blocks[index - 1]
-                    .external_signature
-                    .as_ref()
-                    .map(|ex| &ex.public_key),
-            )
-            .map_err(error::Token::Format)?
+            self.blocks
+                .get(index - 1)
+                .cloned()
+                .ok_or(error::Token::Format(error::Format::InvalidBlockId(index)))?
         };
 
         // we have to add the entire list of public keys here because
@@ -356,12 +329,6 @@ impl UnverifiedBiscuit {
 
         let signature = Signature::from_vec(external_signature.signature);
 
-        let block = schema::Block::decode(&payload[..]).map_err(|e| {
-            error::Token::Format(error::Format::DeserializationError(format!(
-                "deserialization error: {e:?}"
-            )))
-        })?;
-
         let external_signature = crypto::ExternalSignature {
             public_key: external_key,
             signature,
@@ -374,9 +341,17 @@ impl UnverifiedBiscuit {
             self.container
                 .append_serialized(&next_key, payload, Some(external_signature))?;
 
-        for key in &block.public_keys[..] {
-            let data = PublicKeyData::from_proto(key);
-            symbols.public_keys.insert_fallible(&data)?;
+        let block = parse_block(
+            container
+                .blocks
+                .last()
+                .expect("a new block was just added so the list is not empty"),
+            &mut symbols,
+            "block",
+        )?;
+
+        for key in &block.public_keys {
+            symbols.public_keys.insert_fallible(key)?;
         }
 
         blocks.push(block);

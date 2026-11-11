@@ -360,17 +360,16 @@ impl AuthorizerBuilder {
                     .blocks()
                     .enumerate()
                     .map(|(i, block)| {
-                        block.and_then(|mut b| {
-                            load_and_translate_block(
-                                &mut b,
-                                i,
-                                &token.symbols,
-                                &mut symbols,
-                                &mut public_key_to_block_id,
-                                &mut world,
-                            )?;
-                            Ok(b)
-                        })
+                        let mut b = block.clone();
+                        load_and_translate_block(
+                            &mut b,
+                            i,
+                            &token.symbols,
+                            &mut symbols,
+                            &mut public_key_to_block_id,
+                            &mut world,
+                        )?;
+                        Ok::<_, error::Token>(b)
                     })
                     .collect::<Result<Vec<_>, _>>()?,
             );
@@ -627,7 +626,8 @@ impl AuthorizerBuilder {
                 .insert(&PublicKeyData::from_proto(&public_key));
         }
 
-        let authorizer_block = proto_snapshot_block_to_token_block(&world.authorizer_block)?;
+        let authorizer_block =
+            proto_snapshot_block_to_token_block(&world.authorizer_block, &symbols)?;
 
         let authorizer_block_builder = BlockBuilder::convert_from(&authorizer_block, &symbols)?;
         let policies = world

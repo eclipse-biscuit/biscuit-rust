@@ -10,16 +10,16 @@ use std::sync::Arc;
 
 use base64::prelude::*;
 use builder::{BiscuitBuilder, BlockBuilder};
-use prost::Message;
 use rand_core::{CryptoRng, Rng};
 
-use self::public_keys::{PublicKeyData, PublicKeys};
+use self::public_keys::PublicKeys;
 use super::datalog::SymbolTable;
 use super::error;
 use super::format::SerializedBiscuit;
 use crate::crypto::{self, PrivateKey, PublicKey, Signature, SerializePrivateKey, Verify, Sign};
-use crate::format::convert::{proto_block_to_token_block, public_key_from_proto};
-use crate::format::schema::{self, ThirdPartyBlockContents};
+use crate::format::convert::public_key_from_proto;
+use crate::format::parse_block;
+use crate::format::schema::ThirdPartyBlockContents;
 use crate::format::{ThirdPartyVerificationMode, THIRD_PARTY_SIGNATURE_VERSION};
 use authorizer::Authorizer;
 
@@ -85,8 +85,8 @@ pub fn default_symbol_table() -> SymbolTable {
 #[derive(Clone)]
 pub struct Biscuit<K: SerializePrivateKey = PrivateKey> {
     pub(crate) root_key_id: Option<u32>,
-    pub(crate) authority: schema::Block,
-    pub(crate) blocks: Vec<schema::Block>,
+    pub(crate) authority: Block,
+    pub(crate) blocks: Vec<Block>,
     pub(crate) symbols: SymbolTable,
     pub(crate) container: SerializedBiscuit<K>,
 }
@@ -287,19 +287,11 @@ impl<K: SerializePrivateKey> Biscuit<K> {
             return Err(error::Token::Format(error::Format::SymbolTableOverlap));
         }
 
-        symbols.extend(&authority.symbols)?;
-
         let blocks = vec![];
 
         let container = SerializedBiscuit::new(root_key_id, root_key, next_key, &authority)?;
 
-        symbols.public_keys.extend(&authority.public_keys)?;
-
-        let authority = schema::Block::decode(&container.authority.data[..]).map_err(|e| {
-            error::Token::Format(error::Format::BlockDeserializationError(format!(
-                "error deserializing block: {e:?}"
-            )))
-        })?;
+        let authority = parse_block(&container.authority, &mut symbols, "authority block")?;
 
         Ok(Biscuit {
             root_key_id,
@@ -383,22 +375,14 @@ impl<K: SerializePrivateKey> Biscuit<K> {
 
         let container = self.container.append(key, &block, None)?;
 
-        symbols.extend(&block.symbols)?;
-        symbols.public_keys.extend(&block.public_keys)?;
-
-        let deser = schema::Block::decode(
-            &container
+        blocks.push(parse_block(
+            container
                 .blocks
                 .last()
-                .expect("a new block was just added so the list is not empty")
-                .data[..],
-        )
-        .map_err(|e| {
-            error::Token::Format(error::Format::BlockDeserializationError(format!(
-                "error deserializing block: {e:?}"
-            )))
-        })?;
-        blocks.push(deser);
+                .expect("a new block was just added so the list is not empty"),
+            &mut symbols,
+            "block",
+        )?);
 
         Ok(Biscuit {
             root_key_id: self.root_key_id,
@@ -470,20 +454,21 @@ impl<K: SerializePrivateKey> Biscuit<K> {
             ThirdPartyVerificationMode::PreviousSignatureHashing,
         )?;
 
-        let block = schema::Block::decode(&payload[..]).map_err(|e| {
-            error::Token::Format(error::Format::DeserializationError(format!(
-                "deserialization error: {e:?}"
-            )))
-        })?;
-
-        let symbols = self.symbols.clone();
+        let mut symbols = self.symbols.clone();
         let mut blocks = self.blocks.clone();
 
         let container =
             self.container
                 .append_serialized(&next_key, payload, Some(external_signature))?;
 
-        blocks.push(block);
+        blocks.push(parse_block(
+            container
+                .blocks
+                .last()
+                .expect("a new block was just added so the list is not empty"),
+            &mut symbols,
+            "block",
+        )?);
 
         Ok(Biscuit {
             root_key_id: self.root_key_id,
@@ -496,35 +481,12 @@ impl<K: SerializePrivateKey> Biscuit<K> {
 
     /// gets the list of symbols from a block
     pub fn block_symbols(&self, index: usize) -> Result<Vec<String>, error::Token> {
-        let block = if index == 0 {
-            &self.authority
-        } else {
-            match self.blocks.get(index - 1) {
-                None => return Err(error::Token::Format(error::Format::InvalidBlockId(index))),
-                Some(block) => block,
-            }
-        };
-
-        Ok(block.symbols.clone())
+        self.block(index).map(|block| block.symbols.strings())
     }
 
     /// gets the list of public keys from a block
     pub fn block_public_keys(&self, index: usize) -> Result<PublicKeys, error::Token> {
-        let block = if index == 0 {
-            &self.authority
-        } else {
-            match self.blocks.get(index - 1) {
-                None => return Err(error::Token::Format(error::Format::InvalidBlockId(index))),
-                Some(block) => block,
-            }
-        };
-
-        let mut public_keys = PublicKeys::new();
-
-        for pk in &block.public_keys {
-            public_keys.insert(&PublicKeyData::from_proto(pk));
-        }
-        Ok(public_keys)
+        self.block(index).map(|block| block.public_keys.clone())
     }
 
     /// gets the list of public keys from a block
@@ -549,61 +511,18 @@ impl<K: SerializePrivateKey> Biscuit<K> {
         1 + self.blocks.len()
     }
 
-    pub(crate) fn block(&self, index: usize) -> Result<Block, error::Token> {
-        let block = if index == 0 {
-            proto_block_to_token_block(
-                &self.authority,
-                self.container
-                    .authority
-                    .external_signature
-                    .as_ref()
-                    .map(|ex| &ex.public_key),
-            )
-            .map_err(error::Token::Format)?
+    pub(crate) fn block(&self, index: usize) -> Result<&Block, error::Token> {
+        if index == 0 {
+            Ok(&self.authority)
         } else {
-            if index > self.blocks.len() + 1 {
-                return Err(error::Token::Format(
-                    error::Format::BlockDeserializationError("invalid block index".to_string()),
-                ));
-            }
-
-            proto_block_to_token_block(
-                &self.blocks[index - 1],
-                self.container.blocks[index - 1]
-                    .external_signature
-                    .as_ref()
-                    .map(|ex| &ex.public_key),
-            )
-            .map_err(error::Token::Format)?
-        };
-
-        Ok(block)
+            self.blocks
+                .get(index - 1)
+                .ok_or(error::Token::Format(error::Format::InvalidBlockId(index)))
+        }
     }
 
-    pub(crate) fn blocks(&self) -> impl Iterator<Item = Result<Block, error::Token>> + use<'_, K> {
-        once(
-            proto_block_to_token_block(
-                &self.authority,
-                self.container
-                    .authority
-                    .external_signature
-                    .as_ref()
-                    .map(|ex| &ex.public_key),
-            )
-            .map_err(error::Token::Format),
-        )
-        .chain(self.blocks.iter().zip(self.container.blocks.iter()).map(
-            |(block, container)| {
-                proto_block_to_token_block(
-                    block,
-                    container
-                        .external_signature
-                        .as_ref()
-                        .map(|ex| &ex.public_key),
-                )
-                .map_err(error::Token::Format)
-            },
-        ))
+    pub(crate) fn blocks(&self) -> impl Iterator<Item = &Block> {
+        once(&self.authority).chain(self.blocks.iter())
     }
 }
 
@@ -626,18 +545,11 @@ where
 
 impl<K: SerializePrivateKey> Display for Biscuit<K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let authority = self
-            .block(0)
-            .as_ref()
+        let authority = print_block(&self.symbols, &self.authority);
+        let blocks: Vec<_> = self
+            .blocks
+            .iter()
             .map(|block| print_block(&self.symbols, block))
-            .unwrap_or_else(|_| String::new());
-        let blocks: Vec<_> = (1..self.block_count())
-            .map(|i| {
-                self.block(i)
-                    .as_ref()
-                    .map(|block| print_block(&self.symbols, block))
-                    .unwrap_or_else(|_| String::new())
-            })
             .collect();
 
         write!(f, "Biscuit {{\n    symbols: {:?}\n    public keys: {:?}\n    authority: {}\n    blocks: [\n        {}\n    ]\n}}",
@@ -1653,7 +1565,7 @@ mod tests {
             rules: vec![],
             checks: vec![],
             context: None,
-            version: 0,
+            version: MIN_SCHEMA_VERSION,
             external_key: None,
             public_keys: PublicKeys::new(),
             scopes: vec![],
@@ -1691,5 +1603,25 @@ mod tests {
             assert_eq!(parsed.print_block_source(i), biscuit1.print_block_source(i));
             assert_eq!(parsed.block_version(i), biscuit1.block_version(i));
         }
+    }
+
+    // indexing one past the last block used to panic instead of returning an error
+    #[test]
+    fn out_of_bounds_block_index() {
+        let root = PrivateKey::new();
+        let token = Biscuit::builder()
+            .build(&root)
+            .unwrap()
+            .append(BlockBuilder::new())
+            .unwrap();
+        let unverified = UnverifiedBiscuit::from(token.to_vec().unwrap()).unwrap();
+        let index = token.block_count();
+
+        let expected = error::Token::Format(error::Format::InvalidBlockId(index));
+        assert_eq!(token.print_block_source(index).unwrap_err(), expected);
+        assert_eq!(token.block_version(index).unwrap_err(), expected);
+        assert_eq!(token.block_symbols(index).unwrap_err(), expected);
+        assert_eq!(unverified.print_block_source(index).unwrap_err(), expected);
+        assert_eq!(unverified.block_version(index).unwrap_err(), expected);
     }
 }
