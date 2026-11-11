@@ -57,23 +57,6 @@ impl UnverifiedBiscuit {
         Self::from_with_symbols(slice.as_ref(), default_symbol_table())
     }
 
-    /// deserializes a token from raw bytes
-    ///
-    /// This allows the deprecated 3rd party block format
-    pub fn unsafe_deprecated_deserialize<T>(slice: T) -> Result<Self, error::Token>
-    where
-        T: AsRef<[u8]>,
-    {
-        let container = SerializedBiscuit::deserialize(
-            slice.as_ref(),
-            crate::format::ThirdPartyVerificationMode::UnsafeLegacy,
-        )?;
-
-        Ok(UnverifiedBiscuit {
-            inner: ParsedToken::from_container(container, default_symbol_table())?,
-        })
-    }
-
     /// deserializes a token from base64
     pub fn from_base64<T>(slice: T) -> Result<Self, error::Token>
     where
@@ -93,10 +76,7 @@ impl UnverifiedBiscuit {
 
     /// deserializes from raw bytes with a custom symbol table
     pub fn from_with_symbols(slice: &[u8], symbols: SymbolTable) -> Result<Self, error::Token> {
-        let container = SerializedBiscuit::deserialize(
-            slice,
-            crate::format::ThirdPartyVerificationMode::PreviousSignatureHashing,
-        )?;
+        let container = SerializedBiscuit::deserialize(slice)?;
 
         Ok(UnverifiedBiscuit {
             inner: ParsedToken::from_container(container, symbols)?,

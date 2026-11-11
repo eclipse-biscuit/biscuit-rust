@@ -15,9 +15,7 @@ use crate::datalog::SymbolTable;
 use crate::error;
 use crate::format::convert::public_key_from_proto;
 use crate::format::schema::ThirdPartyBlockContents;
-use crate::format::{
-    parse_block, SerializedBiscuit, ThirdPartyVerificationMode, THIRD_PARTY_SIGNATURE_VERSION,
-};
+use crate::format::{parse_block, SerializedBiscuit, THIRD_PARTY_SIGNATURE_VERSION};
 
 /// a signed token and its parsed blocks
 ///
@@ -151,11 +149,9 @@ impl<K: SerializePrivateKey> ParsedToken<K> {
             .unwrap_or(&self.container.authority);
         crypto::verify_external_signature(
             &payload,
-            &previous_block.next_key,
             &previous_block.signature,
             &external_signature,
             THIRD_PARTY_SIGNATURE_VERSION,
-            ThirdPartyVerificationMode::PreviousSignatureHashing,
         )?;
 
         let container =

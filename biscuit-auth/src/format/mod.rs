@@ -67,10 +67,7 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
     where
         KP: RootKeyProvider<Key = K::PublicKey>,
     {
-        let deser = SerializedBiscuit::deserialize(
-            slice,
-            ThirdPartyVerificationMode::PreviousSignatureHashing,
-        )?;
+        let deser = SerializedBiscuit::deserialize(slice)?;
 
         let root = key_provider.choose(deser.root_key_id)?;
         deser.verify(&root)?;
@@ -78,26 +75,7 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
         Ok(deser)
     }
 
-    pub(crate) fn unsafe_from_slice<KP>(
-        slice: &[u8],
-        key_provider: KP,
-    ) -> Result<Self, error::Format>
-    where
-        KP: RootKeyProvider<Key = K::PublicKey>,
-    {
-        let deser =
-            SerializedBiscuit::deserialize(slice, ThirdPartyVerificationMode::UnsafeLegacy)?;
-
-        let root = key_provider.choose(deser.root_key_id)?;
-        deser.verify_inner(&root, ThirdPartyVerificationMode::UnsafeLegacy)?;
-
-        Ok(deser)
-    }
-
-    pub(crate) fn deserialize(
-        slice: &[u8],
-        verification_mode: ThirdPartyVerificationMode,
-    ) -> Result<Self, error::Format> {
+    pub(crate) fn deserialize(slice: &[u8]) -> Result<Self, error::Format> {
         let data = schema::Biscuit::decode(slice).map_err(|e| {
             error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
@@ -129,9 +107,7 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
             let signature = Signature::from_vec(block.signature);
 
             let external_signature = if let Some(ex) = block.external_signature {
-                if verification_mode == ThirdPartyVerificationMode::PreviousSignatureHashing
-                    && block.version != Some(THIRD_PARTY_SIGNATURE_VERSION)
-                {
+                if block.version != Some(THIRD_PARTY_SIGNATURE_VERSION) {
                     return Err(error::Format::DeserializationError(
                         "Unsupported third party block version".to_string(),
                     ));
@@ -434,14 +410,6 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
 
     /// checks the signature on a deserialized token
     pub fn verify<RK: Verify>(&self, root: &RK) -> Result<(), error::Format> {
-        self.verify_inner(root, ThirdPartyVerificationMode::PreviousSignatureHashing)
-    }
-
-    pub(crate) fn verify_inner<RK: Verify>(
-        &self,
-        root: &RK,
-        verification_mode: ThirdPartyVerificationMode,
-    ) -> Result<(), error::Format> {
         //FIXME: try batched signature verification
         let mut previous_signature;
 
@@ -450,19 +418,7 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
         previous_signature = &self.authority.signature;
 
         for block in &self.blocks {
-            let verification_mode = match (block.version, verification_mode) {
-                (0, ThirdPartyVerificationMode::UnsafeLegacy) => {
-                    ThirdPartyVerificationMode::UnsafeLegacy
-                }
-                _ => ThirdPartyVerificationMode::PreviousSignatureHashing,
-            };
-
-            crypto::verify_block_signature(
-                block,
-                current_pub,
-                previous_signature,
-                verification_mode,
-            )?;
+            crypto::verify_block_signature(block, current_pub, previous_signature)?;
             current_pub = &block.next_key;
             previous_signature = &block.signature;
         }
@@ -533,12 +489,6 @@ where
             .field("proof", &self.proof)
             .finish()
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum ThirdPartyVerificationMode {
-    UnsafeLegacy,
-    PreviousSignatureHashing,
 }
 
 fn block_signature_version<I, RK: Sign, AK: Sign, EK>(

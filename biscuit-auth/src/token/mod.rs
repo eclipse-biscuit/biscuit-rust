@@ -110,25 +110,6 @@ impl Biscuit {
         Biscuit::from_base64_with_symbols(slice, key_provider, default_symbol_table())
     }
 
-    /// deserializes a token and validates the signature using the root public key
-    ///
-    /// This allows the deprecated 3rd party block format
-    pub fn unsafe_deprecated_deserialize<T, KP>(
-        slice: T,
-        key_provider: KP,
-    ) -> Result<Self, error::Token>
-    where
-        T: AsRef<[u8]>,
-        KP: RootKeyProvider<Key = PublicKey>,
-    {
-        let container = SerializedBiscuit::unsafe_from_slice(slice.as_ref(), key_provider)
-            .map_err(error::Token::Format)?;
-
-        Ok(Biscuit {
-            inner: ParsedToken::from_container(container, default_symbol_table())?,
-        })
-    }
-
     /// creates an authorizer from this token
     ///
     /// Such an authorizer can only be used for querying, since it will contain no authorization policy.
@@ -1349,33 +1330,6 @@ mod tests {
                 }))
             );
         }
-    }
-
-    // check that we can still allow the verification of the old 3rd party block signature
-    #[test]
-    fn third_party_unsafe_deserialize() {
-        // this is a token generated with the old third party signature, that does not include the previous block's signature
-        let token_bytes = include_bytes!("../../tests/fixtures/unsafe_third_party.bc");
-        let _ = UnverifiedBiscuit::unsafe_deprecated_deserialize(token_bytes).unwrap();
-        assert_eq!(
-            UnverifiedBiscuit::from(token_bytes).unwrap_err(),
-            error::Token::Format(error::Format::DeserializationError(
-                "Unsupported third party block version".to_string()
-            ))
-        );
-
-        let root_key = PublicKey::from_bytes_hex(
-            "1055c750b1a1505937af1537c626ba3263995c33a64758aaafb1275b0312e284",
-            builder::Algorithm::Ed25519,
-        )
-        .unwrap();
-        let _ = Biscuit::unsafe_deprecated_deserialize(token_bytes, root_key).unwrap();
-        assert_eq!(
-            Biscuit::from(token_bytes, root_key).unwrap_err(),
-            error::Token::Format(error::Format::DeserializationError(
-                "Unsupported third party block version".to_string()
-            ))
-        );
     }
 
     // tests that the authority block signature version 1 works
