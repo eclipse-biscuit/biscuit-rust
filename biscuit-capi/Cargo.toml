@@ -1,6 +1,6 @@
 [package]
 name = "biscuit-capi"
-version = "6.0.0-beta.3"                                     # Should keep the same version as biscuit-auth
+version = "7.0.0-alpha.1"                                    # Should keep the same version as biscuit-auth
 description = "C API for Biscuit"
 authors = ["Geoffroy Couprie <contact@geoffroycouprie.com>"]
 edition = "2018"
@@ -13,7 +13,7 @@ repository = "https://github.com/eclipse-biscuit/biscuit-rust"
 capi = []
 
 [dependencies]
-biscuit-auth = { version = "6.0.0", path = "../biscuit-auth", features = [
+biscuit-auth = { version = "7.0.0-alpha.1", path = "../biscuit-auth", features = [
     "datalog-macro",
     "serde-error",
     "pem",
