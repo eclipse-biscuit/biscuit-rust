@@ -7,6 +7,7 @@ use std::iter::once;
 
 use base64::prelude::*;
 
+use super::limits::{BlockLimits, DeserializationLimits};
 use super::public_keys::PublicKeys;
 use super::{Block, ThirdPartyRequest};
 use crate::builder::{self, BlockBuilder};
@@ -31,12 +32,14 @@ pub(crate) struct ParsedToken<K: SerializePrivateKey> {
 }
 
 impl<K: SerializePrivateKey> ParsedToken<K> {
-    /// parses the blocks of a deserialized container
+    /// parses the blocks of a deserialized container, rejecting them if they do not respect the
+    /// limits
     pub(crate) fn from_container(
         container: SerializedBiscuit<K>,
         mut symbols: SymbolTable,
+        limits: &DeserializationLimits,
     ) -> Result<Self, error::Token> {
-        let (authority, blocks) = container.extract_blocks(&mut symbols)?;
+        let (authority, blocks) = container.extract_blocks(&mut symbols, limits)?;
 
         Ok(ParsedToken {
             authority,
@@ -59,7 +62,12 @@ impl<K: SerializePrivateKey> ParsedToken<K> {
         }
 
         let container = SerializedBiscuit::new(root_key_id, root_key, next_key, &authority)?;
-        let authority = parse_block(&container.authority, &mut symbols, "authority block")?;
+        let authority = parse_block(
+            &container.authority,
+            0,
+            &mut symbols,
+            &BlockLimits::allow_everything(),
+        )?;
 
         Ok(ParsedToken {
             authority,
@@ -79,8 +87,9 @@ impl<K: SerializePrivateKey> ParsedToken<K> {
                 .blocks
                 .last()
                 .expect("a new block was just added so the list is not empty"),
+            blocks.len() + 1,
             &mut symbols,
-            "block",
+            &BlockLimits::allow_everything(),
         )?);
 
         Ok(ParsedToken {

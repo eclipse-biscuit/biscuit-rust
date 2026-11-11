@@ -105,6 +105,8 @@ pub enum ErrorKind {
     UnexpectedQueryResult,
     FormatPKCS8,
     TooManySteps,
+    FormatTokenLimit,
+    FormatBlockLimit,
 }
 
 #[no_mangle]
@@ -167,6 +169,8 @@ pub extern "C" fn error_kind() -> ErrorKind {
                     }
                     Token::Format(Format::UnknownSymbol(_)) => ErrorKind::FormatUnknownSymbol,
                     Token::Format(Format::PKCS8(_)) => ErrorKind::FormatPKCS8,
+                    Token::Format(Format::TokenLimit(_)) => ErrorKind::FormatTokenLimit,
+                    Token::Format(Format::BlockLimit { .. }) => ErrorKind::FormatBlockLimit,
                     Token::AppendOnSealed => ErrorKind::AppendOnSealed,
                     Token::AlreadySealed => ErrorKind::AlreadySealed,
                     Token::Language(_) => ErrorKind::LanguageError,

@@ -17,10 +17,12 @@ use super::error;
 use super::format::SerializedBiscuit;
 use crate::crypto::{PrivateKey, PublicKey, SerializePrivateKey, Verify, Sign};
 use authorizer::Authorizer;
+use limits::DeserializationLimits;
 use parsed::ParsedToken;
 
 pub mod authorizer;
 pub(crate) mod block;
+pub mod limits;
 pub mod builder;
 pub mod builder_ext;
 mod parsed;
@@ -98,7 +100,12 @@ impl Biscuit {
         T: AsRef<[u8]>,
         KP: RootKeyProvider<Key = PublicKey>,
     {
-        Biscuit::from_with_symbols(slice.as_ref(), key_provider, default_symbol_table())
+        Biscuit::from_with_symbols(
+            slice.as_ref(),
+            key_provider,
+            default_symbol_table(),
+            &DeserializationLimits::allow_everything(),
+        )
     }
 
     /// deserializes a token and validates the signature using the root public key
@@ -108,6 +115,36 @@ impl Biscuit {
         KP: RootKeyProvider<Key = PublicKey>,
     {
         Biscuit::from_base64_with_symbols(slice, key_provider, default_symbol_table())
+    }
+
+    /// deserializes a token and validates the signature using the root public key,
+    /// rejecting it if it does not respect the limits
+    pub fn from_with_limits<T, KP>(
+        slice: T,
+        key_provider: KP,
+        limits: &DeserializationLimits,
+    ) -> Result<Self, error::Token>
+    where
+        T: AsRef<[u8]>,
+        KP: RootKeyProvider<Key = PublicKey>,
+    {
+        Biscuit::from_with_symbols(slice.as_ref(), key_provider, default_symbol_table(), limits)
+    }
+
+    /// deserializes a token from base64 and validates the signature using the root public key,
+    /// rejecting it if it does not respect the limits
+    pub fn from_base64_with_limits<T, KP>(
+        slice: T,
+        key_provider: KP,
+        limits: &DeserializationLimits,
+    ) -> Result<Self, error::Token>
+    where
+        T: AsRef<[u8]>,
+        KP: RootKeyProvider<Key = PublicKey>,
+    {
+        limits::check_base64_size(slice.as_ref(), limits)?;
+        let decoded = BASE64_URL_SAFE.decode(slice)?;
+        Biscuit::from_with_limits(&decoded, key_provider, limits)
     }
 
     /// creates an authorizer from this token
@@ -236,15 +273,16 @@ impl<K: SerializePrivateKey> Biscuit<K> {
         slice: &[u8],
         key_provider: KP,
         symbols: SymbolTable,
+        limits: &DeserializationLimits,
     ) -> Result<Self, error::Token>
     where
         KP: RootKeyProvider<Key = K::PublicKey>,
     {
-        let container =
-            SerializedBiscuit::from_slice(slice, key_provider).map_err(error::Token::Format)?;
+        let container = SerializedBiscuit::from_slice_with_limits(slice, key_provider, limits)
+            .map_err(error::Token::Format)?;
 
         Ok(Biscuit {
-            inner: ParsedToken::from_container(container, symbols)?,
+            inner: ParsedToken::from_container(container, symbols, limits)?,
         })
     }
 
@@ -260,7 +298,12 @@ impl<K: SerializePrivateKey> Biscuit<K> {
         KP: RootKeyProvider<Key = K::PublicKey>,
     {
         let decoded = BASE64_URL_SAFE.decode(slice)?;
-        Biscuit::from_with_symbols(&decoded, key_provider, symbols)
+        Biscuit::from_with_symbols(
+            &decoded,
+            key_provider,
+            symbols,
+            &DeserializationLimits::allow_everything(),
+        )
     }
 
     /// returns the internal representation of the token

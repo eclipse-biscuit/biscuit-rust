@@ -162,9 +162,125 @@ pub enum Format {
     UnknownExternalKey,
     #[error("the symbol id was not in the table")]
     UnknownSymbol(u64),
+    #[error("the token exceeds the deserialization limits: {0}")]
+    TokenLimit(TokenLimit),
+    #[error("block {block_id} exceeds the deserialization limits: {limit}")]
+    BlockLimit {
+        /// index of the block which does not respect the limits (0 is the authority block)
+        block_id: u32,
+        limit: BlockLimit,
+    },
     #[cfg(feature = "pem")]
     #[error("PKCS8 serialization error")]
     PKCS8(String),
+}
+
+/// Errors that occur when a token as a whole does not respect the [crate::DeserializationLimits]
+/// it was deserialized with
+#[derive(Error, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
+pub enum TokenLimit {
+    #[error("the token is too large")]
+    TokenTooLarge,
+    #[error("the token contains too many blocks")]
+    TooManyBlocks,
+    #[error("sealed tokens are not allowed")]
+    SealedTokensNotAllowed,
+    #[error("unsealed tokens are not allowed")]
+    UnsealedTokensNotAllowed,
+}
+
+/// Errors that occur when a block does not respect the [crate::DeserializationLimits] its token was
+/// deserialized with
+#[derive(Error, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
+pub enum BlockLimit {
+    #[error("a Datalog block is too large")]
+    BlockTooLarge,
+    #[error("a block contains too many facts")]
+    TooManyFacts,
+    #[error("a block contains too many rules")]
+    TooManyRules,
+    #[error("a block contains too many checks")]
+    TooManyChecks,
+    #[error("a block contains too many symbols")]
+    TooManySymbols,
+    #[error("a block contains too many public keys")]
+    TooManyPublicKeys,
+    #[error("a check contains too many queries")]
+    TooManyQueries,
+    #[error("a rule or query body contains too many predicates")]
+    TooManyPredicates,
+    #[error("a rule or query body contains too many expressions")]
+    TooManyExpressions,
+    #[error("an expression contains too many operations")]
+    TooManyOps,
+    #[error("a fact or predicate contains too many terms")]
+    TooManyTerms,
+    #[error("a name is too long")]
+    NameTooLong,
+    #[error("a string is too long")]
+    StringTooLong,
+    #[error("a bytes value is too long")]
+    BytesTooLong,
+    #[error("a set is too long")]
+    SetTooLong,
+    #[error("an array is too long")]
+    ArrayTooLong,
+    #[error("a map is too long")]
+    MapTooLong,
+    #[error("a block context is too long")]
+    ContextTooLong,
+    #[error("closures are not allowed")]
+    ClosuresNotAllowed,
+    #[error("a block uses a signature version which is too low")]
+    SignatureVersionTooLow,
+    #[error("a block is signed with an algorithm which is not allowed")]
+    InternalSigningAlgorithmNotAllowed,
+    #[error("a block has a third party signature with an algorithm which is not allowed")]
+    ExternalSigningAlgorithmNotAllowed,
+    #[error("a binary operation is not allowed")]
+    BinaryOperationNotAllowed,
+    #[error("a unary operation is not allowed")]
+    UnaryOperationNotAllowed,
+    #[error("an external function is not allowed")]
+    ExternalFunctionNotAllowed,
+    #[error("a term type is not allowed")]
+    TermTypeNotAllowed,
+    #[error("a map key type is not allowed")]
+    MapKeyTypeNotAllowed,
+    #[error("a trusted scope is not allowed")]
+    TrustedScopeNotAllowed,
+    #[error("a check kind is not allowed")]
+    CheckKindNotAllowed,
+    #[error("attenuation blocks with external signatures are not allowed")]
+    AttenuationsWithExternalSignaturesNotAllowed,
+    #[error("attenuation blocks without external signatures are not allowed")]
+    AttenuationsWithoutExternalSignaturesNotAllowed,
+}
+
+impl From<TokenLimit> for Format {
+    fn from(e: TokenLimit) -> Self {
+        Format::TokenLimit(e)
+    }
+}
+
+impl From<TokenLimit> for Token {
+    fn from(e: TokenLimit) -> Self {
+        Token::Format(Format::TokenLimit(e))
+    }
+}
+
+impl BlockLimit {
+    /// attaches the index of the block (0 is the authority block)
+    pub(crate) fn in_block(self, block_id: usize) -> Format {
+        Format::BlockLimit {
+            block_id: block_id as u32,
+            limit: self,
+        }
+    }
 }
 
 /// Signature errors

@@ -14,6 +14,7 @@
   `performance.now()` is now limited to `wasm32-unknown-unknown`, other wasm targets use
   `std::time::Instant`.
 - `Authorizer` now carries a step counter that aborts datalog evaluation after a given number of operations. This is more reliable and finer-grained than the timer approach (#352, #357)
+- `DeserializationLimits` allows rejecting tokens at deserialization time based on various criteria (size, block count, signature algorithms, datalog features) (#360)
 
 ## Breaking changes
 
