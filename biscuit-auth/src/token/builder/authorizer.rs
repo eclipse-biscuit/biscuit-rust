@@ -342,7 +342,7 @@ impl AuthorizerBuilder {
 
         // load the token if present
         if let Some(token) = token {
-            for (i, block) in token.container.blocks.iter().enumerate() {
+            for (i, block) in token.inner.container.blocks.iter().enumerate() {
                 if let Some(sig) = block.external_signature.as_ref() {
                     let new_key_id = symbols
                         .public_keys
@@ -364,7 +364,7 @@ impl AuthorizerBuilder {
                         load_and_translate_block(
                             &mut b,
                             i,
-                            &token.symbols,
+                            &token.inner.symbols,
                             &mut symbols,
                             &mut public_key_to_block_id,
                             &mut world,
