@@ -457,7 +457,7 @@ mod tests {
             .context("test context".to_string());
 
         let serialized = builder.to_vec().unwrap();
-        let parsed = BlockBuilder::from(&serialized).unwrap();
+        let parsed = BlockBuilder::from_bytes(&serialized).unwrap();
 
         assert_same_content(&builder, &parsed);
         assert_eq!(2, parsed.facts.len());
@@ -474,7 +474,7 @@ mod tests {
     fn roundtrip_empty() {
         let builder = BlockBuilder::new();
 
-        let parsed = BlockBuilder::from(builder.to_vec().unwrap()).unwrap();
+        let parsed = BlockBuilder::from_bytes(builder.to_vec().unwrap()).unwrap();
 
         assert_same_content(&builder, &parsed);
     }
@@ -494,7 +494,7 @@ mod tests {
             ))
             .unwrap();
 
-        let parsed = BlockBuilder::from(builder.to_vec().unwrap()).unwrap();
+        let parsed = BlockBuilder::from_bytes(builder.to_vec().unwrap()).unwrap();
 
         assert_same_content(&builder, &parsed);
         assert_eq!(vec![Scope::PublicKey(key1.clone())], parsed.rules[0].scopes);
@@ -510,7 +510,7 @@ mod tests {
 
     #[test]
     fn deserialize_garbage() {
-        let err = BlockBuilder::from([0xff, 0xff, 0xff, 0xff]).unwrap_err();
+        let err = BlockBuilder::from_bytes([0xff, 0xff, 0xff, 0xff]).unwrap_err();
 
         assert!(
             matches!(
