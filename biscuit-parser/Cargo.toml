@@ -6,8 +6,8 @@ authors = ["Clément Delafargue <clement@delafargue.name>", "Geoffroy Couprie <c
 description = "Datalog parser used in the biscuit-auth and biscuit-quote crates"
 license = "Apache-2.0"
 documentation = "https://docs.rs/biscuit-auth"
-homepage = "https://github.com/biscuit-auth/biscuit"
-repository = "https://github.com/biscuit-auth/biscuit-rust"
+homepage = "https://github.com/eclipse-biscuit/biscuit"
+repository = "https://github.com/eclipse-biscuit/biscuit-rust"
 
 
 [dependencies]

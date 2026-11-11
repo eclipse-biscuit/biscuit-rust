@@ -6,8 +6,8 @@ authors = ["Geoffroy Couprie <contact@geoffroycouprie.com>"]
 edition = "2018"
 license = "Apache-2.0"
 documentation = "https://docs.rs/biscuit-auth"
-homepage = "https://github.com/biscuit-auth/biscuit"
-repository = "https://github.com/biscuit-auth/biscuit-rust"
+homepage = "https://github.com/eclipse-biscuit/biscuit"
+repository = "https://github.com/eclipse-biscuit/biscuit-rust"
 
 [features]
 capi = []

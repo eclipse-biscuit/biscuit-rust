@@ -5,6 +5,9 @@ edition = "2021"
 description = "macros for compile time datalog parsing for Biscuit authorization tokens"
 authors = ["Clément Delafargue <clement@delafargue.name>", "Geoffroy Couprie <contact@geoffroycouprie.com>"]
 license = "Apache-2.0"
+documentation = "https://docs.rs/biscuit-auth"
+homepage = "https://github.com/eclipse-biscuit/biscuit"
+repository = "https://github.com/eclipse-biscuit/biscuit-rust"
 
 [lib]
 proc-macro = true
