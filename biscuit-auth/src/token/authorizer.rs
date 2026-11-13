@@ -1197,7 +1197,7 @@ mod tests {
             authorizer.query_exactly_one("data($name) <- user($name)");
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Reached Datalog execution limits"
+            "Reached Datalog execution limits: Unexpected query results, expected 1 got 0"
         );
     }
 
@@ -1219,7 +1219,7 @@ mod tests {
             authorizer.query_exactly_one("data($name) <- user($name)");
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Reached Datalog execution limits"
+            "Reached Datalog execution limits: Unexpected query results, expected 1 got 2"
         );
     }
 
