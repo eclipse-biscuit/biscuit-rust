@@ -35,6 +35,7 @@
   `set_lenient` and `set_scope_lenient`.
 - `TrustedOrigin`'s `Default` implementation changed to match its previous inherent `default`
   function (#327)
+- `format::schema` types are not re-exported anymore
 
 # `6.0.0`
 

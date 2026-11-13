@@ -21,6 +21,9 @@ datalog-macro = ["biscuit-quote"]
 # used to expose public key information in a standard format
 bwk = ["chrono", "serde"]
 docsrs = []
+# exposes the Protobuf structures and their conversions
+# this is only used by tests to construct invalid tokens on purpose
+unsafe-protobuf-access = []
 uuid = ["dep:uuid"]
 # used to expose pem/der loaders for keypairs
 pem = ["ed25519-dalek/pem", "ed25519-dalek/pkcs8"]
@@ -64,7 +67,7 @@ codspeed-bencher-compat = "2.6.0"
 
 [[example]]
 name = "testcases"
-required-features = ["serde-error"]
+required-features = ["serde-error", "unsafe-protobuf-access"]
 path = "examples/testcases.rs"
 
 [[bench]]

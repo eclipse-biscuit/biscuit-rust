@@ -23,7 +23,7 @@ use crate::{
 use crate::token::public_keys::PublicKeyData;
 
 impl super::Authorizer {
-    pub fn from_snapshot(input: schema::AuthorizerSnapshot) -> Result<Self, error::Token> {
+    pub(crate) fn from_snapshot(input: schema::AuthorizerSnapshot) -> Result<Self, error::Token> {
         let schema::AuthorizerSnapshot {
             limits,
             execution_time,
@@ -187,7 +187,7 @@ impl super::Authorizer {
         Self::from_raw_snapshot(&bytes)
     }
 
-    pub fn snapshot(&self) -> Result<schema::AuthorizerSnapshot, error::Format> {
+    pub(crate) fn snapshot(&self) -> Result<schema::AuthorizerSnapshot, error::Format> {
         let mut symbols = default_symbol_table();
 
         let authorizer_policies = self
