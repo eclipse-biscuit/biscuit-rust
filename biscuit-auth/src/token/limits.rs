@@ -5,7 +5,7 @@
 //! restrictions on the features a token may contain, enforced during deserialization
 use std::collections::HashSet;
 
-use crate::builder::{Algorithm, CheckKind};
+pub use crate::builder::{Algorithm, CheckKind};
 use crate::error::TokenLimit;
 use crate::format::schema;
 

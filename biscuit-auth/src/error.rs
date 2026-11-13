@@ -17,7 +17,7 @@ use thiserror::Error;
 pub enum Token {
     #[error("internal error")]
     InternalError,
-    #[error("error deserializing or verifying the token")]
+    #[error("error deserializing or verifying the token: {0}")]
     Format(Format),
     #[error("tried to append a block to a sealed token")]
     AppendOnSealed,
@@ -27,7 +27,7 @@ pub enum Token {
     FailedLogic(Logic),
     #[error("error generating Datalog: {0}")]
     Language(biscuit_parser::error::LanguageError),
-    #[error("Reached Datalog execution limits")]
+    #[error("Reached Datalog execution limits: {0}")]
     RunLimit(RunLimit),
     #[error("Cannot convert from Term: {0}")]
     ConversionError(String),
