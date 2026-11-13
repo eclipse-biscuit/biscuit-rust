@@ -22,6 +22,8 @@ use crate::crypto::Signature;
 use crate::datalog::SymbolTable;
 use crate::token::RootKeyProvider;
 use crate::token::DATALOG_3_3;
+use crate::error::{BlockLimit, TokenLimit};
+use crate::token::limits::{BlockLimits, DeserializationLimits};
 
 /// Structures generated from the Protobuf schema
 pub mod schema; /*{
@@ -34,16 +36,50 @@ use self::convert::*;
 
 /// parses a signed block with the symbols and public keys defined by the previous first party
 /// blocks, adding its own tables to `symbols` if it is a first party block
+///
+/// `block_id` is the index of the block in the token (0 is the authority block)
 pub(crate) fn parse_block<NK, EK: SerializePublicKey>(
     block: &crypto::Block<NK, EK>,
+    block_id: usize,
     symbols: &mut SymbolTable,
-    name: &str,
+    limits: &BlockLimits,
 ) -> Result<Block, error::Token> {
+    if block.data.len() > limits.max_block_size {
+        return Err(BlockLimit::BlockTooLarge.in_block(block_id).into());
+    }
     let proto = schema::Block::decode(&block.data[..]).map_err(|e| {
+        let name = if block_id == 0 {
+            "authority block"
+        } else {
+            "block"
+        };
         error::Format::BlockDeserializationError(format!("error deserializing {name}: {e:?}"))
     })?;
     let external_key = block.external_signature.as_ref().map(|ex| &ex.public_key);
-    proto_block_to_token_block(&proto, external_key, Some(symbols)).map_err(Into::into)
+    proto_block_to_token_block(
+        &proto,
+        external_key,
+        Some(symbols),
+        Some((limits, block_id)),
+    )
+    .map_err(Into::into)
+}
+
+/// checks the limits which apply to every signed block, before it is decoded
+fn check_signed_block_limits(
+    block: &schema::SignedBlock,
+    block_id: usize,
+    limits: &DeserializationLimits,
+) -> Result<(), error::Format> {
+    if let Some(allowed) = &limits.allowed_internal_signing_algorithms {
+        if !allowed.contains(&Algorithm::from(block.next_key.algorithm())) {
+            return Err(BlockLimit::InternalSigningAlgorithmNotAllowed.in_block(block_id));
+        }
+    }
+    if block.version.unwrap_or_default() < limits.min_signature_version {
+        return Err(BlockLimit::SignatureVersionTooLow.in_block(block_id));
+    }
+    Ok(())
 }
 
 pub(crate) const THIRD_PARTY_SIGNATURE_VERSION: u32 = 1;
@@ -67,7 +103,24 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
     where
         KP: RootKeyProvider<Key = K::PublicKey>,
     {
-        let deser = SerializedBiscuit::deserialize(slice)?;
+        Self::from_slice_with_limits(
+            slice,
+            key_provider,
+            &DeserializationLimits::allow_everything(),
+        )
+    }
+
+    /// deserializes and verifies the token, rejecting it if it does not respect the
+    /// token level limits
+    pub(crate) fn from_slice_with_limits<KP>(
+        slice: &[u8],
+        key_provider: KP,
+        limits: &DeserializationLimits,
+    ) -> Result<Self, error::Format>
+    where
+        KP: RootKeyProvider<Key = K::PublicKey>,
+    {
+        let deser = SerializedBiscuit::deserialize(slice, limits)?;
 
         let root = key_provider.choose(deser.root_key_id)?;
         deser.verify(&root)?;
@@ -75,10 +128,31 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
         Ok(deser)
     }
 
-    pub(crate) fn deserialize(slice: &[u8]) -> Result<Self, error::Format> {
+    pub(crate) fn deserialize(
+        slice: &[u8],
+        limits: &DeserializationLimits,
+    ) -> Result<Self, error::Format> {
+        if slice.len() > limits.max_token_size {
+            return Err(TokenLimit::TokenTooLarge.into());
+        }
+
         let data = schema::Biscuit::decode(slice).map_err(|e| {
             error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
+
+        if data.blocks.len() + 1 > limits.max_blocks {
+            return Err(TokenLimit::TooManyBlocks.into());
+        }
+        match data.proof.content {
+            Some(schema::proof::Content::FinalSignature(_)) if !limits.allow_sealed_tokens => {
+                return Err(TokenLimit::SealedTokensNotAllowed.into());
+            }
+            Some(schema::proof::Content::NextSecret(_)) if !limits.allow_unsealed_tokens => {
+                return Err(TokenLimit::UnsealedTokensNotAllowed.into());
+            }
+            _ => {}
+        }
+        check_signed_block_limits(&data.authority, 0, limits)?;
 
         let next_key: K::PublicKey = convert::public_key_from_proto(&data.authority.next_key)?;
         let mut next_key_algorithm = next_key.algorithm();
@@ -100,7 +174,21 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
         };
 
         let mut blocks = Vec::new();
-        for block in data.blocks {
+        for (i, block) in data.blocks.into_iter().enumerate() {
+            let block_id = i + 1;
+            if block.external_signature.is_some() {
+                if !limits.allow_attenuations_with_external_signatures {
+                    return Err(
+                        BlockLimit::AttenuationsWithExternalSignaturesNotAllowed.in_block(block_id)
+                    );
+                }
+            } else if !limits.allow_attenuations_without_external_signatures {
+                return Err(
+                    BlockLimit::AttenuationsWithoutExternalSignaturesNotAllowed.in_block(block_id)
+                );
+            }
+            check_signed_block_limits(&block, block_id, limits)?;
+
             let next_key: K::PublicKey = convert::public_key_from_proto(&block.next_key)?;
             next_key_algorithm = next_key.algorithm();
 
@@ -113,7 +201,14 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
                     ));
                 }
 
-                let public_key = convert::public_key_from_proto(&ex.public_key)?;
+                let public_key: K::PublicKey = convert::public_key_from_proto(&ex.public_key)?;
+                if let Some(allowed) = &limits.allowed_external_signing_algorithms {
+                    if !allowed.contains(&public_key.algorithm()) {
+                        return Err(
+                            BlockLimit::ExternalSigningAlgorithmNotAllowed.in_block(block_id)
+                        );
+                    }
+                }
                 let signature = Signature::from_vec(ex.signature);
 
                 Some(ExternalSignature {
@@ -159,7 +254,8 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
         Ok(deser)
     }
 
-    /// parses the blocks of the token
+    /// parses the blocks of the token, rejecting them if they do not respect the block level
+    /// limits
     ///
     /// blocks are parsed in order, each with the symbols and public keys known at that point
     /// (`symbols`, which is extended with the tables of first party blocks), so a block cannot
@@ -167,12 +263,13 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
     pub(crate) fn extract_blocks(
         &self,
         symbols: &mut SymbolTable,
+        limits: &DeserializationLimits,
     ) -> Result<(Block, Vec<Block>), error::Token> {
-        let authority = parse_block(&self.authority, symbols, "authority block")?;
+        let authority = parse_block(&self.authority, 0, symbols, &limits.authority)?;
 
         let mut blocks = vec![];
-        for block in self.blocks.iter() {
-            blocks.push(parse_block(block, symbols, "block")?);
+        for (i, block) in self.blocks.iter().enumerate() {
+            blocks.push(parse_block(block, i + 1, symbols, &limits.attenuations)?);
         }
 
         Ok((authority, blocks))

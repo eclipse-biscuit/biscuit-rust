@@ -395,8 +395,13 @@ fn validate_token_with_limits_and_external_functions(
     for (i, block) in snapshot.world.blocks.iter().enumerate() {
         let mut rules: Vec<String> = Vec::new();
         for rule in block.rules.iter() {
-            let r =
-                convert::proto_rule_to_token_rule(rule, snapshot.world.version.unwrap(), &symbols).unwrap();
+            let r = convert::proto_rule_to_token_rule(
+                rule,
+                snapshot.world.version.unwrap(),
+                &symbols,
+                None,
+            )
+            .unwrap();
             rules.push(symbols.print_rule(&r.0));
         }
         if !rules.is_empty() {
@@ -409,8 +414,13 @@ fn validate_token_with_limits_and_external_functions(
 
         let mut checks = Vec::new();
         for check in block.checks.iter() {
-            let c = convert::proto_check_to_token_check(check, snapshot.world.version.unwrap(), &symbols)
-                .unwrap();
+            let c = convert::proto_check_to_token_check(
+                check,
+                snapshot.world.version.unwrap(),
+                &symbols,
+                None,
+            )
+            .unwrap();
             checks.push(symbols.print_check(&c));
         }
         if !checks.is_empty() {
@@ -424,7 +434,13 @@ fn validate_token_with_limits_and_external_functions(
 
     let mut rules: Vec<String> = Vec::new();
     for rule in snapshot.world.authorizer_block.rules {
-        let r = convert::proto_rule_to_token_rule(&rule, snapshot.world.version.unwrap(), &symbols).unwrap();
+        let r = convert::proto_rule_to_token_rule(
+            &rule,
+            snapshot.world.version.unwrap(),
+            &symbols,
+            None,
+        )
+        .unwrap();
 
         rules.push(symbols.print_rule(&r.0));
     }
@@ -438,8 +454,13 @@ fn validate_token_with_limits_and_external_functions(
 
     let mut checks = Vec::new();
     for check in snapshot.world.authorizer_block.checks {
-        let c =
-            convert::proto_check_to_token_check(&check, snapshot.world.version.unwrap(), &symbols).unwrap();
+        let c = convert::proto_check_to_token_check(
+            &check,
+            snapshot.world.version.unwrap(),
+            &symbols,
+            None,
+        )
+        .unwrap();
         checks.push(symbols.print_check(&c));
     }
     if !checks.is_empty() {
@@ -464,7 +485,7 @@ fn validate_token_with_limits_and_external_functions(
         let mut facts = Vec::new();
 
         for fact in factset.facts {
-            let f = convert::proto_fact_to_token_fact(&fact, &symbols).unwrap();
+            let f = convert::proto_fact_to_token_fact(&fact, &symbols, None).unwrap();
             facts.push(symbols.print_fact(&f));
         }
         if !facts.is_empty() {

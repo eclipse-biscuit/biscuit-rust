@@ -163,7 +163,7 @@ impl super::Authorizer {
             let origin = proto_origin_to_authorizer_origin(&origins)?;
 
             for fact in &facts {
-                let fact = proto_fact_to_token_fact(fact, &authorizer.symbols)?;
+                let fact = proto_fact_to_token_fact(fact, &authorizer.symbols, None)?;
                 //let fact = Fact::convert_from(&fact, &symbols)?.convert(&mut authorizer.symbols);
                 authorizer.world.facts.insert(&origin, fact);
             }

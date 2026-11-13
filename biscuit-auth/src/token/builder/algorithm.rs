@@ -11,6 +11,7 @@ use std::{
 use crate::error;
 
 #[derive(Debug, Copy, Clone, PartialEq, Hash, Eq)]
+#[non_exhaustive]
 pub enum Algorithm {
     Ed25519,
     Secp256r1,

@@ -7,6 +7,7 @@ use std::fmt::{self, Debug, Formatter};
 use base64::prelude::*;
 use prost::Message;
 
+use super::limits::DeserializationLimits;
 use super::parsed::ParsedToken;
 use super::public_keys::PublicKeys;
 use super::{default_symbol_table, Biscuit};
@@ -74,12 +75,48 @@ impl UnverifiedBiscuit {
         self.verify(|kid| Ok(f(kid)))
     }
 
+    /// deserializes a token from raw bytes, rejecting it if it does not respect the limits
+    pub fn from_with_limits<T>(
+        slice: T,
+        limits: &DeserializationLimits,
+    ) -> Result<Self, error::Token>
+    where
+        T: AsRef<[u8]>,
+    {
+        Self::from_with_symbols_and_limits(slice.as_ref(), default_symbol_table(), limits)
+    }
+
+    /// deserializes a token from base64, rejecting it if it does not respect the limits
+    pub fn from_base64_with_limits<T>(
+        slice: T,
+        limits: &DeserializationLimits,
+    ) -> Result<Self, error::Token>
+    where
+        T: AsRef<[u8]>,
+    {
+        super::limits::check_base64_size(slice.as_ref(), limits)?;
+        let decoded = BASE64_URL_SAFE.decode(slice)?;
+        Self::from_with_limits(&decoded, limits)
+    }
+
     /// deserializes from raw bytes with a custom symbol table
     pub fn from_with_symbols(slice: &[u8], symbols: SymbolTable) -> Result<Self, error::Token> {
-        let container = SerializedBiscuit::deserialize(slice)?;
+        Self::from_with_symbols_and_limits(
+            slice,
+            symbols,
+            &DeserializationLimits::allow_everything(),
+        )
+    }
+
+    fn from_with_symbols_and_limits(
+        slice: &[u8],
+        symbols: SymbolTable,
+        limits: &DeserializationLimits,
+    ) -> Result<Self, error::Token> {
+        let container = SerializedBiscuit::deserialize(slice, limits)?;
 
         Ok(UnverifiedBiscuit {
-            inner: ParsedToken::from_container(container, symbols)?,
+            inner: ParsedToken::from_container(container, symbols, limits)?,
         })
     }
 

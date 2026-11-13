@@ -256,6 +256,7 @@ pub use crypto::{
 };
 pub use token::public_keys;
 pub use token::authorizer::{Authorizer, AuthorizerLimits};
+pub use token::limits::{BlockLimits, DeserializationLimits};
 pub use token::builder;
 pub use token::builder::{Algorithm, AuthorizerBuilder, BiscuitBuilder, BlockBuilder};
 pub use token::builder_ext;
