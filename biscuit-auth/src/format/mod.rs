@@ -26,11 +26,19 @@ use crate::error::{BlockLimit, TokenLimit};
 use crate::token::limits::{BlockLimits, DeserializationLimits};
 
 /// Structures generated from the Protobuf schema
+#[cfg(feature = "unsafe-protobuf-access")]
+#[cfg_attr(feature = "docsrs", doc(cfg(feature = "unsafe-protobuf-access")))]
 pub mod schema; /*{
                     include!(concat!(env!("OUT_DIR"), "/biscuit.format.schema.rs"));
                 }*/
+#[cfg(not(feature = "unsafe-protobuf-access"))]
+pub(crate) mod schema;
 
+#[cfg(feature = "unsafe-protobuf-access")]
+#[cfg_attr(feature = "docsrs", doc(cfg(feature = "unsafe-protobuf-access")))]
 pub mod convert;
+#[cfg(not(feature = "unsafe-protobuf-access"))]
+pub(crate) mod convert;
 
 use self::convert::*;
 
@@ -276,7 +284,7 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
     }
 
     /// serializes the token
-    pub fn to_proto(&self) -> schema::Biscuit {
+    pub(crate) fn to_proto(&self) -> schema::Biscuit {
         let authority = schema::SignedBlock {
             block: self.authority.data.clone(),
             next_key: convert::public_key_to_proto(&self.authority.next_key),
