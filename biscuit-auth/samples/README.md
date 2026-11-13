@@ -3698,3 +3698,46 @@ World {
 
 result: `Err(Execution(InvalidType))`
 
+
+------------------------------
+
+## block referencing a symbol defined in a later block: test039_forward_symbol_reference.bc
+### token
+
+authority:
+symbols: ["file1"]
+
+public keys: []
+
+block version: 3
+
+```
+right("file1", "read");
+```
+
+1:
+symbols: []
+
+public keys: []
+
+block version: 3
+
+```
+check if resource("file2");
+```
+
+2:
+symbols: ["file2"]
+
+public keys: []
+
+block version: 3
+
+```
+check if resource("file2");
+```
+
+### validation
+
+result: `Err(Format(UnknownSymbol(1025)))`
+

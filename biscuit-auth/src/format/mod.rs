@@ -17,12 +17,11 @@ use prost::Message;
 use super::error;
 use super::token::Block;
 use crate::Algorithm;
-use crate::crypto::{ExternalSignature, SerializePrivateKey, Sign, Verify};
+use crate::crypto::{ExternalSignature, SerializePrivateKey, SerializePublicKey, Sign, Verify};
 use crate::crypto::Signature;
 use crate::datalog::SymbolTable;
 use crate::token::RootKeyProvider;
 use crate::token::DATALOG_3_3;
-use crate::token::public_keys::PublicKeyData;
 
 /// Structures generated from the Protobuf schema
 pub mod schema; /*{
@@ -32,6 +31,20 @@ pub mod schema; /*{
 pub mod convert;
 
 use self::convert::*;
+
+/// parses a signed block with the symbols and public keys defined by the previous first party
+/// blocks, adding its own tables to `symbols` if it is a first party block
+pub(crate) fn parse_block<NK, EK: SerializePublicKey>(
+    block: &crypto::Block<NK, EK>,
+    symbols: &mut SymbolTable,
+    name: &str,
+) -> Result<Block, error::Token> {
+    let proto = schema::Block::decode(&block.data[..]).map_err(|e| {
+        error::Format::BlockDeserializationError(format!("error deserializing {name}: {e:?}"))
+    })?;
+    let external_key = block.external_signature.as_ref().map(|ex| &ex.public_key);
+    proto_block_to_token_block(&proto, external_key, Some(symbols)).map_err(Into::into)
+}
 
 pub(crate) const THIRD_PARTY_SIGNATURE_VERSION: u32 = 1;
 pub(crate) const DATALOG_3_3_SIGNATURE_VERSION: u32 = 1;
@@ -54,10 +67,7 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
     where
         KP: RootKeyProvider<Key = K::PublicKey>,
     {
-        let deser = SerializedBiscuit::deserialize(
-            slice,
-            ThirdPartyVerificationMode::PreviousSignatureHashing,
-        )?;
+        let deser = SerializedBiscuit::deserialize(slice)?;
 
         let root = key_provider.choose(deser.root_key_id)?;
         deser.verify(&root)?;
@@ -65,26 +75,7 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
         Ok(deser)
     }
 
-    pub(crate) fn unsafe_from_slice<KP>(
-        slice: &[u8],
-        key_provider: KP,
-    ) -> Result<Self, error::Format>
-    where
-        KP: RootKeyProvider<Key = K::PublicKey>,
-    {
-        let deser =
-            SerializedBiscuit::deserialize(slice, ThirdPartyVerificationMode::UnsafeLegacy)?;
-
-        let root = key_provider.choose(deser.root_key_id)?;
-        deser.verify_inner(&root, ThirdPartyVerificationMode::UnsafeLegacy)?;
-
-        Ok(deser)
-    }
-
-    pub(crate) fn deserialize(
-        slice: &[u8],
-        verification_mode: ThirdPartyVerificationMode,
-    ) -> Result<Self, error::Format> {
+    pub(crate) fn deserialize(slice: &[u8]) -> Result<Self, error::Format> {
         let data = schema::Biscuit::decode(slice).map_err(|e| {
             error::Format::DeserializationError(format!("deserialization error: {e:?}"))
         })?;
@@ -116,9 +107,7 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
             let signature = Signature::from_vec(block.signature);
 
             let external_signature = if let Some(ex) = block.external_signature {
-                if verification_mode == ThirdPartyVerificationMode::PreviousSignatureHashing
-                    && block.version != Some(THIRD_PARTY_SIGNATURE_VERSION)
-                {
+                if block.version != Some(THIRD_PARTY_SIGNATURE_VERSION) {
                     return Err(error::Format::DeserializationError(
                         "Unsupported third party block version".to_string(),
                     ));
@@ -170,41 +159,20 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
         Ok(deser)
     }
 
+    /// parses the blocks of the token
+    ///
+    /// blocks are parsed in order, each with the symbols and public keys known at that point
+    /// (`symbols`, which is extended with the tables of first party blocks), so a block cannot
+    /// reference symbols or public keys from later blocks
     pub(crate) fn extract_blocks(
         &self,
         symbols: &mut SymbolTable,
-    ) -> Result<(schema::Block, Vec<schema::Block>), error::Token> {
-        let authority = schema::Block::decode(&self.authority.data[..]).map_err(|e| {
-            error::Token::Format(error::Format::BlockDeserializationError(format!(
-                "error deserializing authority block: {e:?}"
-            )))
-        })?;
-
-        symbols.extend(&SymbolTable::from(authority.symbols.clone())?)?;
-
-        for pk in &authority.public_keys {
-            let data = PublicKeyData::from_proto(pk);
-            symbols.public_keys.insert_fallible(&data)?;
-        }
+    ) -> Result<(Block, Vec<Block>), error::Token> {
+        let authority = parse_block(&self.authority, symbols, "authority block")?;
 
         let mut blocks = vec![];
-
         for block in self.blocks.iter() {
-            let deser = schema::Block::decode(&block.data[..]).map_err(|e| {
-                error::Token::Format(error::Format::BlockDeserializationError(format!(
-                    "error deserializing block: {e:?}"
-                )))
-            })?;
-
-            if block.external_signature.is_none() {
-                symbols.extend(&SymbolTable::from(deser.symbols.clone())?)?;
-                for pk in &deser.public_keys {
-                    let data = PublicKeyData::from_proto(pk);
-                    symbols.public_keys.insert_fallible(&data)?;
-                }
-            }
-
-            blocks.push(deser);
+            blocks.push(parse_block(block, symbols, "block")?);
         }
 
         Ok((authority, blocks))
@@ -442,14 +410,6 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
 
     /// checks the signature on a deserialized token
     pub fn verify<RK: Verify>(&self, root: &RK) -> Result<(), error::Format> {
-        self.verify_inner(root, ThirdPartyVerificationMode::PreviousSignatureHashing)
-    }
-
-    pub(crate) fn verify_inner<RK: Verify>(
-        &self,
-        root: &RK,
-        verification_mode: ThirdPartyVerificationMode,
-    ) -> Result<(), error::Format> {
         //FIXME: try batched signature verification
         let mut previous_signature;
 
@@ -458,19 +418,7 @@ impl<K: SerializePrivateKey> SerializedBiscuit<K> {
         previous_signature = &self.authority.signature;
 
         for block in &self.blocks {
-            let verification_mode = match (block.version, verification_mode) {
-                (0, ThirdPartyVerificationMode::UnsafeLegacy) => {
-                    ThirdPartyVerificationMode::UnsafeLegacy
-                }
-                _ => ThirdPartyVerificationMode::PreviousSignatureHashing,
-            };
-
-            crypto::verify_block_signature(
-                block,
-                current_pub,
-                previous_signature,
-                verification_mode,
-            )?;
+            crypto::verify_block_signature(block, current_pub, previous_signature)?;
             current_pub = &block.next_key;
             previous_signature = &block.signature;
         }
@@ -541,12 +489,6 @@ where
             .field("proof", &self.proof)
             .finish()
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum ThirdPartyVerificationMode {
-    UnsafeLegacy,
-    PreviousSignatureHashing,
 }
 
 fn block_signature_version<I, RK: Sign, AK: Sign, EK>(
@@ -729,5 +671,154 @@ mod tests {
             1,
             "ed25519 root & next key, first-party block, no new datalog features, previous v1 block"
         );
+    }
+}
+
+#[cfg(test)]
+mod symbol_reference_tests {
+    use prost::Message;
+
+    use crate::error::{Format, Token};
+    use crate::format::schema;
+    use crate::{Biscuit, BlockBuilder, PrivateKey, UnverifiedBiscuit};
+
+    fn edit_block(token: &Biscuit, index: usize, edit: impl FnOnce(&mut schema::Block)) -> Vec<u8> {
+        let mut proto = schema::Biscuit::decode(&token.to_vec().unwrap()[..]).unwrap();
+        let signed = if index == 0 {
+            &mut proto.authority
+        } else {
+            &mut proto.blocks[index - 1]
+        };
+        let mut block = schema::Block::decode(&signed.block[..]).unwrap();
+        edit(&mut block);
+        signed.block = block.encode_to_vec();
+        proto.encode_to_vec()
+    }
+
+    fn block(token: &Biscuit, index: usize) -> schema::Block {
+        let proto = schema::Biscuit::decode(&token.to_vec().unwrap()[..]).unwrap();
+        let signed = if index == 0 {
+            &proto.authority
+        } else {
+            &proto.blocks[index - 1]
+        };
+        schema::Block::decode(&signed.block[..]).unwrap()
+    }
+
+    #[test]
+    fn forward_symbol_references_are_rejected() {
+        let root = PrivateKey::new();
+        let token = Biscuit::builder()
+            .build(&root)
+            .unwrap()
+            .append(BlockBuilder::new().code("check if true;").unwrap())
+            .unwrap()
+            .append(BlockBuilder::new().code("defined_later(1);").unwrap())
+            .unwrap();
+        // the fact stays in the last block, so its name is defined there, and a copy is added
+        // to the first attenuation, which cannot see that block's symbols
+        let fact = block(&token, 2).facts[0].clone();
+        let name = fact.predicate.name;
+        let token = edit_block(&token, 1, |block| block.facts.push(fact));
+
+        assert_eq!(
+            UnverifiedBiscuit::from(&token).unwrap_err(),
+            Token::Format(Format::UnknownSymbol(name))
+        );
+    }
+
+    #[test]
+    fn unknown_symbols_are_rejected() {
+        let root = PrivateKey::new();
+        let token = Biscuit::builder()
+            .code("fact(\"string\");")
+            .unwrap()
+            .build(&root)
+            .unwrap();
+        let token = edit_block(&token, 0, |block| block.symbols.clear());
+
+        assert!(matches!(
+            UnverifiedBiscuit::from(&token).unwrap_err(),
+            Token::Format(Format::UnknownSymbol(_))
+        ));
+    }
+
+    #[test]
+    fn unknown_public_keys_are_rejected() {
+        let root = PrivateKey::new();
+        let token = Biscuit::builder()
+            .build(&root)
+            .unwrap()
+            .append(
+                BlockBuilder::new()
+                    .code("check if true trusting authority;")
+                    .unwrap(),
+            )
+            .unwrap();
+        let token = edit_block(&token, 1, |block| {
+            block.scope.push(schema::Scope {
+                content: Some(schema::scope::Content::PublicKey(0)),
+            })
+        });
+
+        assert_eq!(
+            UnverifiedBiscuit::from(&token).unwrap_err(),
+            Token::Format(Format::UnknownExternalKey)
+        );
+    }
+
+    #[test]
+    fn third_party_blocks_only_see_their_own_symbols() {
+        let root = PrivateKey::new();
+        let token = Biscuit::builder()
+            .code("authority_fact(1);")
+            .unwrap()
+            .build(&root)
+            .unwrap();
+        let external = PrivateKey::new();
+        let third_party_block = token
+            .third_party_request()
+            .unwrap()
+            .create_block(
+                &external,
+                BlockBuilder::new().code("third_party_fact(1);").unwrap(),
+            )
+            .unwrap();
+        let token = token
+            .append_third_party(external.public(), third_party_block)
+            .unwrap();
+
+        let shared_index = block(&token, 1).facts[0].predicate.name;
+        assert_eq!(block(&token, 0).facts[0].predicate.name, shared_index);
+        let token = edit_block(&token, 1, |block| block.symbols.clear());
+
+        assert_eq!(
+            UnverifiedBiscuit::from(&token).unwrap_err(),
+            Token::Format(Format::UnknownSymbol(shared_index))
+        );
+    }
+
+    #[test]
+    fn valid_references_are_accepted() {
+        let root = PrivateKey::new();
+        let trusted = PrivateKey::new();
+        let token = Biscuit::builder()
+            .code(format!(
+                r#"fact("string", {{"key": [1, {{"a"}}]}}); check if fact($x, $y), $x.extern::f($y), [1].any($p -> $p == 1) trusting {};"#,
+                trusted.public()
+            ))
+            .unwrap()
+            .build(&root)
+            .unwrap()
+            .append(
+                BlockBuilder::new()
+                    .code(r#"check if fact("string", $y) trusting authority;"#)
+                    .unwrap(),
+            )
+            .unwrap();
+        let bytes = token.to_vec().unwrap();
+
+        assert!(UnverifiedBiscuit::from(&bytes).is_ok());
+        assert!(Biscuit::from(&bytes, root.public()).is_ok());
     }
 }

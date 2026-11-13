@@ -4,29 +4,26 @@
  */
 //! main structures to interact with Biscuit tokens
 use std::fmt::{self, Debug, Display, Formatter};
-use std::iter::once;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use base64::prelude::*;
 use builder::{BiscuitBuilder, BlockBuilder};
-use prost::Message;
 use rand_core::{CryptoRng, Rng};
 
-use self::public_keys::{PublicKeyData, PublicKeys};
+use self::public_keys::PublicKeys;
 use super::datalog::SymbolTable;
 use super::error;
 use super::format::SerializedBiscuit;
-use crate::crypto::{self, PrivateKey, PublicKey, Signature, SerializePrivateKey, Verify, Sign};
-use crate::format::convert::{proto_block_to_token_block, public_key_from_proto};
-use crate::format::schema::{self, ThirdPartyBlockContents};
-use crate::format::{ThirdPartyVerificationMode, THIRD_PARTY_SIGNATURE_VERSION};
+use crate::crypto::{PrivateKey, PublicKey, SerializePrivateKey, Verify, Sign};
 use authorizer::Authorizer;
+use parsed::ParsedToken;
 
 pub mod authorizer;
 pub(crate) mod block;
 pub mod builder;
 pub mod builder_ext;
+mod parsed;
 pub mod public_keys;
 pub(crate) mod third_party;
 pub mod unverified;
@@ -84,11 +81,7 @@ pub fn default_symbol_table() -> SymbolTable {
 /// ```
 #[derive(Clone)]
 pub struct Biscuit<K: SerializePrivateKey = PrivateKey> {
-    pub(crate) root_key_id: Option<u32>,
-    pub(crate) authority: schema::Block,
-    pub(crate) blocks: Vec<schema::Block>,
-    pub(crate) symbols: SymbolTable,
-    pub(crate) container: SerializedBiscuit<K>,
+    pub(crate) inner: ParsedToken<K>,
 }
 
 impl Biscuit {
@@ -117,53 +110,6 @@ impl Biscuit {
         Biscuit::from_base64_with_symbols(slice, key_provider, default_symbol_table())
     }
 
-    /// deserializes a token and validates the signature using the root public key
-    ///
-    /// This allows the deprecated 3rd party block format
-    pub fn unsafe_deprecated_deserialize<T, KP>(
-        slice: T,
-        key_provider: KP,
-    ) -> Result<Self, error::Token>
-    where
-        T: AsRef<[u8]>,
-        KP: RootKeyProvider<Key = PublicKey>,
-    {
-        let container = SerializedBiscuit::unsafe_from_slice(slice.as_ref(), key_provider)
-            .map_err(error::Token::Format)?;
-
-        Biscuit::from_serialized_container(container, default_symbol_table())
-    }
-
-    /// serializes the token
-    pub fn to_vec(&self) -> Result<Vec<u8>, error::Token> {
-        self.container.to_vec().map_err(error::Token::Format)
-    }
-
-    /// serializes the token and encode it to a (URL safe) base64 string
-    pub fn to_base64(&self) -> Result<String, error::Token> {
-        self.container
-            .to_vec()
-            .map_err(error::Token::Format)
-            .map(|v| BASE64_URL_SAFE.encode(v))
-    }
-
-    /// serializes the token
-    pub fn serialized_size(&self) -> Result<usize, error::Token> {
-        Ok(self.container.serialized_size())
-    }
-
-    /// creates a sealed version of the token
-    ///
-    /// sealed tokens cannot be attenuated
-    pub fn seal(&self) -> Result<Biscuit, error::Token> {
-        let container = self.container.seal()?;
-
-        let mut token = self.clone();
-        token.container = container;
-
-        Ok(token)
-    }
-
     /// creates an authorizer from this token
     ///
     /// Such an authorizer can only be used for querying, since it will contain no authorization policy.
@@ -173,14 +119,36 @@ impl Biscuit {
 }
 
 impl<K: SerializePrivateKey> Biscuit<K> {
+    /// serializes the token
+    pub fn to_vec(&self) -> Result<Vec<u8>, error::Token> {
+        self.inner.to_vec()
+    }
+
+    /// serializes the token and encode it to a (URL safe) base64 string
+    pub fn to_base64(&self) -> Result<String, error::Token> {
+        self.inner.to_base64()
+    }
+
+    /// serializes the token
+    pub fn serialized_size(&self) -> Result<usize, error::Token> {
+        Ok(self.inner.serialized_size())
+    }
+
+    /// creates a sealed version of the token
+    ///
+    /// sealed tokens cannot be attenuated
+    pub fn seal(&self) -> Result<Self, error::Token> {
+        self.inner.seal().map(|inner| Biscuit { inner })
+    }
 
     /// adds a new block to the token
     ///
     /// since the public key is integrated into the token, the private key can be
     /// discarded right after calling this function
     pub fn append(&self, block_builder: BlockBuilder) -> Result<Self, error::Token> {
-        let key = K::new_with_rng(builder::Algorithm::Ed25519, &mut rand::rng());
-        self.append_with_key(&key, block_builder)
+        self.inner
+            .append(block_builder)
+            .map(|inner| Biscuit { inner })
     }
 
     /// returns the list of context elements of each block
@@ -188,18 +156,12 @@ impl<K: SerializePrivateKey> Biscuit<K> {
     /// the context is a free form text field in which application specific data
     /// can be stored
     pub fn context(&self) -> Vec<Option<String>> {
-        let mut res = vec![self.authority.context.clone()];
-
-        for b in self.blocks.iter() {
-            res.push(b.context.clone());
-        }
-
-        res
+        self.inner.context()
     }
 
     /// returns an (optional) root key identifier. It provides a hint for public key selection during verification
     pub fn root_key_id(&self) -> Option<u32> {
-        self.root_key_id
+        self.inner.root_key_id()
     }
 
     /// returns a list of revocation identifiers for each block, in order
@@ -207,13 +169,7 @@ impl<K: SerializePrivateKey> Biscuit<K> {
     /// revocation identifiers are unique: tokens generated separately with
     /// the same contents will have different revocation ids
     pub fn revocation_identifiers(&self) -> Vec<Vec<u8>> {
-        let mut res = vec![self.container.authority.signature.to_bytes().to_vec()];
-
-        for block in self.container.blocks.iter() {
-            res.push(block.signature.to_bytes().to_vec());
-        }
-
-        res
+        self.inner.revocation_identifiers()
     }
 
     /// returns a list of external key for each block, in order
@@ -222,13 +178,7 @@ impl<K: SerializePrivateKey> Biscuit<K> {
     /// and their contents can be trusted as coming from the holder of
     /// the corresponding private key
     pub fn external_public_keys(&self) -> Vec<Option<K::PublicKey>> {
-        let mut res = vec![None];
-
-        for block in self.container.blocks.iter() {
-            res.push(block.external_signature.as_ref().map(|sig| sig.public_key.clone()));
-        }
-
-        res
+        self.inner.external_public_keys()
     }
 
     /// pretty printer for this token
@@ -238,19 +188,12 @@ impl<K: SerializePrivateKey> Biscuit<K> {
 
     /// prints the content of a block as Datalog source code
     pub fn print_block_source(&self, index: usize) -> Result<String, error::Token> {
-        self.block(index).map(|block| {
-            let symbols = if block.external_key.is_some() {
-                &block.symbols
-            } else {
-                &self.symbols
-            };
-            block.print_source(symbols)
-        })
+        self.inner.print_block_source(index)
     }
 
     /// gets the datalog version for a given block
     pub fn block_version(&self, index: usize) -> Result<u32, error::Token> {
-        self.block(index).map(|block| block.version)
+        self.inner.block_version(index)
     }
 
     /// creates a new token, using a provided CSPRNG
@@ -280,33 +223,11 @@ impl<K: SerializePrivateKey> Biscuit<K> {
         root_key_id: Option<u32>,
         root_key: &RK,
         next_key: &K,
-        mut symbols: SymbolTable,
+        symbols: SymbolTable,
         authority: Block,
     ) -> Result<Biscuit<K>, error::Token> {
-        if !symbols.is_disjoint(&authority.symbols) {
-            return Err(error::Token::Format(error::Format::SymbolTableOverlap));
-        }
-
-        symbols.extend(&authority.symbols)?;
-
-        let blocks = vec![];
-
-        let container = SerializedBiscuit::new(root_key_id, root_key, next_key, &authority)?;
-
-        symbols.public_keys.extend(&authority.public_keys)?;
-
-        let authority = schema::Block::decode(&container.authority.data[..]).map_err(|e| {
-            error::Token::Format(error::Format::BlockDeserializationError(format!(
-                "error deserializing block: {e:?}"
-            )))
-        })?;
-
         Ok(Biscuit {
-            root_key_id,
-            authority,
-            blocks,
-            symbols,
-            container,
+            inner: ParsedToken::new(root_key_id, root_key, next_key, symbols, authority)?,
         })
     }
 
@@ -322,23 +243,8 @@ impl<K: SerializePrivateKey> Biscuit<K> {
         let container =
             SerializedBiscuit::from_slice(slice, key_provider).map_err(error::Token::Format)?;
 
-        Biscuit::from_serialized_container(container, symbols)
-    }
-
-    fn from_serialized_container(
-        container: SerializedBiscuit<K>,
-        mut symbols: SymbolTable,
-    ) -> Result<Self, error::Token> {
-        let (authority, blocks) = container.extract_blocks(&mut symbols)?;
-
-        let root_key_id = container.root_key_id;
-
         Ok(Biscuit {
-            root_key_id,
-            authority,
-            blocks,
-            symbols,
-            container,
+            inner: ParsedToken::from_container(container, symbols)?,
         })
     }
 
@@ -359,7 +265,7 @@ impl<K: SerializePrivateKey> Biscuit<K> {
 
     /// returns the internal representation of the token
     pub fn container(&self) -> &SerializedBiscuit<K> {
-        &self.container
+        &self.inner.container
     }
 
     /// adds a new block to the token, using the provided CSPRNG
@@ -371,46 +277,13 @@ impl<K: SerializePrivateKey> Biscuit<K> {
         key: &K,
         block_builder: BlockBuilder,
     ) -> Result<Self, error::Token> {
-        let block = block_builder.build(self.symbols.clone());
-
-        if !self.symbols.is_disjoint(&block.symbols) {
-            return Err(error::Token::Format(error::Format::SymbolTableOverlap));
-        }
-
-        let authority = self.authority.clone();
-        let mut blocks = self.blocks.clone();
-        let mut symbols = self.symbols.clone();
-
-        let container = self.container.append(key, &block, None)?;
-
-        symbols.extend(&block.symbols)?;
-        symbols.public_keys.extend(&block.public_keys)?;
-
-        let deser = schema::Block::decode(
-            &container
-                .blocks
-                .last()
-                .expect("a new block was just added so the list is not empty")
-                .data[..],
-        )
-        .map_err(|e| {
-            error::Token::Format(error::Format::BlockDeserializationError(format!(
-                "error deserializing block: {e:?}"
-            )))
-        })?;
-        blocks.push(deser);
-
-        Ok(Biscuit {
-            root_key_id: self.root_key_id,
-            authority,
-            blocks,
-            symbols,
-            container,
-        })
+        self.inner
+            .append_with_key(key, block_builder)
+            .map(|inner| Biscuit { inner })
     }
 
     pub fn third_party_request(&self) -> Result<ThirdPartyRequest, error::Token> {
-        ThirdPartyRequest::from_container(&self.container)
+        self.inner.third_party_request()
     }
 
     pub fn append_third_party(
@@ -428,182 +301,33 @@ impl<K: SerializePrivateKey> Biscuit<K> {
         response: ThirdPartyBlock,
         next_key: K,
     ) -> Result<Self, error::Token> {
-        let ThirdPartyBlockContents {
-            payload,
-            external_signature,
-        } = response.0;
-
-        let provided_key = public_key_from_proto(&external_signature.public_key)?;
-        if external_key != provided_key {
-            return Err(error::Token::Format(error::Format::DeserializationError(
-                format!(
-                    "deserialization error: unexpected key {}",
-                    crypto::print(&provided_key),
-                ),
-            )));
-        }
-
-        let signature = Signature::from_vec(external_signature.signature);
-
-        let previous_key = self
-            .container
-            .blocks
-            .last()
-            .unwrap_or(&self.container.authority)
-            .next_key.clone();
-
-        let external_signature = crypto::ExternalSignature {
-            public_key: external_key,
-            signature,
-        };
-        crypto::verify_external_signature(
-            &payload,
-            &previous_key,
-            &self
-                .container
-                .blocks
-                .last()
-                .unwrap_or(&self.container.authority)
-                .signature,
-            &external_signature,
-            THIRD_PARTY_SIGNATURE_VERSION,
-            ThirdPartyVerificationMode::PreviousSignatureHashing,
-        )?;
-
-        let block = schema::Block::decode(&payload[..]).map_err(|e| {
-            error::Token::Format(error::Format::DeserializationError(format!(
-                "deserialization error: {e:?}"
-            )))
-        })?;
-
-        let symbols = self.symbols.clone();
-        let mut blocks = self.blocks.clone();
-
-        let container =
-            self.container
-                .append_serialized(&next_key, payload, Some(external_signature))?;
-
-        blocks.push(block);
-
-        Ok(Biscuit {
-            root_key_id: self.root_key_id,
-            authority: self.authority.clone(),
-            blocks,
-            symbols,
-            container,
-        })
+        self.inner
+            .append_third_party_with_key(Some(&external_key), response.0, next_key)
+            .map(|inner| Biscuit { inner })
     }
 
     /// gets the list of symbols from a block
     pub fn block_symbols(&self, index: usize) -> Result<Vec<String>, error::Token> {
-        let block = if index == 0 {
-            &self.authority
-        } else {
-            match self.blocks.get(index - 1) {
-                None => return Err(error::Token::Format(error::Format::InvalidBlockId(index))),
-                Some(block) => block,
-            }
-        };
-
-        Ok(block.symbols.clone())
+        self.inner.block_symbols(index)
     }
 
     /// gets the list of public keys from a block
     pub fn block_public_keys(&self, index: usize) -> Result<PublicKeys, error::Token> {
-        let block = if index == 0 {
-            &self.authority
-        } else {
-            match self.blocks.get(index - 1) {
-                None => return Err(error::Token::Format(error::Format::InvalidBlockId(index))),
-                Some(block) => block,
-            }
-        };
-
-        let mut public_keys = PublicKeys::new();
-
-        for pk in &block.public_keys {
-            public_keys.insert(&PublicKeyData::from_proto(pk));
-        }
-        Ok(public_keys)
+        self.inner.block_public_keys(index)
     }
 
     /// gets the list of public keys from a block
     pub fn block_external_key(&self, index: usize) -> Result<Option<K::PublicKey>, error::Token> {
-        let block = if index == 0 {
-            &self.container.authority
-        } else {
-            match self.container.blocks.get(index - 1) {
-                None => return Err(error::Token::Format(error::Format::InvalidBlockId(index))),
-                Some(block) => block,
-            }
-        };
-
-        Ok(block
-            .external_signature
-            .as_ref()
-            .map(|signature| signature.public_key.clone()))
+        self.inner.block_external_key(index)
     }
 
     /// returns the number of blocks (at least 1)
     pub fn block_count(&self) -> usize {
-        1 + self.blocks.len()
+        self.inner.block_count()
     }
 
-    pub(crate) fn block(&self, index: usize) -> Result<Block, error::Token> {
-        let block = if index == 0 {
-            proto_block_to_token_block(
-                &self.authority,
-                self.container
-                    .authority
-                    .external_signature
-                    .as_ref()
-                    .map(|ex| &ex.public_key),
-            )
-            .map_err(error::Token::Format)?
-        } else {
-            if index > self.blocks.len() + 1 {
-                return Err(error::Token::Format(
-                    error::Format::BlockDeserializationError("invalid block index".to_string()),
-                ));
-            }
-
-            proto_block_to_token_block(
-                &self.blocks[index - 1],
-                self.container.blocks[index - 1]
-                    .external_signature
-                    .as_ref()
-                    .map(|ex| &ex.public_key),
-            )
-            .map_err(error::Token::Format)?
-        };
-
-        Ok(block)
-    }
-
-    pub(crate) fn blocks(&self) -> impl Iterator<Item = Result<Block, error::Token>> + use<'_, K> {
-        once(
-            proto_block_to_token_block(
-                &self.authority,
-                self.container
-                    .authority
-                    .external_signature
-                    .as_ref()
-                    .map(|ex| &ex.public_key),
-            )
-            .map_err(error::Token::Format),
-        )
-        .chain(self.blocks.iter().zip(self.container.blocks.iter()).map(
-            |(block, container)| {
-                proto_block_to_token_block(
-                    block,
-                    container
-                        .external_signature
-                        .as_ref()
-                        .map(|ex| &ex.public_key),
-                )
-                .map_err(error::Token::Format)
-            },
-        ))
+    pub(crate) fn blocks(&self) -> impl Iterator<Item = &Block> {
+        self.inner.blocks()
     }
 }
 
@@ -614,35 +338,29 @@ where
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Biscuit")
-            .field("root_key_id", &self.root_key_id)
-            .field("authority", &self.authority)
-            .field("blocks", &self.blocks)
-            .field("symbols", &self.symbols)
-            .field("container", &self.container)
+            .field("root_key_id", &self.inner.root_key_id())
+            .field("authority", &self.inner.authority)
+            .field("blocks", &self.inner.blocks)
+            .field("symbols", &self.inner.symbols)
+            .field("container", &self.inner.container)
             .finish()
     }
 }
 
-
 impl<K: SerializePrivateKey> Display for Biscuit<K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let authority = self
-            .block(0)
-            .as_ref()
-            .map(|block| print_block(&self.symbols, block))
-            .unwrap_or_else(|_| String::new());
-        let blocks: Vec<_> = (1..self.block_count())
-            .map(|i| {
-                self.block(i)
-                    .as_ref()
-                    .map(|block| print_block(&self.symbols, block))
-                    .unwrap_or_else(|_| String::new())
-            })
+        let symbols = &self.inner.symbols;
+        let authority = print_block(symbols, &self.inner.authority);
+        let blocks: Vec<_> = self
+            .inner
+            .blocks
+            .iter()
+            .map(|block| print_block(symbols, block))
             .collect();
 
         write!(f, "Biscuit {{\n    symbols: {:?}\n    public keys: {:?}\n    authority: {}\n    blocks: [\n        {}\n    ]\n}}",
-        self.symbols.strings(),
-        self.symbols.public_keys.keys.iter().map(|pk| format!("{}", pk)).collect::<Vec<_>>(),
+        symbols.strings(),
+        symbols.public_keys.keys.iter().map(|pk| format!("{}", pk)).collect::<Vec<_>>(),
         authority,
         blocks.join(",\n\t")
     )
@@ -1614,33 +1332,6 @@ mod tests {
         }
     }
 
-    // check that we can still allow the verification of the old 3rd party block signature
-    #[test]
-    fn third_party_unsafe_deserialize() {
-        // this is a token generated with the old third party signature, that does not include the previous block's signature
-        let token_bytes = include_bytes!("../../tests/fixtures/unsafe_third_party.bc");
-        let _ = UnverifiedBiscuit::unsafe_deprecated_deserialize(token_bytes).unwrap();
-        assert_eq!(
-            UnverifiedBiscuit::from(token_bytes).unwrap_err(),
-            error::Token::Format(error::Format::DeserializationError(
-                "Unsupported third party block version".to_string()
-            ))
-        );
-
-        let root_key = PublicKey::from_bytes_hex(
-            "1055c750b1a1505937af1537c626ba3263995c33a64758aaafb1275b0312e284",
-            builder::Algorithm::Ed25519,
-        )
-        .unwrap();
-        let _ = Biscuit::unsafe_deprecated_deserialize(token_bytes, root_key).unwrap();
-        assert_eq!(
-            Biscuit::from(token_bytes, root_key).unwrap_err(),
-            error::Token::Format(error::Format::DeserializationError(
-                "Unsupported third party block version".to_string()
-            ))
-        );
-    }
-
     // tests that the authority block signature version 1 works
     #[test]
     fn authority_signature_v1() {
@@ -1653,7 +1344,7 @@ mod tests {
             rules: vec![],
             checks: vec![],
             context: None,
-            version: 0,
+            version: MIN_SCHEMA_VERSION,
             external_key: None,
             public_keys: PublicKeys::new(),
             scopes: vec![],
@@ -1691,5 +1382,25 @@ mod tests {
             assert_eq!(parsed.print_block_source(i), biscuit1.print_block_source(i));
             assert_eq!(parsed.block_version(i), biscuit1.block_version(i));
         }
+    }
+
+    // indexing one past the last block used to panic instead of returning an error
+    #[test]
+    fn out_of_bounds_block_index() {
+        let root = PrivateKey::new();
+        let token = Biscuit::builder()
+            .build(&root)
+            .unwrap()
+            .append(BlockBuilder::new())
+            .unwrap();
+        let unverified = UnverifiedBiscuit::from(token.to_vec().unwrap()).unwrap();
+        let index = token.block_count();
+
+        let expected = error::Token::Format(error::Format::InvalidBlockId(index));
+        assert_eq!(token.print_block_source(index).unwrap_err(), expected);
+        assert_eq!(token.block_version(index).unwrap_err(), expected);
+        assert_eq!(token.block_symbols(index).unwrap_err(), expected);
+        assert_eq!(unverified.print_block_source(index).unwrap_err(), expected);
+        assert_eq!(unverified.block_version(index).unwrap_err(), expected);
     }
 }

@@ -25,7 +25,6 @@ use zeroize::Zeroizing;
 
 use crate::builder::Algorithm;
 use crate::format::schema;
-use crate::format::ThirdPartyVerificationMode;
 
 use super::error;
 
@@ -591,7 +590,6 @@ pub fn verify_block_signature<AK: Verify + SerializePublicKey, NK: Verify + Seri
     block: &Block<NK, EK>,
     public_key: &AK,
     previous_signature: &Signature,
-    verification_mode: ThirdPartyVerificationMode,
 ) -> Result<(), error::Format> {
     let to_verify = match block.version {
         0 => generate_block_signature_payload_v0(
@@ -619,33 +617,23 @@ pub fn verify_block_signature<AK: Verify + SerializePublicKey, NK: Verify + Seri
     if let Some(external_signature) = block.external_signature.as_ref() {
         verify_external_signature(
             &block.data,
-            public_key,
             previous_signature,
             external_signature,
             block.version,
-            verification_mode,
         )?;
     }
 
     Ok(())
 }
 
-pub fn verify_external_signature<AK: Verify + SerializePublicKey, EK: Verify>(
+pub fn verify_external_signature<EK: Verify>(
     payload: &[u8],
-    public_key: &AK,
     previous_signature: &Signature,
     external_signature: &ExternalSignature<EK>,
     version: u32,
-    verification_mode: ThirdPartyVerificationMode,
 ) -> Result<(), error::Format> {
-    let to_verify = match verification_mode {
-        ThirdPartyVerificationMode::UnsafeLegacy => {
-            generate_external_signature_payload_v0(payload, public_key)
-        }
-        ThirdPartyVerificationMode::PreviousSignatureHashing => {
-            generate_external_signature_payload_v1(payload, previous_signature.to_bytes(), version)
-        }
-    };
+    let to_verify =
+        generate_external_signature_payload_v1(payload, previous_signature.to_bytes(), version);
 
     external_signature
         .public_key
@@ -724,14 +712,6 @@ pub(crate) fn generate_block_signature_payload_v1<NK: Verify + SerializePublicKe
         to_verify.extend(b"\0EXTERNALSIG\0");
         to_verify.extend_from_slice(signature.signature.to_bytes());
     }
-
-    to_verify
-}
-
-fn generate_external_signature_payload_v0<AK: Verify + SerializePublicKey>(payload: &[u8], previous_key: &AK) -> Vec<u8> {
-    let mut to_verify = payload.to_vec();
-    to_verify.extend(&(previous_key.algorithm() as i32).to_le_bytes());
-    to_verify.extend(&previous_key.to_bytes());
 
     to_verify
 }

@@ -11,7 +11,7 @@ use crate::{
 use super::{public_keys::{self, PublicKeys}, Scope};
 
 /// a block contained in a token
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Block {
     /// list of symbols introduced by this block
     pub symbols: SymbolTable,

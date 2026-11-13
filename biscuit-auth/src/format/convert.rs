@@ -48,9 +48,16 @@ pub fn token_block_to_proto_block(input: &Block) -> schema::Block {
     }
 }
 
+/// converts a decoded block
+///
+/// `token_symbols` contains the symbols and public keys defined by the previous first party
+/// blocks of the token, which a first party block can reference. A first party block's own
+/// symbols and public keys are added to it. Third party blocks and standalone blocks (`None`)
+/// can only reference their own symbols and public keys
 pub fn proto_block_to_token_block<EK: SerializePublicKey>(
     input: &schema::Block,
     external_key: Option<&EK>,
+    token_symbols: Option<&mut SymbolTable>,
 ) -> Result<Block, error::Format> {
     let version = input.version.unwrap_or(0);
     if !(MIN_SCHEMA_VERSION..=MAX_SCHEMA_VERSION).contains(&version) {
@@ -61,16 +68,32 @@ pub fn proto_block_to_token_block<EK: SerializePublicKey>(
         });
     }
 
+    let mut public_keys = PublicKeys::new();
+    for pk in &input.public_keys {
+        public_keys.insert_fallible(&PublicKeyData::from_proto(pk))?;
+    }
+    let symbols =
+        SymbolTable::from_symbols_and_public_keys(input.symbols.clone(), public_keys.keys.clone())?;
+
+    // the symbols and public keys visible from this block
+    let visible_symbols = match token_symbols {
+        Some(token_symbols) if external_key.is_none() => {
+            token_symbols.extend(&symbols)?;
+            &*token_symbols
+        }
+        _ => &symbols,
+    };
+
     let mut facts = vec![];
     let mut rules = vec![];
     let mut checks = vec![];
     let mut scopes = vec![];
     for fact in input.facts.iter() {
-        facts.push(proto_fact_to_token_fact(fact)?);
+        facts.push(proto_fact_to_token_fact(fact, visible_symbols)?);
     }
 
     for rule in input.rules.iter() {
-        rules.push(proto_rule_to_token_rule(rule, version)?.0);
+        rules.push(proto_rule_to_token_rule(rule, version, visible_symbols)?.0);
     }
 
     if version < MAX_SCHEMA_VERSION {
@@ -97,20 +120,13 @@ pub fn proto_block_to_token_block<EK: SerializePublicKey>(
     }
 
     for check in input.checks.iter() {
-        checks.push(proto_check_to_token_check(check, version)?);
+        checks.push(proto_check_to_token_check(check, version, visible_symbols)?);
     }
     for scope in input.scope.iter() {
-        scopes.push(proto_scope_to_token_scope(scope)?);
+        scopes.push(proto_scope_to_token_scope(scope, visible_symbols)?);
     }
 
     let context = input.context.clone();
-
-    let mut public_keys = PublicKeys::new();
-    for pk in &input.public_keys {
-        public_keys.insert_fallible(&PublicKeyData::from_proto(pk))?;
-    }
-    let symbols =
-        SymbolTable::from_symbols_and_public_keys(input.symbols.clone(), public_keys.keys.clone())?;
 
     let detected_schema_version = get_schema_version(&facts, &rules, &checks, &scopes);
 
@@ -149,8 +165,10 @@ pub fn token_block_to_proto_snapshot_block(input: &Block) -> schema::SnapshotBlo
     }
 }
 
+/// converts a snapshot block, whose symbols and public keys are in `symbols`
 pub fn proto_snapshot_block_to_token_block(
     input: &schema::SnapshotBlock,
+    symbols: &SymbolTable,
 ) -> Result<Block, error::Format> {
     let version = input.version.unwrap_or(0);
     if !(MIN_SCHEMA_VERSION..=MAX_SCHEMA_VERSION).contains(&version) {
@@ -166,11 +184,11 @@ pub fn proto_snapshot_block_to_token_block(
     let mut checks = vec![];
     let mut scopes = vec![];
     for fact in input.facts.iter() {
-        facts.push(proto_fact_to_token_fact(fact)?);
+        facts.push(proto_fact_to_token_fact(fact, symbols)?);
     }
 
     for rule in input.rules.iter() {
-        rules.push(proto_rule_to_token_rule(rule, version)?.0);
+        rules.push(proto_rule_to_token_rule(rule, version, symbols)?.0);
     }
 
     if version == MIN_SCHEMA_VERSION && input.checks.iter().any(|c| c.kind.is_some()) {
@@ -180,10 +198,10 @@ pub fn proto_snapshot_block_to_token_block(
     }
 
     for check in input.checks.iter() {
-        checks.push(proto_check_to_token_check(check, version)?);
+        checks.push(proto_check_to_token_check(check, version, symbols)?);
     }
     for scope in input.scope.iter() {
-        scopes.push(proto_scope_to_token_scope(scope)?);
+        scopes.push(proto_scope_to_token_scope(scope, symbols)?);
     }
 
     let context = input.context.clone();
@@ -270,21 +288,21 @@ pub fn proto_authorizer_to_authorizer(
 
     for fact in input.facts.iter() {
         facts.push(crate::builder::Fact::convert_from(
-            &proto_fact_to_token_fact(fact)?,
+            &proto_fact_to_token_fact(fact, &symbols)?,
             &symbols,
         )?);
     }
 
     for rule in input.rules.iter() {
         rules.push(crate::builder::Rule::convert_from(
-            &proto_rule_to_token_rule(rule, version)?.0,
+            &proto_rule_to_token_rule(rule, version, &symbols)?.0,
             &symbols,
         )?);
     }
 
     for check in input.checks.iter() {
         checks.push(crate::builder::Check::convert_from(
-            &proto_check_to_token_check(check, version)?,
+            &proto_check_to_token_check(check, version, &symbols)?,
             &symbols,
         )?);
     }
@@ -308,9 +326,12 @@ pub fn token_fact_to_proto_fact(input: &Fact) -> schema::Fact {
     }
 }
 
-pub fn proto_fact_to_token_fact(input: &schema::Fact) -> Result<Fact, error::Format> {
+pub fn proto_fact_to_token_fact(
+    input: &schema::Fact,
+    symbols: &SymbolTable,
+) -> Result<Fact, error::Format> {
     Ok(Fact {
-        predicate: proto_predicate_to_token_predicate(&input.predicate)?,
+        predicate: proto_predicate_to_token_predicate(&input.predicate, symbols)?,
     })
 }
 
@@ -330,11 +351,12 @@ pub fn token_check_to_proto_check(input: &Check) -> schema::Check {
 pub fn proto_check_to_token_check(
     input: &schema::Check,
     version: u32,
+    symbols: &SymbolTable,
 ) -> Result<Check, error::Format> {
     let mut queries = vec![];
 
     for q in input.queries.iter() {
-        queries.push(proto_rule_to_token_rule(q, version)?.0);
+        queries.push(proto_rule_to_token_rule(q, version, symbols)?.0);
     }
 
     let kind = match input.kind {
@@ -378,7 +400,7 @@ pub fn proto_policy_to_policy(
     let mut queries = vec![];
 
     for q in input.queries.iter() {
-        let (c, _scopes) = proto_rule_to_token_rule(q, version)?;
+        let (c, _scopes) = proto_rule_to_token_rule(q, version, symbols)?;
         let c = crate::token::builder::Rule::convert_from(&c, symbols)?;
         queries.push(c);
     }
@@ -424,17 +446,18 @@ pub fn token_rule_to_proto_rule(input: &Rule) -> schema::Rule {
 pub fn proto_rule_to_token_rule(
     input: &schema::Rule,
     version: u32,
+    symbols: &SymbolTable,
 ) -> Result<(Rule, Vec<Scope>), error::Format> {
     let mut body = vec![];
 
     for p in input.body.iter() {
-        body.push(proto_predicate_to_token_predicate(p)?);
+        body.push(proto_predicate_to_token_predicate(p, symbols)?);
     }
 
     let mut expressions = vec![];
 
     for c in input.expressions.iter() {
-        expressions.push(proto_expression_to_token_expression(c)?);
+        expressions.push(proto_expression_to_token_expression(c, symbols)?);
     }
 
     if version < DATALOG_3_1 && !input.scope.is_empty() {
@@ -443,12 +466,16 @@ pub fn proto_rule_to_token_rule(
         ));
     }
 
-    let scopes: Result<Vec<_>, _> = input.scope.iter().map(proto_scope_to_token_scope).collect();
+    let scopes: Result<Vec<_>, _> = input
+        .scope
+        .iter()
+        .map(|scope| proto_scope_to_token_scope(scope, symbols))
+        .collect();
     let scopes = scopes?;
 
     Ok((
         Rule {
-            head: proto_predicate_to_token_predicate(&input.head)?,
+            head: proto_predicate_to_token_predicate(&input.head, symbols)?,
             body,
             expressions,
             scopes: scopes.clone(),
@@ -466,15 +493,16 @@ pub fn token_predicate_to_proto_predicate(input: &Predicate) -> schema::Predicat
 
 pub fn proto_predicate_to_token_predicate(
     input: &schema::Predicate,
+    symbols: &SymbolTable,
 ) -> Result<Predicate, error::Format> {
     let mut terms = vec![];
 
     for term in input.terms.iter() {
-        terms.push(proto_id_to_token_term(term)?);
+        terms.push(proto_id_to_token_term(term, symbols)?);
     }
 
     Ok(Predicate {
-        name: input.name,
+        name: known_symbol(input.name, symbols)?,
         terms,
     })
 }
@@ -538,16 +566,27 @@ pub fn token_term_to_proto_id(input: &Term) -> schema::Term {
     }
 }
 
-pub fn proto_id_to_token_term(input: &schema::Term) -> Result<Term, error::Format> {
+/// checks that a symbol is defined in the table
+fn known_symbol(symbol: u64, symbols: &SymbolTable) -> Result<u64, error::Format> {
+    match symbols.get_symbol(symbol) {
+        Some(_) => Ok(symbol),
+        None => Err(error::Format::UnknownSymbol(symbol)),
+    }
+}
+
+pub fn proto_id_to_token_term(
+    input: &schema::Term,
+    symbols: &SymbolTable,
+) -> Result<Term, error::Format> {
     use schema::term::Content;
 
     match &input.content {
         None => Err(error::Format::DeserializationError(
             "deserialization error: ID content enum is empty".to_string(),
         )),
-        Some(Content::Variable(i)) => Ok(Term::Variable(*i)),
+        Some(Content::Variable(i)) => Ok(Term::Variable(known_symbol(*i as u64, symbols)? as u32)),
         Some(Content::Integer(i)) => Ok(Term::Integer(*i)),
-        Some(Content::String(s)) => Ok(Term::Str(*s)),
+        Some(Content::String(s)) => Ok(Term::Str(known_symbol(*s, symbols)?)),
         Some(Content::Date(i)) => Ok(Term::Date(*i)),
         Some(Content::Bytes(s)) => Ok(Term::Bytes(s.clone())),
         Some(Content::Bool(b)) => Ok(Term::Bool(*b)),
@@ -593,7 +632,7 @@ pub fn proto_id_to_token_term(input: &schema::Term) -> Result<Term, error::Forma
                     kind = Some(index);
                 }
 
-                set.insert(proto_id_to_token_term(i)?);
+                set.insert(proto_id_to_token_term(i, symbols)?);
             }
 
             Ok(Term::Set(set))
@@ -603,7 +642,7 @@ pub fn proto_id_to_token_term(input: &schema::Term) -> Result<Term, error::Forma
             let array = a
                 .array
                 .iter()
-                .map(proto_id_to_token_term)
+                .map(|term| proto_id_to_token_term(term, symbols))
                 .collect::<Result<_, _>>()?;
 
             Ok(Term::Array(array))
@@ -614,7 +653,9 @@ pub fn proto_id_to_token_term(input: &schema::Term) -> Result<Term, error::Forma
             for MapEntry { key, value } in m.entries.iter() {
                 let key = match key.content {
                     Some(schema::map_key::Content::Integer(i)) => MapKey::Integer(i),
-                    Some(schema::map_key::Content::String(s)) => MapKey::Str(s),
+                    Some(schema::map_key::Content::String(s)) => {
+                        MapKey::Str(known_symbol(s, symbols)?)
+                    }
                     None => {
                         return Err(error::Format::DeserializationError(
                             "deserialization error: ID content enum is empty".to_string(),
@@ -622,7 +663,7 @@ pub fn proto_id_to_token_term(input: &schema::Term) -> Result<Term, error::Forma
                     }
                 };
 
-                map.insert(key, proto_id_to_token_term(value)?);
+                map.insert(key, proto_id_to_token_term(value, symbols)?);
             }
 
             Ok(Term::Map(map))
@@ -709,17 +750,19 @@ pub fn token_expression_to_proto_expression(input: &Expression) -> schema::Expre
     }
 }
 
-fn proto_op_to_token_op(op: &schema::Op) -> Result<Op, error::Format> {
+fn proto_op_to_token_op(op: &schema::Op, symbols: &SymbolTable) -> Result<Op, error::Format> {
     use schema::{op, op_binary, op_unary};
     Ok(match op.content.as_ref() {
-        Some(op::Content::Value(id)) => Op::Value(proto_id_to_token_term(id)?),
+        Some(op::Content::Value(id)) => Op::Value(proto_id_to_token_term(id, symbols)?),
         Some(op::Content::Unary(u)) => {
             match (op_unary::Kind::try_from(u.kind), u.ffi_name.as_ref()) {
                 (Ok(op_unary::Kind::Negate), None) => Op::Unary(Unary::Negate),
                 (Ok(op_unary::Kind::Parens), None) => Op::Unary(Unary::Parens),
                 (Ok(op_unary::Kind::Length), None) => Op::Unary(Unary::Length),
                 (Ok(op_unary::Kind::TypeOf), None) => Op::Unary(Unary::TypeOf),
-                (Ok(op_unary::Kind::Ffi), Some(n)) => Op::Unary(Unary::Ffi(*n)),
+                (Ok(op_unary::Kind::Ffi), Some(n)) => {
+                    Op::Unary(Unary::Ffi(known_symbol(*n, symbols)?))
+                }
                 (Ok(op_unary::Kind::Ffi), None) => {
                     return Err(error::Format::DeserializationError(
                         "deserialization error: missing ffi name".to_string(),
@@ -772,7 +815,9 @@ fn proto_op_to_token_op(op: &schema::Op) -> Result<Op, error::Format> {
                 (Ok(op_binary::Kind::All), None) => Op::Binary(Binary::All),
                 (Ok(op_binary::Kind::Any), None) => Op::Binary(Binary::Any),
                 (Ok(op_binary::Kind::Get), None) => Op::Binary(Binary::Get),
-                (Ok(op_binary::Kind::Ffi), Some(n)) => Op::Binary(Binary::Ffi(*n)),
+                (Ok(op_binary::Kind::Ffi), Some(n)) => {
+                    Op::Binary(Binary::Ffi(known_symbol(*n, symbols)?))
+                }
                 (Ok(op_binary::Kind::Ffi), None) => {
                     return Err(error::Format::DeserializationError(
                         "deserialization error: missing ffi name".to_string(),
@@ -793,11 +838,15 @@ fn proto_op_to_token_op(op: &schema::Op) -> Result<Op, error::Format> {
             }
         }
         Some(op::Content::Closure(op_closure)) => Op::Closure(
-            op_closure.params.clone(),
+            op_closure
+                .params
+                .iter()
+                .map(|param| known_symbol(*param as u64, symbols).map(|param| param as u32))
+                .collect::<Result<_, _>>()?,
             op_closure
                 .ops
                 .iter()
-                .map(proto_op_to_token_op)
+                .map(|op| proto_op_to_token_op(op, symbols))
                 .collect::<Result<_, _>>()?,
         ),
         None => {
@@ -810,11 +859,12 @@ fn proto_op_to_token_op(op: &schema::Op) -> Result<Op, error::Format> {
 
 pub fn proto_expression_to_token_expression(
     input: &schema::Expression,
+    symbols: &SymbolTable,
 ) -> Result<Expression, error::Format> {
     let mut ops = Vec::new();
 
     for op in input.ops.iter() {
-        ops.push(proto_op_to_token_op(op)?);
+        ops.push(proto_op_to_token_op(op, symbols)?);
     }
 
     Ok(Expression { ops })
@@ -834,8 +884,10 @@ pub fn token_scope_to_proto_scope(input: &Scope) -> schema::Scope {
     }
 }
 
-pub fn proto_scope_to_token_scope(input: &schema::Scope) -> Result<Scope, error::Format> {
-    //FIXME: check that the referenced public key index exists in the public key table
+pub fn proto_scope_to_token_scope(
+    input: &schema::Scope,
+    symbols: &SymbolTable,
+) -> Result<Scope, error::Format> {
     match input.content.as_ref() {
         Some(content) => match content {
             schema::scope::Content::ScopeType(i) => {
@@ -849,7 +901,10 @@ pub fn proto_scope_to_token_scope(input: &schema::Scope) -> Result<Scope, error:
                     )))
                 }
             }
-            schema::scope::Content::PublicKey(i) => Ok(Scope::PublicKey(*i as u64)),
+            schema::scope::Content::PublicKey(i) => match symbols.public_keys.get_key(*i as u64) {
+                Some(_) => Ok(Scope::PublicKey(*i as u64)),
+                None => Err(error::Format::UnknownExternalKey),
+            },
         },
         None => Err(error::Format::DeserializationError(
             "deserialization error: expected `content` field in Scope".to_string(),

@@ -20,7 +20,7 @@ use crate::{
     },
 };
 
-use super::THIRD_PARTY_SIGNATURE_VERSION;
+use crate::format::THIRD_PARTY_SIGNATURE_VERSION;
 
 /// Third party block request
 #[derive(PartialEq, Debug)]

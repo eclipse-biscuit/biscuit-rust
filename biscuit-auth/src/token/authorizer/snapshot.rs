@@ -58,7 +58,8 @@ impl super::Authorizer {
             symbols.public_keys.insert(&PublicKeyData::from_proto(&public_key));
         }
 
-        let authorizer_block = proto_snapshot_block_to_token_block(&world.authorizer_block)?;
+        let authorizer_block =
+            proto_snapshot_block_to_token_block(&world.authorizer_block, &symbols)?;
 
         let authorizer_block_builder = BlockBuilder::convert_from(&authorizer_block, &symbols)?;
         let policies = world
@@ -86,7 +87,7 @@ impl super::Authorizer {
                 token_symbols
             };
 
-            let mut block = proto_snapshot_block_to_token_block(block)?;
+            let mut block = proto_snapshot_block_to_token_block(block, &token_symbols)?;
 
             if let Some(key) = block.external_key.as_ref() {
                 public_key_to_block_id
@@ -162,7 +163,7 @@ impl super::Authorizer {
             let origin = proto_origin_to_authorizer_origin(&origins)?;
 
             for fact in &facts {
-                let fact = proto_fact_to_token_fact(fact)?;
+                let fact = proto_fact_to_token_fact(fact, &authorizer.symbols)?;
                 //let fact = Fact::convert_from(&fact, &symbols)?.convert(&mut authorizer.symbols);
                 authorizer.world.facts.insert(&origin, fact);
             }
