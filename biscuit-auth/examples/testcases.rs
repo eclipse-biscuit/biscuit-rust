@@ -9,7 +9,7 @@ extern crate biscuit_auth as biscuit;
 use biscuit::builder::BlockBuilder;
 use biscuit::datalog::SymbolTable;
 use biscuit::error;
-use biscuit::format::convert;
+use biscuit::format::{convert, schema, SerializedBiscuit};
 use biscuit::macros::*;
 use biscuit::public_keys::PublicKeyData;
 use biscuit::{builder::*, builder_ext::*, Biscuit};
@@ -376,7 +376,8 @@ fn validate_token_with_limits_and_external_functions(
     let res = authorizer.authorize_with_limits(run_limits);
     //println!("authorizer world:\n{}", authorizer.print_world());
     let (_, _, _, policies) = authorizer.dump();
-    let snapshot = authorizer.snapshot().unwrap();
+    let snapshot =
+        schema::AuthorizerSnapshot::decode(&authorizer.to_raw_snapshot().unwrap()[..]).unwrap();
 
     let symbols = SymbolTable::from_symbols_and_public_keys(
         snapshot.world.symbols,
@@ -384,7 +385,7 @@ fn validate_token_with_limits_and_external_functions(
             .world
             .public_keys
             .iter()
-            .map(PublicKeyData::from_proto)
+            .map(|key| PublicKeyData::from_bytes(key.algorithm().into(), key.key.clone()))
             .collect(),
     )
     .unwrap();
@@ -528,6 +529,10 @@ fn write_testcase(target: &str, name: &str, data: &[u8]) {
 #[track_caller]
 fn load_testcase(target: &str, name: &str) -> Vec<u8> {
     std::fs::read(format!("{target}/{name}.bc")).unwrap()
+}
+
+fn decode_proto(serialized: &SerializedBiscuit) -> schema::Biscuit {
+    schema::Biscuit::decode(&serialized.to_vec().unwrap()[..]).unwrap()
 }
 
 fn print_diff(actual: &str, expected: &str) {
@@ -690,7 +695,7 @@ fn invalid_signature_format(target: &str, root: &PrivateKey, test: bool) -> Test
         load_testcase(target, &filename)
     } else {
         let serialized = biscuit2.container();
-        let mut proto = serialized.to_proto();
+        let mut proto = decode_proto(serialized);
         proto.authority.signature.truncate(16);
         let mut data = Vec::new();
         proto.encode(&mut data).unwrap();
@@ -741,7 +746,7 @@ fn random_block(target: &str, root: &PrivateKey, test: bool) -> TestResult {
         load_testcase(target, &filename)
     } else {
         let serialized = biscuit2.container();
-        let mut proto = serialized.to_proto();
+        let mut proto = decode_proto(serialized);
         let arr: [u8; 32] = rng.random();
         proto.blocks[0].block = Vec::from(&arr[..]);
         let mut data = Vec::new();
@@ -793,7 +798,7 @@ fn invalid_signature(target: &str, root: &PrivateKey, test: bool) -> TestResult 
         load_testcase(target, &filename)
     } else {
         let serialized = biscuit2.container();
-        let mut proto = serialized.to_proto();
+        let mut proto = decode_proto(serialized);
         proto.authority.signature[0] += 1;
         let mut data = Vec::new();
         proto.encode(&mut data).unwrap();
@@ -2559,9 +2564,8 @@ fn forward_symbol_reference(target: &str, root: &PrivateKey, test: bool) -> Test
     let data = if test {
         load_testcase(target, &filename)
     } else {
-        let defining_block = biscuit3.container().to_proto().blocks[0].block.clone();
-        let mut referencing_block =
-            biscuit::format::schema::Block::decode(&defining_block[..]).unwrap();
+        let defining_block = decode_proto(biscuit3.container()).blocks[0].block.clone();
+        let mut referencing_block = schema::Block::decode(&defining_block[..]).unwrap();
         referencing_block.symbols.clear();
 
         let data = biscuit1

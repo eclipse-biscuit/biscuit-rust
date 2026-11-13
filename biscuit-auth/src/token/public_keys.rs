@@ -109,7 +109,7 @@ impl PublicKeyData {
         PublicKeyData { algorithm, key }
     }
 
-    pub fn from_proto(key: &schema::PublicKey) -> PublicKeyData {
+    pub(crate) fn from_proto(key: &schema::PublicKey) -> PublicKeyData {
         PublicKeyData {
             algorithm: key.algorithm().into(),
             key: key.key.clone(),
