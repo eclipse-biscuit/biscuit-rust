@@ -253,7 +253,7 @@ fn errors_are_reported() {
     })
     .success()
     .stdout(
-        r#"biscuit_from error(code = 8): error deserializing or verifying the token
+        r#"biscuit_from error(code = 8): error deserializing or verifying the token: could not deserialize the wrapper object
 biscuit_builder_build error(code = 1): invalid argument
 "#,
     );
