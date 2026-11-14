@@ -30,13 +30,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --locked --verbose
       - name: Run tests
-        run: cargo test --features="serde-error,bwk" --verbose
+        run: cargo test --locked --features="serde-error,bwk" --verbose
       - name: Check samples
         run: |
           cd biscuit-auth
-          cargo run --release --example testcases --features serde-error,unsafe-protobuf-access -- ./samples --json > ./samples/samples.json
+          cargo run --locked --release --example testcases --features serde-error,unsafe-protobuf-access -- ./samples --json > ./samples/samples.json
           git diff --exit-code
 
   licenses:
@@ -70,7 +70,7 @@ jobs:
         # the tool exits with the number of dependencies that are not approved
         shell: bash
         run: |
-          cargo tree -e normal --prefix none --no-dedupe \
+          cargo tree --locked -e normal --prefix none --no-dedupe \
             | sort -u \
             | grep -v '^[[:space:]]*$' \
             | grep -v biscuit \
