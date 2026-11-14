@@ -34,6 +34,14 @@ use crate::format::schema;
 /// A token which does not respect the limits fails to deserialize with
 /// [crate::error::Format::TokenLimit].
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde-types",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(
+        default = "DeserializationLimits::allow_everything",
+        deny_unknown_fields
+    )
+)]
 #[non_exhaustive]
 pub struct DeserializationLimits {
     /// whether attenuation blocks may be signed by a third party
@@ -105,6 +113,11 @@ impl DeserializationLimits {
 
 /// The features allowed within a single block of a token
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde-types",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(default = "BlockLimits::allow_everything", deny_unknown_fields)
+)]
 #[non_exhaustive]
 pub struct BlockLimits {
     /// whether expressions may contain closures
@@ -239,6 +252,11 @@ impl BlockLimits {
 
 /// type of a Datalog term, as used in [BlockLimits::allowed_term_types]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    feature = "serde-types",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(rename_all = "snake_case")
+)]
 #[non_exhaustive]
 pub enum TermType {
     Integer,
@@ -254,6 +272,11 @@ pub enum TermType {
 
 /// type of a map key, as used in [BlockLimits::allowed_map_key_types]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    feature = "serde-types",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(rename_all = "snake_case")
+)]
 #[non_exhaustive]
 pub enum MapKeyType {
     Integer,
@@ -262,6 +285,11 @@ pub enum MapKeyType {
 
 /// kind of a unary operation, as used in [BlockLimits::allowed_unary_ops]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    feature = "serde-types",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(rename_all = "snake_case")
+)]
 #[non_exhaustive]
 pub enum UnaryOpKind {
     /// `!`
@@ -290,6 +318,11 @@ impl UnaryOpKind {
 
 /// kind of a binary operation, as used in [BlockLimits::allowed_binary_ops]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    feature = "serde-types",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(rename_all = "snake_case")
+)]
 #[non_exhaustive]
 pub enum BinaryOpKind {
     /// `<`
@@ -393,6 +426,11 @@ impl BinaryOpKind {
 
 /// kind of trusted scope, as used in [BlockLimits::allowed_trusting_scopes]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    feature = "serde-types",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(rename_all = "snake_case")
+)]
 #[non_exhaustive]
 pub enum ScopeKind {
     /// `trusting authority`
@@ -438,6 +476,56 @@ mod tests {
     use crate::error::BlockLimit;
     use crate::error::{Format, Token};
     use crate::{Biscuit, BlockBuilder, PrivateKey, UnverifiedBiscuit};
+
+    #[cfg(feature = "serde-types")]
+    #[test]
+    fn serde_names() {
+        use serde_json::{from_value, json, to_value};
+
+        assert_eq!(to_value(TermType::Integer).unwrap(), json!("integer"));
+        assert_eq!(to_value(MapKeyType::String).unwrap(), json!("string"));
+        assert_eq!(to_value(UnaryOpKind::TypeOf).unwrap(), json!("type_of"));
+        assert_eq!(
+            to_value(BinaryOpKind::HeterogeneousNotEqual).unwrap(),
+            json!("heterogeneous_not_equal")
+        );
+        assert_eq!(to_value(CheckKind::Reject).unwrap(), json!("reject"));
+        assert_eq!(to_value(Algorithm::Secp256r1).unwrap(), json!("secp256r1"));
+        assert_eq!(to_value(ScopeKind::Previous).unwrap(), json!("previous"));
+        assert_eq!(
+            from_value::<ScopeKind>(json!({ "public_key": "ed25519" })).unwrap(),
+            ScopeKind::PublicKey(Algorithm::Ed25519)
+        );
+    }
+
+    #[cfg(feature = "serde-types")]
+    #[test]
+    fn serde_defaults() {
+        use serde_json::{from_value, json};
+
+        assert_eq!(
+            from_value::<DeserializationLimits>(json!({})).unwrap(),
+            DeserializationLimits::allow_everything()
+        );
+
+        let mut expected = DeserializationLimits::allow_everything();
+        expected.max_blocks = 4;
+        expected.attenuations.allow_closures = false;
+        expected.attenuations.allowed_term_types = Some(HashSet::from([TermType::Integer]));
+        assert_eq!(
+            from_value::<DeserializationLimits>(json!({
+                "max_blocks": 4,
+                "attenuations": {
+                    "allow_closures": false,
+                    "allowed_term_types": ["integer"],
+                },
+            }))
+            .unwrap(),
+            expected
+        );
+
+        assert!(from_value::<DeserializationLimits>(json!({ "max_block": 4 })).is_err());
+    }
 
     // destructuring without `..` makes this fail to compile when a setting is added, so
     // that its `allow_nothing` value and its enforcement test are not forgotten

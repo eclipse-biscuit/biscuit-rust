@@ -13,7 +13,7 @@ use thiserror::Error;
 
 /// the global error type for Biscuit
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 pub enum Token {
     #[error("internal error")]
     InternalError,
@@ -88,7 +88,7 @@ impl From<Execution> for Token {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 pub enum Base64Error {
     InvalidByte(usize, u8),
     InvalidLength(usize),
@@ -116,7 +116,7 @@ impl std::fmt::Display for Base64Error {
 /// Errors related to the token's serialization format or cryptographic
 /// signature
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 pub enum Format {
     #[error("failed verifying the signature")]
     Signature(Signature),
@@ -178,7 +178,7 @@ pub enum Format {
 /// Errors that occur when a token as a whole does not respect the [crate::DeserializationLimits]
 /// it was deserialized with
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 #[non_exhaustive]
 pub enum TokenLimit {
     #[error("the token is too large")]
@@ -194,7 +194,7 @@ pub enum TokenLimit {
 /// Errors that occur when a block does not respect the [crate::DeserializationLimits] its token was
 /// deserialized with
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 #[non_exhaustive]
 pub enum BlockLimit {
     #[error("a Datalog block is too large")]
@@ -285,7 +285,7 @@ impl BlockLimit {
 
 /// Signature errors
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 pub enum Signature {
     #[error("could not parse the signature elements")]
     InvalidFormat,
@@ -297,7 +297,7 @@ pub enum Signature {
 
 /// errors in the Datalog evaluation
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 pub enum Logic {
     #[error("a rule provided by a block is producing a fact with unbound variables")]
     InvalidBlockRule(u32, String),
@@ -318,7 +318,7 @@ pub enum Logic {
 }
 
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 pub enum MatchedPolicy {
     #[error("an allow policy matched (policy index: {0})")]
     Allow(usize),
@@ -328,7 +328,7 @@ pub enum MatchedPolicy {
 
 /// check errors
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 pub enum FailedCheck {
     #[error("{0}")]
     Block(FailedBlockCheck),
@@ -344,7 +344,7 @@ fn display_failed_checks(c: &[FailedCheck]) -> String {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 pub struct FailedBlockCheck {
     pub block_id: u32,
     pub check_id: u32,
@@ -363,7 +363,7 @@ impl Display for FailedBlockCheck {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 pub struct FailedAuthorizerCheck {
     pub check_id: u32,
     /// pretty print of the rule that failed
@@ -378,7 +378,7 @@ impl Display for FailedAuthorizerCheck {
 
 /// Datalog execution errors
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 pub enum Execution {
     #[error("Reached Datalog execution limits")]
     RunLimit(RunLimit),
@@ -388,7 +388,7 @@ pub enum Execution {
 
 /// Datalog expression execution failure
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 pub enum Expression {
     #[error("Unknown symbol")]
     UnknownSymbol(u64),
@@ -412,7 +412,7 @@ pub enum Expression {
 
 /// runtime limits errors
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 pub enum RunLimit {
     #[error("too many facts generated")]
     TooManyFacts,

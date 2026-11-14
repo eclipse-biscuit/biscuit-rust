@@ -32,11 +32,11 @@ jobs:
       - name: Build
         run: cargo build --locked --verbose
       - name: Run tests
-        run: cargo test --locked --features="serde-error,bwk" --verbose
+        run: cargo test --locked --features="serde-types,bwk" --verbose
       - name: Check samples
         run: |
           cd biscuit-auth
-          cargo run --locked --release --example testcases --features serde-error,unsafe-protobuf-access -- ./samples --json > ./samples/samples.json
+          cargo run --locked --release --example testcases --features serde-types,unsafe-protobuf-access -- ./samples --json > ./samples/samples.json
           git diff --exit-code
 
   licenses:
@@ -153,7 +153,7 @@ jobs:
           # biscuit-quote only has a trybuild compile-fail test, which exceeds
           # tarpaulin's per-test timeout and yields no coverage (proc macros run
           # inside rustc, outside the traced test binary).
-          args: --output-dir coverage --out xml --workspace --exclude biscuit-quote --features serde-error,unsafe-protobuf-access --tests --example testcases --example third_party
+          args: --output-dir coverage --out xml --workspace --exclude biscuit-quote --features serde-types,unsafe-protobuf-access --tests --example testcases --example third_party
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
