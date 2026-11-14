@@ -15,7 +15,7 @@ Eclipse projects can only be released within the validity period of a release re
 ```
 (you’ll need to download the [eclipse dash licenses jar](repo.eclipse.org/content/repositories/dash-licenses/org/eclipse/dash/org.eclipse.dash.licenses/))
 
-This step should be automated at some point.
+This check runs in CI, in the `licenses` job of `.github/workflows/rust.yml`.
 
 ## Requesting a release review
 
