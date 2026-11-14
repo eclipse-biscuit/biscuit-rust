@@ -44,6 +44,7 @@ jobs:
     continue-on-error: true
     env:
       DASH_VERSION: 1.1.0
+      DASH_SHA256: ba4e84e1981f0e51f92a42ec8fc8b9668dabb08d1279afde46b8414e11752b06
 
     steps:
       - uses: actions/checkout@v4
@@ -62,7 +63,9 @@ jobs:
         if: steps.dash-cache.outputs.cache-hit != 'true'
         run: |
           curl -fsSL -o dash-licenses.jar \
-            https://repo.eclipse.org/content/repositories/dash-licenses/org/eclipse/dash/org.eclipse.dash.licenses/$DASH_VERSION/org.eclipse.dash.licenses-$DASH_VERSION.jar
+            https://clementd-files.cellar-c2.services.clever-cloud.com/org.eclipse.dash.licenses-$DASH_VERSION.jar
+      - name: Verify the Eclipse Dash license tool
+        run: echo "$DASH_SHA256  dash-licenses.jar" | sha256sum -c
       - name: Check dependency licenses
         # the tool exits with the number of dependencies that are not approved
         shell: bash
