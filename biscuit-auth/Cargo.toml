@@ -1,6 +1,6 @@
 [package]
 name = "biscuit-auth"
-version = "7.0.0-alpha.2"
+version = "7.0.0-alpha.3"
 description = "an authorization token with decentralized verification and offline attenuation"
 authors = ["Geoffroy Couprie <contact@geoffroycouprie.com>"]
 edition = "2018"
@@ -31,7 +31,6 @@ pem = ["ed25519-dalek/pem", "ed25519-dalek/pkcs8"]
 [dependencies]
 rand_core = "0.10"
 prost = "0.14.3"
-prost-types = "0.14.3"
 regex = { version = "1.5", default-features = false, features = ["std"] }
 nom = { version = "8.0.0", default-features = false, features = ["std"] }
 hex = "0.4"
