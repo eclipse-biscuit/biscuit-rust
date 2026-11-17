@@ -36,6 +36,9 @@
 - `TrustedOrigin`'s `Default` implementation changed to match its previous inherent `default`
   function (#327)
 - `format::schema` types are not re-exported anymore
+- `BiscuitWebKey::expires_at` is now an `Option<time::OffsetDateTime>` instead of an
+  `Option<chrono::DateTime<FixedOffset>>`; the `bwk` feature no longer depends on `chrono`. The
+  serialized format (RFC 3339) is unchanged.
 
 # `6.0.0`
 

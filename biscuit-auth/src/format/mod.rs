@@ -659,10 +659,9 @@ mod tests {
         if generated != commited {
             println!(
                 "{}",
-                colored_diff::PrettyDifference {
-                    expected: &generated,
-                    actual: &commited
-                }
+                similar::TextDiff::from_lines(&generated, &commited)
+                    .unified_diff()
+                    .header("generated", "commited")
             );
             panic!();
         }
