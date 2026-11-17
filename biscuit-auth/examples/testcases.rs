@@ -315,6 +315,7 @@ struct Checks {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(tag = "type", content = "value", rename_all = "snake_case")]
 enum AuthorizerResult {
     Ok(usize),
     Err(error::Token),

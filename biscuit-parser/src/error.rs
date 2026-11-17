@@ -5,7 +5,11 @@
 use thiserror::Error;
 
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde-types",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(tag = "type", content = "value", rename_all = "snake_case")
+)]
 pub enum LanguageError {
     #[error("datalog parsing error: {0:?}")]
     ParseError(ParseErrors),
