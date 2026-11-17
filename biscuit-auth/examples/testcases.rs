@@ -537,7 +537,12 @@ fn decode_proto(serialized: &SerializedBiscuit) -> schema::Biscuit {
 
 fn print_diff(actual: &str, expected: &str) {
     if actual != expected {
-        println!("{}", colored_diff::PrettyDifference { expected, actual })
+        println!(
+            "{}",
+            similar::TextDiff::from_lines(expected, actual)
+                .unified_diff()
+                .header("expected", "actual")
+        )
     }
 }
 

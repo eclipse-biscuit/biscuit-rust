@@ -19,7 +19,7 @@ serde-error = ["serde", "biscuit-parser/serde-error"]
 # used by biscuit-quote to parse datalog at compile-time
 datalog-macro = ["biscuit-quote"]
 # used to expose public key information in a standard format
-bwk = ["chrono", "serde"]
+bwk = ["serde", "time/serde"]
 docsrs = []
 # exposes the Protobuf structures and their conversions
 # this is only used by tests to construct invalid tokens on purpose
@@ -45,17 +45,13 @@ time = { version = "0.3.7", features = ["formatting", "parsing"] }
 uuid = { version = "1", optional = true }
 biscuit-parser = { version = "0.3.0-alpha.1", path = "../biscuit-parser" }
 biscuit-quote = { version = "0.4.0-alpha.1", optional = true, path = "../biscuit-quote" }
-chrono = { version = "0.4.26", optional = true, default-features = false, features = [
-  "serde",
-] }
 serde_json = "1.0.117"
 p256 = { version = "0.14", features = ["alloc", "pem", "pkcs8", "serde"] }
 
 [dev-dependencies]
 bencher = "0.1.5"
 rand = "0.10"
-chrono = { version = "0.4.26", features = ["serde", "clock"] }
-colored-diff = "0.2.3"
+similar = "2"
 prost-build = "0.14.3"
 serde = { version = "1.0.130", features = ["derive"] }
 serde_json = "1.0.67"

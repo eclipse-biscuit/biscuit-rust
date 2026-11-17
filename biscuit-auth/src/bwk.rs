@@ -4,8 +4,8 @@
  */
 use std::convert::TryFrom;
 
-use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 
 use crate::builder::Algorithm;
 use crate::{error, PublicKey};
@@ -17,7 +17,7 @@ pub struct BiscuitWebKey {
     pub public_key: PublicKey,
     pub key_id: u32,
     pub issuer: Option<String>,
-    pub expires_at: Option<DateTime<FixedOffset>>,
+    pub expires_at: Option<OffsetDateTime>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -26,7 +26,8 @@ struct BiscuitWebKeyRepr {
     pub key_bytes: String,
     pub key_id: u32,
     pub issuer: Option<String>,
-    pub expires_at: Option<DateTime<FixedOffset>>,
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub expires_at: Option<OffsetDateTime>,
 }
 
 impl From<BiscuitWebKey> for BiscuitWebKeyRepr {
@@ -60,7 +61,7 @@ impl TryFrom<BiscuitWebKeyRepr> for BiscuitWebKey {
 #[cfg(test)]
 mod tests {
     use crate::PrivateKey;
-    use chrono::Utc;
+    use time::format_description::well_known::Rfc3339;
 
     use super::*;
 
@@ -94,7 +95,7 @@ mod tests {
         let bwk = BiscuitWebKey {
             public_key: keypair.public(),
             key_id: 0,
-            expires_at: Some(Utc::now().fixed_offset()),
+            expires_at: Some(OffsetDateTime::now_utc()),
             issuer: Some("test".to_string()),
         };
 
@@ -125,7 +126,7 @@ mod tests {
                 .unwrap(),
                 key_id: 12,
                 expires_at: Some(
-                    DateTime::parse_from_rfc3339("2023-06-28T11:20:00+02:00").unwrap()
+                    OffsetDateTime::parse("2023-06-28T11:20:00+02:00", &Rfc3339).unwrap()
                 ),
                 issuer: Some("test".to_string())
             }

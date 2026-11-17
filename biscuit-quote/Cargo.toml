@@ -16,8 +16,8 @@ proc-macro = true
 biscuit-parser = { path = "../biscuit-parser", features = ["datalog-macro"], version = "0.3.0-alpha.1" }
 proc-macro2 = "1"
 quote = "1.0.14"
-syn = { version = "2.0.117", features = ["full", "extra-traits"] }
-manyhow = "0.11"
+syn = { version = "3", features = ["full", "extra-traits"] }
+manyhow = "0.14"
 
 [dev-dependencies]
 biscuit-auth = { path = "../biscuit-auth" }
