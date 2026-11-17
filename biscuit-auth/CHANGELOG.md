@@ -15,6 +15,7 @@
   `std::time::Instant`.
 - `Authorizer` now carries a step counter that aborts datalog evaluation after a given number of operations. This is more reliable and finer-grained than the timer approach (#352, #357)
 - `DeserializationLimits` allows rejecting tokens at deserialization time based on various criteria (size, block count, signature algorithms, datalog features) (#360)
+- `Display` for `Biscuit` prints third-party blocks with their own symbol table instead of the token's (Tymofii Pidlisnyi)
 
 ## Breaking changes
 
