@@ -6,6 +6,8 @@
 
 - Bump nom version in exported types
 - Update macro codegen to follow biscuit-auth 7.0.0 changes 
+- The `serde-error` feature is renamed to `serde-types`
+- `LanguageError`’s JSON encoding is now `snake_case`d and adjacently-tagged (`type` / `value` fields)
 
 # `0.2.0`
 

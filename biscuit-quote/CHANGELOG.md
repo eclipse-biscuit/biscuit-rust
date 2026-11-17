@@ -3,6 +3,7 @@
 - macro parameters are set through `set_lenient` and `set_scope_lenient` instead of the dedicated
   `set_macro_param` and `set_macro_scope_param` methods, which are removed. This requires
   `biscuit-auth` 7.0.0.
+- Update to `syn` 3
 
 # `0.3.0`
 
