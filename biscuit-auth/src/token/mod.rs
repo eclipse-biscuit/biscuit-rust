@@ -398,7 +398,7 @@ impl<K: SerializePrivateKey> Display for Biscuit<K> {
             .inner
             .blocks
             .iter()
-            .map(|block| print_block(symbols, block))
+            .map(|block| print_block(self.inner.block_symbol_table(block), block))
             .collect();
 
         write!(f, "Biscuit {{\n    symbols: {:?}\n    public keys: {:?}\n    authority: {}\n    blocks: [\n        {}\n    ]\n}}",
@@ -1445,5 +1445,45 @@ mod tests {
         assert_eq!(token.block_symbols(index).unwrap_err(), expected);
         assert_eq!(unverified.print_block_source(index).unwrap_err(), expected);
         assert_eq!(unverified.block_version(index).unwrap_err(), expected);
+    }
+
+    // a third-party block carries its own symbol table, so Display has to print it with that table
+    #[test]
+    fn display_third_party_block_symbols() {
+        let mut rng: StdRng = SeedableRng::seed_from_u64(0);
+        let root = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let external = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let token = Biscuit::builder()
+            .fact("right(\"hotel\", \"book\")")
+            .unwrap()
+            .build_with_rng(&root, default_symbol_table(), &mut rng)
+            .unwrap();
+        let block = token
+            .third_party_request()
+            .unwrap()
+            .create_block(
+                &external,
+                BlockBuilder::new()
+                    .fact("right(\"flights\", \"book\")")
+                    .unwrap(),
+            )
+            .unwrap();
+        let token = token.append_third_party(external.public(), block).unwrap();
+
+        assert_eq!(
+            token.print_block_source(1).unwrap(),
+            "right(\"flights\", \"book\");\n"
+        );
+        let printed = token.print();
+        assert_eq!(
+            printed.matches("right(\"hotel\", \"book\")").count(),
+            1,
+            "{printed}"
+        );
+        assert_eq!(
+            printed.matches("right(\"flights\", \"book\")").count(),
+            1,
+            "{printed}"
+        );
     }
 }
