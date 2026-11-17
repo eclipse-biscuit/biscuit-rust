@@ -72,7 +72,7 @@ checksum = "7dfdb4953a096c551ce9ace855a604d702e6e62d77fac690575ae347571717f5"
 
 [[package]]
 name = "biscuit-auth"
-version = "7.0.0-alpha.3"
+version = "7.0.0-alpha.4"
 dependencies = [
  "base64",
  "bencher",
@@ -110,7 +110,7 @@ dependencies = [
 
 [[package]]
 name = "biscuit-parser"
-version = "0.3.0-alpha.1"
+version = "0.3.0-alpha.2"
 dependencies = [
  "hex",
  "nom",
@@ -123,7 +123,7 @@ dependencies = [
 
 [[package]]
 name = "biscuit-quote"
-version = "0.4.0-alpha.1"
+version = "0.4.0-alpha.2"
 dependencies = [
  "biscuit-auth",
  "biscuit-parser",
