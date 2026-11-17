@@ -5,7 +5,11 @@
 use thiserror::Error;
 
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde-types",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(tag = "type", content = "value", rename_all = "snake_case")
+)]
 pub enum LanguageError {
     #[error("datalog parsing error: {0:?}")]
     ParseError(ParseErrors),
@@ -17,13 +21,13 @@ pub enum LanguageError {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 pub struct ParseErrors {
     pub errors: Vec<ParseError>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde-error", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde-types", derive(serde::Serialize, serde::Deserialize))]
 pub struct ParseError {
     pub input: String,
     pub message: Option<String>,

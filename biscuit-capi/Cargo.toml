@@ -15,7 +15,7 @@ capi = []
 [dependencies]
 biscuit-auth = { version = "7.0.0-alpha.1", path = "../biscuit-auth", features = [
     "datalog-macro",
-    "serde-error",
+    "serde-types",
     "pem",
 ] }
 libc = "0.2"

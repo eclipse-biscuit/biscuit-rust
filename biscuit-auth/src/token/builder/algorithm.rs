@@ -11,6 +11,11 @@ use std::{
 use crate::error;
 
 #[derive(Debug, Copy, Clone, PartialEq, Hash, Eq)]
+#[cfg_attr(
+    feature = "serde-types",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(rename_all = "snake_case")
+)]
 #[non_exhaustive]
 pub enum Algorithm {
     Ed25519,

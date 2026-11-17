@@ -39,6 +39,11 @@
 - `BiscuitWebKey::expires_at` is now an `Option<time::OffsetDateTime>` instead of an
   `Option<chrono::DateTime<FixedOffset>>`; the `bwk` feature no longer depends on `chrono`. The
   serialized format (RFC 3339) is unchanged.
+- The `serde-error` feature is renamed to `serde-types`. In
+  addition to errors, it derives `Serialize` and `Deserialize` for `DeserializationLimits`,
+  `BlockLimits` and the enums they use. When deserializing limits, missing fields default to
+  `allow_everything()` and unknown fields are rejected.
+- Error types’ JSON encoding is now `snake_case`d, enums with data are adjacently-tagged (`type` / ` value` fields). This affects the samples file, and dependencies relying on the `serde-types` (formerly `serde-errors`) feature.
 
 # `6.0.0`
 

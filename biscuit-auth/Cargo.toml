@@ -14,8 +14,8 @@ repository = "https://github.com/eclipse-biscuit/biscuit-rust"
 default = ["regex-full", "datalog-macro", "pem"]
 regex-full = ["regex/perf", "regex/unicode"]
 wasm = ["wasm-bindgen"]
-# used by biscuit-wasm to serialize errors to JSON
-serde-error = ["serde", "biscuit-parser/serde-error"]
+# serde support for errors and deserialization limits
+serde-types = ["serde", "biscuit-parser/serde-types"]
 # used by biscuit-quote to parse datalog at compile-time
 datalog-macro = ["biscuit-quote"]
 # used to expose public key information in a standard format
@@ -62,7 +62,7 @@ codspeed-bencher-compat = "2.6.0"
 
 [[example]]
 name = "testcases"
-required-features = ["serde-error", "unsafe-protobuf-access"]
+required-features = ["serde-types", "unsafe-protobuf-access"]
 path = "examples/testcases.rs"
 
 [[bench]]

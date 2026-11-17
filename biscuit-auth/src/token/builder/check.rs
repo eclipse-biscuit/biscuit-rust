@@ -23,6 +23,11 @@ pub struct Check {
 
 /// Builder for a Biscuit check
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    feature = "serde-types",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(rename_all = "snake_case")
+)]
 #[non_exhaustive]
 pub enum CheckKind {
     One,
