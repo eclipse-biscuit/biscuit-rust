@@ -45,6 +45,7 @@
   `BlockLimits` and the enums they use. When deserializing limits, missing fields default to
   `allow_everything()` and unknown fields are rejected.
 - Error types’ JSON encoding is now `snake_case`d, enums with data are adjacently-tagged (`type` / `value` fields), and enums without data (`TokenLimit`, `BlockLimit`) are plain strings. This affects the samples file (where results are now `{"type": "ok" | "err", "value": …}`), and dependencies relying on the `serde-types` (formerly `serde-error`) feature.
+- Remove `error::Format::SignatureDeserializationError` is removed: it was never returned (#303). It is kept in the C API to avoid changing the enum int values.
 
 # `6.0.0`
 
