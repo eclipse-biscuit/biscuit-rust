@@ -470,7 +470,7 @@ impl Authorizer {
 
         for (i, check) in self.authorizer_block_builder.checks.iter().enumerate() {
             let c = check.convert(&mut self.symbols);
-            let mut successful = false;
+            let mut matched = false;
 
             for query in check.queries.iter() {
                 let query = query.convert(&mut self.symbols);
@@ -494,7 +494,7 @@ impl Authorizer {
                         &self.symbols,
                         steps,
                     )?,
-                    CheckKind::Reject => !self.world.query_match(
+                    CheckKind::Reject => self.world.query_match(
                         query,
                         usize::MAX,
                         &rule_trusted_origins,
@@ -509,12 +509,12 @@ impl Authorizer {
                 }
 
                 if res {
-                    successful = true;
+                    matched = true;
                     break;
                 }
             }
 
-            if !successful {
+            if matched == (check.kind == CheckKind::Reject) {
                 errors.push(error::FailedCheck::Authorizer(
                     error::FailedAuthorizerCheck {
                         check_id: i as u32,
@@ -526,7 +526,7 @@ impl Authorizer {
 
         if let Some(blocks) = self.blocks.as_ref() {
             for (j, check) in blocks[0].checks.iter().enumerate() {
-                let mut successful = false;
+                let mut matched = false;
 
                 let authority_trusted_origins = TrustedOrigins::from_scopes(
                     &blocks[0].scopes,
@@ -556,7 +556,7 @@ impl Authorizer {
                             &self.symbols,
                             steps,
                         )?,
-                        CheckKind::Reject => !self.world.query_match(
+                        CheckKind::Reject => self.world.query_match(
                             query.clone(),
                             0,
                             &rule_trusted_origins,
@@ -571,12 +571,12 @@ impl Authorizer {
                     }
 
                     if res {
-                        successful = true;
+                        matched = true;
                         break;
                     }
                 }
 
-                if !successful {
+                if matched == (check.kind == CheckKind::Reject) {
                     errors.push(error::FailedCheck::Block(error::FailedBlockCheck {
                         block_id: 0u32,
                         check_id: j as u32,
@@ -629,7 +629,7 @@ impl Authorizer {
                 );
 
                 for (j, check) in block.checks.iter().enumerate() {
-                    let mut successful = false;
+                    let mut matched = false;
 
                     for query in check.queries.iter() {
                         let rule_trusted_origins = TrustedOrigins::from_scopes(
@@ -653,7 +653,7 @@ impl Authorizer {
                                 &self.symbols,
                                 steps,
                             )?,
-                            CheckKind::Reject => !self.world.query_match(
+                            CheckKind::Reject => self.world.query_match(
                                 query.clone(),
                                 i + 1,
                                 &rule_trusted_origins,
@@ -668,12 +668,12 @@ impl Authorizer {
                         }
 
                         if res {
-                            successful = true;
+                            matched = true;
                             break;
                         }
                     }
 
-                    if !successful {
+                    if matched == (check.kind == CheckKind::Reject) {
                         errors.push(error::FailedCheck::Block(error::FailedBlockCheck {
                             block_id: (i + 1) as u32,
                             check_id: j as u32,

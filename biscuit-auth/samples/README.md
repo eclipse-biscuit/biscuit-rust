@@ -2640,6 +2640,60 @@ World {
 ```
 
 result: `Err(FailedLogic(Unauthorized { policy: Allow(0), checks: [Block(FailedBlockCheck { block_id: 0, check_id: 0, rule: "reject if test($test), $test" })] }))`
+### validation for "rejection with or"
+
+authorizer code:
+```
+test(false);
+
+reject if true or false;
+
+allow if true;
+```
+
+revocation ids:
+- `8d175329f7cf161f3cb5badc52f0e22e520956cdb565edbed963e9b047b20a314a7de1c9eba6b7bbf622636516ab3cc7f91572ae9461d3152825e0ece5127a0a`
+
+authorizer world:
+```
+World {
+  facts: [
+    Facts {
+        origin: {
+            None,
+        },
+        facts: [
+            "test(false)",
+        ],
+    },
+]
+  rules: []
+  checks: [
+    Checks {
+        origin: Some(
+            0,
+        ),
+        checks: [
+            "reject if test($test), $test",
+        ],
+    },
+    Checks {
+        origin: Some(
+            18446744073709551615,
+        ),
+        checks: [
+            "reject if true or false",
+        ],
+    },
+]
+  policies: [
+    "allow if true",
+]
+  elapsed steps: 1
+}
+```
+
+result: `Err(FailedLogic(Unauthorized { policy: Allow(0), checks: [Authorizer(FailedAuthorizerCheck { check_id: 0, rule: "reject if true or false" })] }))`
 
 
 ------------------------------
