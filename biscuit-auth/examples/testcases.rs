@@ -352,8 +352,8 @@ fn validate_token_with_limits_and_external_functions(
 
     let mut revocation_ids = vec![];
 
-    for bytes in token.revocation_identifiers() {
-        revocation_ids.push(hex::encode(&bytes));
+    for revocation_id in token.revocation_identifiers() {
+        revocation_ids.push(hex::encode(&revocation_id.id));
     }
 
     let builder = AuthorizerBuilder::new()

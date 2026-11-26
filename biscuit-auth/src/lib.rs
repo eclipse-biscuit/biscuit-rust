@@ -263,6 +263,7 @@ pub use token::limits::{BlockLimits, DeserializationLimits};
 pub use token::public_keys;
 pub use token::unverified::UnverifiedBiscuit;
 pub use token::Biscuit;
+pub use token::RevocationId;
 pub use token::RootKeyProvider;
 pub use token::{ThirdPartyBlock, ThirdPartyRequest};
 

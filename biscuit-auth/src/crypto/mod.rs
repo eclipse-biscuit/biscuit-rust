@@ -28,6 +28,7 @@ use crate::builder::Algorithm;
 use super::error;
 
 pub use self::traits::{Verify, Sign, SerializePublicKey, SerializePrivateKey};
+pub(crate) use self::p256::malleated_signature;
 
 /// the private part of a signing key pair
 #[derive(Debug, Clone, PartialEq)]
