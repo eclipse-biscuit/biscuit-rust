@@ -2051,6 +2051,14 @@ fn reject_if(target: &str, root: &PrivateKey, test: bool) -> TestResult {
         "rejection".to_string(),
         validate_token(root, &data[..], "test(true); allow if true"),
     );
+    validations.insert(
+        "rejection with or".to_string(),
+        validate_token(
+            root,
+            &data[..],
+            "test(false); reject if true or false; allow if true",
+        ),
+    );
 
     TestResult {
         title,

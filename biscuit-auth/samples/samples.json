@@ -2528,6 +2528,67 @@
           "revocation_ids": [
             "8d175329f7cf161f3cb5badc52f0e22e520956cdb565edbed963e9b047b20a314a7de1c9eba6b7bbf622636516ab3cc7f91572ae9461d3152825e0ece5127a0a"
           ]
+        },
+        "rejection with or": {
+          "world": {
+            "facts": [
+              {
+                "origin": [
+                  null
+                ],
+                "facts": [
+                  "test(false)"
+                ]
+              }
+            ],
+            "rules": [],
+            "checks": [
+              {
+                "origin": 0,
+                "checks": [
+                  "reject if test($test), $test"
+                ]
+              },
+              {
+                "origin": 18446744073709551615,
+                "checks": [
+                  "reject if true or false"
+                ]
+              }
+            ],
+            "policies": [
+              "allow if true"
+            ],
+            "elapsed_steps": 1
+          },
+          "result": {
+            "type": "err",
+            "value": {
+              "type": "failed_logic",
+              "value": {
+                "type": "unauthorized",
+                "value": {
+                  "policy": {
+                    "type": "allow",
+                    "value": 0
+                  },
+                  "checks": [
+                    {
+                      "type": "authorizer",
+                      "value": {
+                        "check_id": 0,
+                        "rule": "reject if true or false"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "authorizer_code": "test(false);\n\nreject if true or false;\n\nallow if true;\n",
+          "revocation_ids": [
+            "8d175329f7cf161f3cb5badc52f0e22e520956cdb565edbed963e9b047b20a314a7de1c9eba6b7bbf622636516ab3cc7f91572ae9461d3152825e0ece5127a0a"
+          ]
         }
       }
     },
