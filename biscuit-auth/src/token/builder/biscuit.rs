@@ -18,8 +18,8 @@ use std::{collections::HashMap, convert::TryInto, fmt::Write};
 
 /// creates a Biscuit
 pub struct BiscuitBuilder<K = PrivateKey> {
-    inner: BlockBuilder,
-    root_key_id: Option<u32>,
+    pub(crate) inner: BlockBuilder,
+    pub(crate) root_key_id: Option<u32>,
     _marker: PhantomData<K>,
 }
 
