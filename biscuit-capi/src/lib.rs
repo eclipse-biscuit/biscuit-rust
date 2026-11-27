@@ -97,7 +97,8 @@ pub enum ErrorKind {
     FormatInvalidKeySize,
     FormatInvalidSignatureSize,
     FormatInvalidKey,
-    FormatSignatureDeserializationError,
+    // Not present in rust anymore, kept to avoid shifting enum int repr
+    UnusedFormatSignatureDeserializationError,
     FormatBlockSignatureDeserializationError,
     FormatSignatureInvalidSignatureGeneration,
     AlreadySealed,
@@ -148,9 +149,6 @@ pub extern "C" fn error_kind() -> ErrorKind {
                         ErrorKind::FormatInvalidSignatureSize
                     }
                     Token::Format(Format::InvalidKey(_)) => ErrorKind::FormatInvalidKey,
-                    Token::Format(Format::SignatureDeserializationError(_)) => {
-                        ErrorKind::FormatSignatureDeserializationError
-                    }
                     Token::Format(Format::BlockSignatureDeserializationError(_)) => {
                         ErrorKind::FormatBlockSignatureDeserializationError
                     }
