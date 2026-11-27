@@ -259,6 +259,14 @@ impl Hash for PublicKey {
     }
 }
 
+/// returns the other valid form (low-s / high-s) of a DER encoded ECDSA signature
+pub(crate) fn malleated_signature(signature: &Signature) -> Option<Signature> {
+    let sig = p256::ecdsa::Signature::from_der(&signature.0).ok()?;
+    let (r, s) = sig.split_scalars();
+    let other = p256::ecdsa::Signature::from_scalars(r, -s).ok()?;
+    Some(Signature(other.to_der().as_bytes().to_owned()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -287,6 +295,28 @@ mod tests {
             .verify_signature(message.as_bytes(), &signature)
             .unwrap();
         //panic!();
+    }
+
+    #[test]
+    fn malleated() {
+        let private = PrivateKey::new_with_rng(&mut rand::rng());
+        let public = private.public();
+        let message = "hello world";
+        let signature = private.sign(message.as_bytes()).unwrap();
+
+        let other = malleated_signature(&signature).unwrap();
+        assert_ne!(signature.0, other.0);
+        public.verify_signature(message.as_bytes(), &other).unwrap();
+
+        assert_eq!(malleated_signature(&other).unwrap().0, signature.0);
+
+        let parsed = p256::ecdsa::Signature::from_der(&signature.0).unwrap();
+        let parsed_other = p256::ecdsa::Signature::from_der(&other.0).unwrap();
+        let low = parsed.normalize_s();
+        assert_eq!(low, parsed_other.normalize_s());
+        assert!(low == parsed || low == parsed_other);
+        assert_ne!(parsed, parsed_other);
+        assert!(malleated_signature(&Signature(vec![0u8; 64])).is_none());
     }
 
     #[test]

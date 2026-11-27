@@ -4,6 +4,7 @@
  */
 //! main structures to interact with Biscuit tokens
 use std::fmt::{self, Debug, Display, Formatter};
+use std::iter::once;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -15,7 +16,7 @@ use self::public_keys::PublicKeys;
 use super::datalog::SymbolTable;
 use super::error;
 use super::format::SerializedBiscuit;
-use crate::crypto::{PrivateKey, PublicKey, SerializePrivateKey, Verify, Sign};
+use crate::crypto::{PrivateKey, PublicKey, SerializePrivateKey, Sign, Verify};
 use authorizer::Authorizer;
 use limits::DeserializationLimits;
 use parsed::ParsedToken;
@@ -42,6 +43,22 @@ pub const DATALOG_3_1: u32 = 4;
 pub const DATALOG_3_2: u32 = 5;
 /// starting version for datalog 3.3 features (reject if, closures, array/map, null, external functions, …)
 pub const DATALOG_3_3: u32 = 6;
+
+/// revocation identifier of a block
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RevocationId {
+    /// the block's signature
+    pub id: Vec<u8>,
+    /// for ECDSA signatures, the other valid form (low-s / high-s) of the signature
+    pub alternate: Option<Vec<u8>>,
+}
+
+impl RevocationId {
+    /// all the identifiers to check against a revocation list
+    pub fn ids(&self) -> impl Iterator<Item = &[u8]> {
+        once(self.id.as_slice()).chain(self.alternate.as_deref())
+    }
+}
 
 /// some symbols are predefined and available in every implementation, to avoid
 /// transmitting them with every token
@@ -201,11 +218,15 @@ impl<K: SerializePrivateKey> Biscuit<K> {
         self.inner.root_key_id()
     }
 
-    /// returns a list of revocation identifiers for each block, in order
+    /// returns the revocation identifiers of each block, in order
     ///
     /// revocation identifiers are unique: tokens generated separately with
     /// the same contents will have different revocation ids
-    pub fn revocation_identifiers(&self) -> Vec<Vec<u8>> {
+    ///
+    /// ECDSA signatures have two valid forms (low-s / high-s): the other form
+    /// is provided in [RevocationId::alternate], and must also be checked
+    /// against revocation lists
+    pub fn revocation_identifiers(&self) -> Vec<RevocationId> {
         self.inner.revocation_identifiers()
     }
 
@@ -858,6 +879,37 @@ mod tests {
             //"authorizer check 0 failed: check if revocation_id($0), $0 not in [2, 1234, 1, 5, 0]"
             assert!(res.is_ok());
         }
+    }
+
+    #[test]
+    fn revocation_ids() {
+        let mut rng: StdRng = SeedableRng::seed_from_u64(0);
+        let root = PrivateKey::new_with_rng(builder::Algorithm::Secp256r1, &mut rng);
+
+        let biscuit1 = Biscuit::builder()
+            .right("file1", "read")
+            .build_with_rng(&root, default_symbol_table(), &mut rng)
+            .unwrap();
+
+        let keypair2 = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let biscuit2 = biscuit1
+            .append_with_key(&keypair2, BlockBuilder::new())
+            .unwrap();
+
+        let keypair3 = PrivateKey::new_with_rng(builder::Algorithm::Ed25519, &mut rng);
+        let biscuit3 = biscuit2
+            .append_with_key(&keypair3, BlockBuilder::new())
+            .unwrap();
+
+        let ids = biscuit3.revocation_identifiers();
+        assert_eq!(ids.len(), 3);
+        for id in &ids[..2] {
+            assert!(id.alternate.is_some());
+            assert_ne!(id.alternate.as_ref(), Some(&id.id));
+            assert_eq!(id.ids().count(), 2);
+        }
+        assert!(ids[2].alternate.is_none());
+        assert_eq!(ids[2].ids().collect::<Vec<_>>(), vec![ids[2].id.as_slice()]);
     }
 
     #[test]

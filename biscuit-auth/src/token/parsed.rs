@@ -9,7 +9,7 @@ use base64::prelude::*;
 
 use super::limits::{BlockLimits, DeserializationLimits};
 use super::public_keys::PublicKeys;
-use super::{Block, ThirdPartyRequest};
+use super::{Block, RevocationId, ThirdPartyRequest};
 use crate::builder::{self, BlockBuilder};
 use crate::crypto::{self, SerializePrivateKey, Sign, Signature};
 use crate::datalog::SymbolTable;
@@ -199,10 +199,14 @@ impl<K: SerializePrivateKey> ParsedToken<K> {
         self.blocks().map(|block| block.context.clone()).collect()
     }
 
-    pub(crate) fn revocation_identifiers(&self) -> Vec<Vec<u8>> {
+    pub(crate) fn revocation_identifiers(&self) -> Vec<RevocationId> {
         once(&self.container.authority)
             .chain(self.container.blocks.iter())
-            .map(|block| block.signature.to_bytes().to_vec())
+            .map(|block| RevocationId {
+                id: block.signature.to_bytes().to_vec(),
+                alternate: crypto::malleated_signature(&block.signature)
+                    .map(|signature| signature.to_bytes().to_vec()),
+            })
             .collect()
     }
 

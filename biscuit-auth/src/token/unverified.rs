@@ -10,7 +10,7 @@ use prost::Message;
 use super::limits::DeserializationLimits;
 use super::parsed::ParsedToken;
 use super::public_keys::PublicKeys;
-use super::{default_symbol_table, Biscuit};
+use super::{default_symbol_table, Biscuit, RevocationId};
 use crate::crypto::SerializePrivateKey;
 use crate::{
     builder::{self, BlockBuilder},
@@ -199,11 +199,15 @@ impl<K: SerializePrivateKey> UnverifiedBiscuit<K> {
         self.inner.root_key_id()
     }
 
-    /// returns a list of revocation identifiers for each block, in order
+    /// returns the revocation identifiers of each block, in order
     ///
     /// revocation identifiers are unique: tokens generated separately with
     /// the same contents will have different revocation ids
-    pub fn revocation_identifiers(&self) -> Vec<Vec<u8>> {
+    ///
+    /// ECDSA signatures have two valid forms (low-s / high-s): the other form
+    /// is provided in [RevocationId::alternate], and must also be checked
+    /// against revocation lists
+    pub fn revocation_identifiers(&self) -> Vec<RevocationId> {
         self.inner.revocation_identifiers()
     }
 
